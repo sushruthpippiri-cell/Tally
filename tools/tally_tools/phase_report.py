@@ -21,6 +21,7 @@ from sqlalchemy.engine import make_url
 from tally_tools.run_tests import main as run_tests
 
 ROOT = Path(__file__).parents[2]
+GRANTS_SQL = ROOT / "deploy/postgres/grants.sql"
 REPORT_DIR = ROOT / "docs/test-reports"
 DEFAULT_TEST_DB = "postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally_test"
 
@@ -55,6 +56,12 @@ def reset_database(url: str) -> str:
         )
         conn.execute(f'DROP DATABASE IF EXISTS "{name}"')
         conn.execute(f'CREATE DATABASE "{name}"')
+    # A fresh database does not inherit the tally_app grants, so re-apply them (SEC-1.15).
+    dsn = make_url(url).render_as_string(hide_password=False)
+    with psycopg.connect(
+        dsn.replace("postgresql+psycopg://", "postgresql://"), autocommit=True
+    ) as conn:
+        conn.execute(GRANTS_SQL.read_text())
     return name
 
 
