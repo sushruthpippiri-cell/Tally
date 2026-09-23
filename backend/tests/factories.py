@@ -8,6 +8,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +26,7 @@ from app.models.enums import (
     SyncMode,
 )
 from app.models.masters import CostCentre, Group, Ledger, StockItem, VoucherType
+from app.models.vouchers import BillAllocation, Voucher, VoucherEntry, VoucherItem
 
 
 @asynccontextmanager
@@ -272,3 +274,100 @@ async def make_cost_centre(session: AsyncSession, company: Company, name: str) -
     session.add(centre)
     await session.flush()
     return centre
+
+
+Entry = tuple[str, str, str]  # (ledger name, "DEBIT" | "CREDIT", amount)
+Item = tuple[str, str, str, str]  # (stock item name, quantity, rate, amount)
+Bill = tuple[int, str, str, str]  # (entry index, allocation type, reference, amount)
+
+DEFAULT_ENTRIES: list[Entry] = [("Customer A", "DEBIT", "10000"), ("Sales", "CREDIT", "10000")]
+
+
+async def _by_name[M: (Ledger, StockItem)](
+    session: AsyncSession, model: type[M], company: Company, name: str
+) -> M:
+    found = await session.scalar(
+        select(model).where(model.company_id == company.company_id, model.name == name)
+    )
+    if found is None:
+        raise LookupError(f"no {model.__tablename__} row named {name!r} in this company")
+    return found
+
+
+async def make_voucher(
+    session: AsyncSession,
+    company: Company,
+    vtype: VoucherType,
+    voucher_date: date,
+    entries: list[Entry] | None = None,
+    items: list[Item] | None = None,
+    bills: list[Bill] | None = None,
+    status: str = "ACTIVE",
+    number: str | None = None,
+) -> Voucher:
+    """A voucher with normalized entries. Ledgers and stock items are looked up by name in the
+    company (create them first). Refuses unbalanced input: debits must equal credits."""
+    entries = DEFAULT_ENTRIES if entries is None else entries
+    signed = [
+        Decimal(amount) if AccountingDirection(d) is AccountingDirection.DEBIT else -Decimal(amount)
+        for _, d, amount in entries
+    ]
+    if sum(signed, Decimal(0)) != 0:
+        raise ValueError(f"unbalanced voucher: debits - credits = {sum(signed, Decimal(0))}")
+    voucher = Voucher(
+        **{**_synced(company), "status": status},
+        voucher_number=number,
+        voucher_type_id=vtype.voucher_type_id,
+        voucher_date=voucher_date,
+    )
+    session.add(voucher)
+    await session.flush()
+    rows: list[VoucherEntry] = []
+    for seq, ((ledger_name, direction, amount), amount_signed) in enumerate(
+        zip(entries, signed, strict=True)
+    ):
+        ledger = await _by_name(session, Ledger, company, ledger_name)
+        rows.append(
+            VoucherEntry(
+                company_id=company.company_id,
+                voucher_id=voucher.voucher_id,
+                ledger_id=ledger.ledger_id,
+                line_sequence=seq,
+                amount_raw=amount,
+                is_debit=direction == AccountingDirection.DEBIT,
+                amount_absolute=Decimal(amount),
+                amount_signed=amount_signed,
+                accounting_direction=direction,
+            )
+        )
+    session.add_all(rows)
+    await session.flush()
+    for entry_idx, allocation_type, reference, amount in bills or []:
+        entry = rows[entry_idx]
+        session.add(
+            BillAllocation(
+                company_id=company.company_id,
+                voucher_entry_id=entry.voucher_entry_id,
+                ledger_id=entry.ledger_id,
+                allocation_type_raw=allocation_type,
+                allocation_type=allocation_type,
+                reference_name=reference,
+                amount_absolute=Decimal(amount),
+                accounting_direction=entry.accounting_direction,
+            )
+        )
+    for item_name, quantity, rate, amount in items or []:
+        item = await _by_name(session, StockItem, company, item_name)
+        session.add(
+            VoucherItem(
+                company_id=company.company_id,
+                voucher_id=voucher.voucher_id,
+                stock_item_id=item.stock_item_id,
+                quantity=Decimal(quantity),
+                unit=item.base_unit,
+                rate=Decimal(rate),
+                amount=Decimal(amount),
+            )
+        )
+    await session.flush()
+    return voucher

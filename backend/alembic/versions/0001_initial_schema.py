@@ -275,6 +275,28 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('schedule_id', name=op.f('pk_sync_schedules'))
     )
     op.create_index(op.f('ix_sync_schedules_company_id'), 'sync_schedules', ['company_id'], unique=False)
+    op.create_table('vouchers',
+    sa.Column('voucher_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
+    sa.Column('status', sa.Text(), nullable=False),
+    sa.Column('voucher_number', sa.Text(), nullable=True),
+    sa.Column('voucher_type_id', sa.UUID(), nullable=False),
+    sa.Column('voucher_date', sa.Date(), nullable=False),
+    sa.Column('narration', sa.Text(), nullable=True),
+    sa.Column('custom_fields', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('tally_guid', sa.Text(), nullable=False),
+    sa.Column('alter_id', sa.BigInteger(), nullable=False),
+    sa.Column('last_synced_at', sa.DateTime(timezone=True), nullable=True),
+    sa.CheckConstraint("status IN ('ACTIVE', 'CANCELLED', 'MISSING_IN_TALLY')", name=op.f('ck_vouchers_status')),
+    sa.ForeignKeyConstraint(['company_id', 'voucher_type_id'], ['voucher_types.company_id', 'voucher_types.voucher_type_id'], name=op.f('fk_vouchers_company_id_voucher_type_id')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_vouchers_company_id')),
+    sa.PrimaryKeyConstraint('voucher_id', name=op.f('pk_vouchers')),
+    sa.UniqueConstraint('company_id', 'tally_guid', name=op.f('uq_vouchers_company_id_tally_guid')),
+    sa.UniqueConstraint('company_id', 'voucher_id', name=op.f('uq_vouchers_company_id_voucher_id'))
+    )
+    op.create_index(op.f('ix_vouchers_company_id_alter_id'), 'vouchers', ['company_id', 'alter_id'], unique=False)
+    op.create_index(op.f('ix_vouchers_company_id_voucher_date'), 'vouchers', ['company_id', 'voucher_date'], unique=False)
+    op.create_index(op.f('ix_vouchers_company_id_voucher_type_id_voucher_date'), 'vouchers', ['company_id', 'voucher_type_id', 'voucher_date'], unique=False)
     op.create_table('ledger_opening_balances',
     sa.Column('company_id', sa.UUID(), nullable=False),
     sa.Column('ledger_id', sa.UUID(), nullable=False),
@@ -306,6 +328,78 @@ def upgrade() -> None:
     sa.UniqueConstraint('company_id', 'ledger_id', 'financial_year_start', 'reference_name', name='uq_opening_bill_allocations_bill')
     )
     op.create_index(op.f('ix_opening_bill_allocations_company_id'), 'opening_bill_allocations', ['company_id'], unique=False)
+    op.create_table('voucher_entries',
+    sa.Column('voucher_entry_id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('voucher_id', sa.UUID(), nullable=False),
+    sa.Column('ledger_id', sa.UUID(), nullable=False),
+    sa.Column('line_sequence', sa.Integer(), nullable=False),
+    sa.Column('stable_line_id', sa.Text(), nullable=True),
+    sa.Column('amount_raw', sa.Text(), nullable=False),
+    sa.Column('is_debit', sa.Boolean(), nullable=False),
+    sa.Column('amount_absolute', sa.Numeric(precision=20, scale=4), nullable=False),
+    sa.Column('amount_signed', sa.Numeric(precision=20, scale=4), nullable=False),
+    sa.Column('accounting_direction', sa.Text(), nullable=False),
+    sa.CheckConstraint("accounting_direction IN ('DEBIT', 'CREDIT')", name=op.f('ck_voucher_entries_accounting_direction')),
+    sa.CheckConstraint("amount_signed = CASE WHEN accounting_direction = 'DEBIT' THEN amount_absolute ELSE -amount_absolute END", name=op.f('ck_voucher_entries_amount_signed')),
+    sa.CheckConstraint("is_debit = (accounting_direction = 'DEBIT')", name=op.f('ck_voucher_entries_is_debit')),
+    sa.CheckConstraint('amount_absolute >= 0', name=op.f('ck_voucher_entries_amount_absolute')),
+    sa.ForeignKeyConstraint(['company_id', 'ledger_id'], ['ledgers.company_id', 'ledgers.ledger_id'], name=op.f('fk_voucher_entries_company_id_ledger_id')),
+    sa.ForeignKeyConstraint(['company_id', 'voucher_id'], ['vouchers.company_id', 'vouchers.voucher_id'], name=op.f('fk_voucher_entries_company_id_voucher_id'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('voucher_entry_id', name=op.f('pk_voucher_entries')),
+    sa.UniqueConstraint('company_id', 'voucher_entry_id', name=op.f('uq_voucher_entries_company_id_voucher_entry_id'))
+    )
+    op.create_index(op.f('ix_voucher_entries_company_id_ledger_id'), 'voucher_entries', ['company_id', 'ledger_id'], unique=False)
+    op.create_index(op.f('ix_voucher_entries_voucher_id'), 'voucher_entries', ['voucher_id'], unique=False)
+    op.create_table('voucher_items',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('voucher_id', sa.UUID(), nullable=False),
+    sa.Column('stock_item_id', sa.UUID(), nullable=False),
+    sa.Column('quantity', sa.Numeric(precision=20, scale=6), nullable=False),
+    sa.Column('unit', sa.Text(), nullable=True),
+    sa.Column('rate', sa.Numeric(precision=20, scale=6), nullable=True),
+    sa.Column('amount', sa.Numeric(precision=20, scale=4), nullable=False),
+    sa.Column('custom_fields', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.ForeignKeyConstraint(['company_id', 'stock_item_id'], ['stock_items.company_id', 'stock_items.stock_item_id'], name=op.f('fk_voucher_items_company_id_stock_item_id')),
+    sa.ForeignKeyConstraint(['company_id', 'voucher_id'], ['vouchers.company_id', 'vouchers.voucher_id'], name=op.f('fk_voucher_items_company_id_voucher_id'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_voucher_items'))
+    )
+    op.create_index(op.f('ix_voucher_items_stock_item_id'), 'voucher_items', ['stock_item_id'], unique=False)
+    op.create_index(op.f('ix_voucher_items_voucher_id'), 'voucher_items', ['voucher_id'], unique=False)
+    op.create_table('bill_allocations',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('voucher_entry_id', sa.Integer(), nullable=False),
+    sa.Column('ledger_id', sa.UUID(), nullable=False),
+    sa.Column('allocation_type_raw', sa.Text(), nullable=True),
+    sa.Column('allocation_type', sa.Text(), nullable=False),
+    sa.Column('reference_name', sa.Text(), nullable=True),
+    sa.Column('due_date', sa.Date(), nullable=True),
+    sa.Column('amount_absolute', sa.Numeric(precision=20, scale=4), nullable=False),
+    sa.Column('accounting_direction', sa.Text(), nullable=False),
+    sa.CheckConstraint("accounting_direction IN ('DEBIT', 'CREDIT')", name=op.f('ck_bill_allocations_accounting_direction')),
+    sa.CheckConstraint("allocation_type IN ('NEW_REF', 'AGST_REF', 'ADVANCE', 'ON_ACCOUNT', 'UNSUPPORTED')", name=op.f('ck_bill_allocations_allocation_type')),
+    sa.CheckConstraint('amount_absolute >= 0', name=op.f('ck_bill_allocations_amount_absolute')),
+    sa.ForeignKeyConstraint(['company_id', 'ledger_id'], ['ledgers.company_id', 'ledgers.ledger_id'], name=op.f('fk_bill_allocations_company_id_ledger_id')),
+    sa.ForeignKeyConstraint(['company_id', 'voucher_entry_id'], ['voucher_entries.company_id', 'voucher_entries.voucher_entry_id'], name=op.f('fk_bill_allocations_company_id_voucher_entry_id'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_bill_allocations'))
+    )
+    op.create_index(op.f('ix_bill_allocations_company_id_ledger_id_reference_name'), 'bill_allocations', ['company_id', 'ledger_id', 'reference_name'], unique=False)
+    op.create_index(op.f('ix_bill_allocations_due_date'), 'bill_allocations', ['due_date'], unique=False)
+    op.create_index(op.f('ix_bill_allocations_voucher_entry_id'), 'bill_allocations', ['voucher_entry_id'], unique=False)
+    op.create_table('cost_centre_allocations',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('voucher_entry_id', sa.Integer(), nullable=False),
+    sa.Column('cost_centre_id', sa.UUID(), nullable=False),
+    sa.Column('amount_absolute', sa.Numeric(precision=20, scale=4), nullable=False),
+    sa.CheckConstraint('amount_absolute >= 0', name=op.f('ck_cost_centre_allocations_amount_absolute')),
+    sa.ForeignKeyConstraint(['company_id', 'cost_centre_id'], ['cost_centres.company_id', 'cost_centres.cost_centre_id'], name=op.f('fk_cost_centre_allocations_company_id_cost_centre_id')),
+    sa.ForeignKeyConstraint(['company_id', 'voucher_entry_id'], ['voucher_entries.company_id', 'voucher_entries.voucher_entry_id'], name=op.f('fk_cost_centre_allocations_company_id_voucher_entry_id'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_cost_centre_allocations'))
+    )
+    op.create_index(op.f('ix_cost_centre_allocations_voucher_entry_id'), 'cost_centre_allocations', ['voucher_entry_id'], unique=False)
     # ### end Alembic commands ###
     _upgrade_extras()
 
@@ -313,10 +407,26 @@ def upgrade() -> None:
 def downgrade() -> None:
     _downgrade_extras()
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_cost_centre_allocations_voucher_entry_id'), table_name='cost_centre_allocations')
+    op.drop_table('cost_centre_allocations')
+    op.drop_index(op.f('ix_bill_allocations_voucher_entry_id'), table_name='bill_allocations')
+    op.drop_index(op.f('ix_bill_allocations_due_date'), table_name='bill_allocations')
+    op.drop_index(op.f('ix_bill_allocations_company_id_ledger_id_reference_name'), table_name='bill_allocations')
+    op.drop_table('bill_allocations')
+    op.drop_index(op.f('ix_voucher_items_voucher_id'), table_name='voucher_items')
+    op.drop_index(op.f('ix_voucher_items_stock_item_id'), table_name='voucher_items')
+    op.drop_table('voucher_items')
+    op.drop_index(op.f('ix_voucher_entries_voucher_id'), table_name='voucher_entries')
+    op.drop_index(op.f('ix_voucher_entries_company_id_ledger_id'), table_name='voucher_entries')
+    op.drop_table('voucher_entries')
     op.drop_index(op.f('ix_opening_bill_allocations_company_id'), table_name='opening_bill_allocations')
     op.drop_table('opening_bill_allocations')
     op.drop_index(op.f('ix_ledger_opening_balances_company_id'), table_name='ledger_opening_balances')
     op.drop_table('ledger_opening_balances')
+    op.drop_index(op.f('ix_vouchers_company_id_voucher_type_id_voucher_date'), table_name='vouchers')
+    op.drop_index(op.f('ix_vouchers_company_id_voucher_date'), table_name='vouchers')
+    op.drop_index(op.f('ix_vouchers_company_id_alter_id'), table_name='vouchers')
+    op.drop_table('vouchers')
     op.drop_index(op.f('ix_sync_schedules_company_id'), table_name='sync_schedules')
     op.drop_table('sync_schedules')
     op.drop_index(op.f('ix_stock_snapshots_company_id'), table_name='stock_snapshots')
@@ -369,7 +479,14 @@ CREATE TRIGGER agent_commands_immutable_owner BEFORE UPDATE ON agent_commands
 
 # Synced records are never hard-deleted (SRS 5.1-5, DR-ML-1); lifecycle is a status change.
 # Row triggers do not fire on TRUNCATE, which only the owner role may run.
-NO_DELETE_TABLES = ["groups", "ledgers", "voucher_types", "stock_items", "cost_centres"]
+NO_DELETE_TABLES = [
+    "groups",
+    "ledgers",
+    "voucher_types",
+    "stock_items",
+    "cost_centres",
+    "vouchers",
+]
 FORBID_DELETE = """
 CREATE FUNCTION forbid_delete() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
