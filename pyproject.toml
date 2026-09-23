@@ -25,4 +25,69 @@ dev = [
   "hypothesis",
   "import-linter",
   "httpx",
+  # only so import-linter can resolve the forbidden externals; runtime dep arrives with P15
+  "anthropic",
+  "mcp",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["backend/alembic/versions"]
+
+[tool.ruff.lint]
+# T20: no print() anywhere, tests included (CLAUDE.md "Testing and logs")
+select = ["E", "F", "I", "UP", "B", "T20"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+mypy_path = "shared:backend:agent:tools"
+explicit_package_bases = true
+check_untyped_defs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+# strict for the contract package and backend core (P0.5)
+module = ["tally_contract.*", "app.core.*"]
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["shared/tests", "backend/tests", "agent/tests", "tools/tests"]
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+junit_family = "xunit2"
+# Capture DEBUG logs; pytest prints them for every failing test.
+log_level = "DEBUG"
+log_format = "%(asctime)s %(levelname)-8s %(name)s %(message)s"
+markers = ["req(*ids): requirement / acceptance-criteria IDs this test proves, e.g. req('SYNC-3.2', 'AC-06')"]
+
+[tool.coverage.run]
+source = ["tally_contract", "app", "tally_agent", "tally_tools"]
+branch = true
+
+[tool.coverage.report]
+omit = ["*/tests/*"]
+
+[tool.importlinter]
+root_packages = ["app", "tally_contract", "tally_agent", "anthropic", "mcp"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Analytics, reconciliation, sync and exports never touch AI (SRS 2.4-1, NFR-REL-1)"
+type = "forbidden"
+source_modules = ["app.analytics", "app.reconciliation", "app.sync", "app.exports"]
+forbidden_modules = ["app.anomaly", "anthropic", "mcp"]
+
+[[tool.importlinter.contracts]]
+name = "tally_contract does not import app or tally_agent"
+type = "forbidden"
+source_modules = ["tally_contract"]
+forbidden_modules = ["app", "tally_agent"]
+
+[[tool.importlinter.contracts]]
+name = "tally_agent does not import app"
+type = "forbidden"
+source_modules = ["tally_agent"]
+forbidden_modules = ["app"]
