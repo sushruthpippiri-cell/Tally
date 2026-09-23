@@ -1,10 +1,20 @@
 """Transcribe the SRS PDF into docs/srs/SRS_v7_3.md (P0.11).
 
-The text is `pdftotext -layout` output, unchanged except that section headings become Markdown
-headings and every body block is wrapped in a ```text fence so table columns survive. Nothing is
-summarized or reworded; `tests/test_srs_transcription.py` proves the words are identical.
+Two files are committed:
 
-    uv run python -m tally_tools.srs docs/srs/Tally_SRS_v7_3_Complete.pdf docs/srs/SRS_v7_3.md
+* ``SRS_v7_3.raw.txt`` - the exact ``pdftotext -layout`` output, the reference extraction.
+* ``SRS_v7_3.md``      - ``to_markdown()`` of that file: section headings become Markdown
+  headings and every body block is wrapped in a ``text`` fence so table columns survive.
+  Nothing is summarized or reworded.
+
+The reference extraction is committed because ``pdftotext``'s whitespace and diagram layout
+differ between poppler versions (an older poppler on CI does not reproduce a newer one's output
+byte for byte). Pinning it makes the faithfulness tests deterministic on every platform:
+``SRS_v7_3.md`` must equal ``to_markdown(raw)`` word for word, and the raw file is tied to the
+live PDF by requirement-ID coverage, which is stable across poppler versions.
+``docs/srs/README.md`` records the poppler version that produced the committed extraction.
+
+    uv run python -m tally_tools.srs
 """
 
 import re
@@ -12,21 +22,31 @@ import subprocess
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).parents[2]
+PDF = ROOT / "docs/srs/Tally_SRS_v7_3_Complete.pdf"
+RAW = ROOT / "docs/srs/SRS_v7_3.raw.txt"
+MD = ROOT / "docs/srs/SRS_v7_3.md"
+
 # "1. Title", "1.1 Title", "1.1.1 Title", "Appendix A. Title" at column 0.
 _HEADING = re.compile(r"^(?:(\d+)\.?((?:\.\d+)*)|Appendix [A-Z]\.) +\S")
 _MAX_HEADING_LEN = 70  # longer lines are Q&A rows or wrapped table text, not headings
 
 
-def pdf_layout_text(pdf: Path) -> str:
+def pdf_layout_text(pdf: Path = PDF) -> str:
     return subprocess.run(
         ["pdftotext", "-layout", str(pdf), "-"], check=True, capture_output=True, text=True
     ).stdout
 
 
-def pdf_raw_text(pdf: Path) -> str:
+def pdf_raw_text(pdf: Path = PDF) -> str:
     return subprocess.run(
         ["pdftotext", str(pdf), "-"], check=True, capture_output=True, text=True
     ).stdout
+
+
+def poppler_version() -> str:
+    out = subprocess.run(["pdftotext", "-v"], capture_output=True, text=True)
+    return (out.stderr or out.stdout).splitlines()[0].strip()
 
 
 def heading_level(line: str) -> int | None:
@@ -42,6 +62,7 @@ def heading_level(line: str) -> int | None:
 
 
 def to_markdown(layout: str) -> str:
+    """Pure function: reference extraction -> Markdown. Deterministic on every platform."""
     out: list[str] = []
     body: list[str] = []
 
@@ -67,9 +88,10 @@ def to_markdown(layout: str) -> str:
 
 
 def main() -> None:
-    pdf, dest = Path(sys.argv[1]), Path(sys.argv[2])
-    dest.write_text(to_markdown(pdf_layout_text(pdf)))
-    sys.stderr.write(f"wrote {dest}\n")
+    raw = pdf_layout_text(PDF)
+    RAW.write_text(raw, encoding="utf-8", newline="\n")
+    MD.write_text(to_markdown(raw), encoding="utf-8", newline="\n")
+    sys.stderr.write(f"wrote {RAW.name} and {MD.name} using {poppler_version()}\n")
 
 
 if __name__ == "__main__":

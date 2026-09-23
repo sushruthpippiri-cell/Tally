@@ -95,7 +95,10 @@ A read-only analytics platform that sits beside TallyPrime. A Windows **Tally Sy
 - At the end of each phase run the **full** suite (not only the new tests) plus `make check`, against a freshly migrated database: `make phase-report PHASE=NN`.
 - That writes `docs/test-reports/phase-NN.md`: tests run / passed / failed / skipped; the reason for every skip (e.g. "waiting on GATE-G23"; a skip without a reason fails the report); coverage; acceptance-criteria IDs covered; the log file name.
 - Anything failing is fixed before the phase is marked done. **Never start the next phase with a failing suite.**
+- After the phase's final push, check CI: `gh run watch` (or `gh run list -L1`), and on failure `gh run view <id> --log-failed`. **A phase is done only once the CI run is green** — a green local suite is not enough, because CI runs on Linux and Windows with different tool versions. Fix the cause; never skip or weaken a test to get green.
 - Link the report from `docs/progress.md` and commit it.
+
+**Cross-platform**: the Agent ships to Windows, and CI runs `agent-windows`. Always pass `encoding="utf-8"` to `open()`, `read_text()` and `write_text()` (Windows defaults to cp1252), and write generated files with `newline="\n"`. `tools/tests/test_text_io_encoding.py` enforces this. Never assume a system tool's output is byte-identical across versions; pin the artifact instead (see `docs/srs/README.md`).
 
 ## Session workflow
 1. Read this file, the phase file named in the prompt, `docs/decisions.md`, and the SRS sections the phase lists.

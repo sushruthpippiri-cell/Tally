@@ -33,7 +33,7 @@ def test_requirement_ids_are_deduplicated() -> None:
 
 def test_markers_by_id_reads_sync_and_async_tests(tmp_path: Path) -> None:
     (tmp_path / "shared/tests").mkdir(parents=True)
-    (tmp_path / "shared/tests/test_sample.py").write_text(SAMPLE_TEST)
+    (tmp_path / "shared/tests/test_sample.py").write_text(SAMPLE_TEST, encoding="utf-8")
     found = markers_by_id(tmp_path, dirs=("shared/tests",))
     assert found["SYNC-3.2"] == ["shared/tests/test_sample.py::test_stale"]
     assert found["AC-06"] == ["shared/tests/test_sample.py::test_stale"]

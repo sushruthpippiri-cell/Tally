@@ -34,7 +34,7 @@ def test_assert_not_logged(caplog: pytest.LogCaptureFixture) -> None:
 
 
 def test_skip_without_reason_is_a_failure(pytester: pytest.Pytester) -> None:
-    pytester.makeconftest((Path(__file__).parents[2] / "conftest.py").read_text())
+    pytester.makeconftest((Path(__file__).parents[2] / "conftest.py").read_text(encoding="utf-8"))
     pytester.makeini("[pytest]\nasyncio_default_fixture_loop_scope = function\n")
     pytester.makepyfile("import pytest\ndef test_x():\n    pytest.skip()\n")
     pytester.runpytest("-p", "pytester").assert_outcomes(failed=1)

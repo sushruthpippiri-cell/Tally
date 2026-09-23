@@ -34,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cov:
         cmd += ["--cov", "--cov-report=xml", "--cov-report=term-missing:skip-covered"]
 
-    with log_path.open("w") as log:
+    with log_path.open("w", encoding="utf-8") as log:
         header = f"$ {' '.join(cmd)}\n"
         sys.stdout.write(header)
         log.write(header)

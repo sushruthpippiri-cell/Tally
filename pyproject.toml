@@ -38,7 +38,10 @@ extend-exclude = ["backend/alembic/versions"]
 
 [tool.ruff.lint]
 # T20: no print() anywhere, tests included (CLAUDE.md "Testing and logs")
-select = ["E", "F", "I", "UP", "B", "T20"]
+# PLW1514: text I/O must name its encoding - Windows defaults to cp1252 and the
+# Agent ships to Windows machines.
+preview = true  # PLW1514 is a preview rule
+select = ["E", "F", "I", "UP", "B", "T20", "PLW1514"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends"]

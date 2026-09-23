@@ -19,13 +19,13 @@ def test_values_equal_names() -> None:
 
 
 def test_every_proposed_code_is_marked_in_source() -> None:
-    src = (ROOT / "shared/tally_contract/errors.py").read_text()
+    src = (ROOT / "shared/tally_contract/errors.py").read_text(encoding="utf-8")
     for code in PROPOSED_CODES:
         assert re.search(rf"^\s*{code.name} = .*# not in SRS v7\.3", src, re.M), code.name
 
 
 def test_proposed_codes_match_decision_d030() -> None:
-    text = (ROOT / "docs/decisions.md").read_text()
+    text = (ROOT / "docs/decisions.md").read_text(encoding="utf-8")
     section = text[text.index("### D-030") :]
     listed = set(re.findall(r"^\| `([A-Z_]+)` \|", section, re.M))
     assert listed == {c.name for c in PROPOSED_CODES}
@@ -37,7 +37,7 @@ def test_all_srs_codes_exist_in_srs_pdf_text() -> None:
         import pytest
 
         pytest.skip("waiting on P0.11 (docs/srs/SRS_v7_3.md not created yet)")
-    text = srs.read_text()
+    text = srs.read_text(encoding="utf-8")
     assert all(c.name in text for c in SRS_CODES)
     assert not any(re.search(rf"\b{c.name}\b", text) for c in PROPOSED_CODES)
 

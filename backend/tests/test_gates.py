@@ -25,7 +25,7 @@ def test_yaml_has_all_33_gates_not_tested() -> None:
 
 
 def test_yaml_matches_validation_gate_doc() -> None:
-    doc = (ROOT / "docs/validation-gate.md").read_text()
+    doc = (ROOT / "docs/validation-gate.md").read_text(encoding="utf-8")
     rows = dict(re.findall(r"^\| (G\d+)\*? \|.*?\| (NOT TESTED|PASSED|FAILED) \|", doc, re.M))
     assert set(rows) == set(ALL)
     assert {g: s.replace(" ", "_") for g, s in rows.items()} == load_gate_status(GATE_STATUS_PATH)

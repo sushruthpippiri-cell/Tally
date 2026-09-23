@@ -47,7 +47,7 @@ def test_reset_accepts_a_test_database() -> None:
 
 def test_parse_junit_counts_and_collects(tmp_path: Path) -> None:
     path = tmp_path / "r.xml"
-    path.write_text(JUNIT)
+    path.write_text(JUNIT, encoding="utf-8")
     suite = parse_junit(path)
     assert (suite.tests, suite.failures, suite.skipped, suite.passed) == (4, 1, 1, 2)
     assert suite.ok is False
@@ -57,7 +57,7 @@ def test_parse_junit_counts_and_collects(tmp_path: Path) -> None:
 
 def test_render_marks_fail_and_lists_everything(tmp_path: Path) -> None:
     path = tmp_path / "r.xml"
-    path.write_text(JUNIT)
+    path.write_text(JUNIT, encoding="utf-8")
     out = render("05", parse_junit(path), check_ok=True, coverage="88.0%", log_name="p05-x.log")
     assert "**Result: FAIL**" in out
     assert "| Tests run | 4 |" in out and "| Passed | 2 |" in out and "| Failed | 1 |" in out
@@ -68,7 +68,8 @@ def test_render_marks_fail_and_lists_everything(tmp_path: Path) -> None:
 def test_render_passes_only_when_suite_and_check_are_green(tmp_path: Path) -> None:
     path = tmp_path / "r.xml"
     path.write_text(
-        JUNIT.replace('failures="1"', 'failures="0"').replace('<failure message="boom"/>', "")
+        JUNIT.replace('failures="1"', 'failures="0"').replace('<failure message="boom"/>', ""),
+        encoding="utf-8",
     )
     suite = parse_junit(path)
     assert "**Result: PASS**" in render("05", suite, True, "90%", "l.log")
@@ -78,7 +79,8 @@ def test_render_passes_only_when_suite_and_check_are_green(tmp_path: Path) -> No
 def test_skip_without_reason_forces_fail(tmp_path: Path) -> None:
     path = tmp_path / "r.xml"
     path.write_text(
-        NO_REASON.replace('failures="1"', 'failures="0"').replace('<failure message="boom"/>', "")
+        NO_REASON.replace('failures="1"', 'failures="0"').replace('<failure message="boom"/>', ""),
+        encoding="utf-8",
     )
     suite = parse_junit(path)
     assert suite.skip_reasons[0][1] == "NO REASON GIVEN"
@@ -88,5 +90,7 @@ def test_skip_without_reason_forces_fail(tmp_path: Path) -> None:
 def test_coverage_percent(tmp_path: Path) -> None:
     assert coverage_percent(tmp_path / "missing.xml") == "not measured"
     cov = tmp_path / "coverage.xml"
-    cov.write_text('<?xml version="1.0"?><coverage line-rate="0.8342"></coverage>')
+    cov.write_text(
+        '<?xml version="1.0"?><coverage line-rate="0.8342"></coverage>', encoding="utf-8"
+    )
     assert coverage_percent(cov) == "83.4%"

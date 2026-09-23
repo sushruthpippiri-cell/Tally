@@ -61,7 +61,7 @@ def reset_database(url: str) -> str:
     with psycopg.connect(
         dsn.replace("postgresql+psycopg://", "postgresql://"), autocommit=True
     ) as conn:
-        conn.execute(GRANTS_SQL.read_text())
+        conn.execute(GRANTS_SQL.read_text(encoding="utf-8"))
     return name
 
 
@@ -183,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     dest = REPORT_DIR / f"phase-{phase}.md"
-    dest.write_text(report)
+    dest.write_text(report, encoding="utf-8")
     sys.stdout.write(f"\nwrote {dest.relative_to(ROOT)}\n")
 
     missing_reason = [n for n, r in suite.skip_reasons if r == "NO REASON GIVEN"]

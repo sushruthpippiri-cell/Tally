@@ -1,0 +1,3066 @@
+Tally Integration and Business Analytics Platform - SRS v7.3
+Complete Edition
+      Tally Integration & Business Analytics Platform
+            Software Requirements Specification — v7.3 Complete Edition
+      1. Introduction
+      2. Overall Description
+      3. Architecture and Deployment
+      4. Tally Sync Agent
+      5. Data Model
+      6. Synchronization
+      7. Tally Validation Gate
+      8. Accounting and Analytics Rules
+      9. Reconciliation
+      10. Aging and Payment Behaviour
+      11. Stock Analytics
+      12. Anomaly Detection (Optional)
+      13. Dashboard, Drill-Down and Exports
+      14. Authentication, Access Control and Security
+      15. Logging and Audit
+      16. Failure Modes
+      17. Non-Functional Requirements
+      18. Configuration
+      19. External Interfaces and API
+      20. Use Cases
+      21. Technology Stack
+      22. Backup and Recovery
+      23. Testing Strategy
+      24. Acceptance Criteria
+      25. Requirement Traceability
+      26. Technical Reviewer Questions
+      27. Open Decisions and Validation Gates
+      28. Implementation Readiness and Final Status
+      Appendix A. Version History
+
+
+Tally Integration & Business Analytics Platform
+Software Requirements Specification — v7.3 Complete Edition
+
+                             Item                                                                Value
+
+Document                                                       Software Requirements Specification (IEEE 830-style)
+
+Version                                                        7.3 — Complete Edition
+
+Status                                                         Implementation-ready for development, subject to the validation gates
+                                                               in Section 27. Not claimed as production-ready.
+
+Supersedes                                                     All earlier versions (v1–v7.3). This edition is self-contained: no earlier
+                                                               version needs to be read alongside it. Version history is summarized in
+                                                               Appendix A.
+
+
+Status markers used in this document
+
+                            Marker                                                              Meaning
+
+LIVE TALLY VERIFICATION REQUIRED                               The statement depends on how TallyPrime actually behaves or exports
+                                                               data. It must be confirmed against a real TallyPrime export before it is
+                                                               relied on.
+
+OPEN — BUSINESS DECISION                                       A stakeholder must decide. A default is given and applies until the
+                                                               decision is made.
+
+IMPLEMENTATION TEST                                            A value or approach must be confirmed by a prototype or
+                                                               measurement during development. A default is given.
+
+
+Requirement ID prefixes
+
+                             Prefix                                                              Area
+
+FR                                                             General functional requirement
+
+AGT / RTE / VER                                                Tally Sync Agent / command routing / version compatibility
+
+SYNC / VAL                                                     Synchronization / Tally validation gates
+
+DR                                                             Data and record identity
+
+ACC                                                            Accounting and analytics rules
+
+REC                                                            Reconciliation
+ REC                                                                    Reconciliation
+
+ AGE / FR-AGE / FR-PAY                                                  Aging / payment behaviour
+
+ FR-STK                                                                 Stock analytics
+
+ FR-DD / EXP                                                            Drill-down / exports
+
+ RBAC / SEC                                                             Access control / security
+
+ LOG                                                                    Logging and audit
+
+ PERF / NFR / TZ / Q                                                    Non-functional requirements / time zone / quarters
+
+ BKP                                                                    Backup and recovery
+
+ TEST                                                                   Testing
+
+ AC                                                                     Acceptance criterion
+
+
+
+
+1. Introduction
+1.1 Purpose
+
+This document specifies a web-based platform that:
+
+  1. Extracts accounting, inventory and transaction data from TallyPrime into a PostgreSQL database, using custom TDL
+     (Tally Definition Language) Collections and Reports invoked over Tally’s XML/HTTP interface, through a local Tally
+     Sync Agent.
+  2. Presents a business analytics dashboard computed only by direct, deterministic aggregation of the synced data. No AI,
+     ML or LLM component is used in the analytics.
+  3. Verifies that the local data matches Tally through an independent reconciliation process.
+  4. Optionally offers anomaly detection, where anomalies are found by deterministic rules and an LLM (Claude, via an MCP
+     server) may be used only to write a plain-language explanation of evidence the application has already computed.
+
+1.2 Scope
+
+In scope
+
+       TDL-driven, one-way synchronization (Tally → platform) of companies, groups, ledgers, voucher types, stock items, cost
+       centres, opening balances, stock snapshots, and vouchers (header, ledger entries, inventory entries, bill allocations, cost-
+       centre allocations).
+       Local Tally Sync Agent (Windows), supporting one or more Agents per company.
+       AI-free analytics: sales, purchases, customer and product revenue, expenses, cash flow, balances, receivables/payables
+       aging, customer payment behaviour, stock movement.
+       Reconciliation of local data against Tally totals.
+       Drill-down from every summary figure to the vouchers behind it; CSV/PDF export.
+       Authentication, role-based access control, company (tenant) isolation, audit logging.
+       Optional, feature-flagged anomaly detection with optional AI explanation.
+       Responsive web interface usable on phone-width screens.
+
+Out of scope
+
+       Writing any data back into Tally (no two-way sync, no data entry, no invoice creation).
+       Payroll.
+       Forecasting and natural-language querying.
+       Replacing Tally as the system of record for statutory compliance.
+       GST analytics (default; see OPEN — BUSINESS DECISION in Section 8.15).
+       Multi-company consolidated reporting in the user interface (the data model supports multiple companies; the v1 interface
+       works with one company at a time).
+
+1.3 Scope decisions for features found in comparable products
+
+                       Feature                                   Decision                                              Reason
+
+ Stock by godown / batch                      Out of scope for v1                                   Adds godown and batch masters and per-
+                                                                                                    location quantities; stock is reported at
+                                                                                                    company level
+
+ Order vouchers (Sales/Purchase Order) and    Not synced in v1                                      Orders have no accounting effect. Inventory-
+ inventory-only vouchers (Delivery Note,                                                            only vouchers affect stock quantity, so current
+ Receipt Note, Stock Journal)                                                                       stock is taken from a Tally-computed snapshot
+                                                                                                    instead (Section 11.3)
+
+ Profitability / gross profit                 Out of scope for v1                                   Requires stock valuation (cost of goods sold)
+
+ Customer payment behaviour                   In scope (Section 10.4)                               Reuses bill-allocation data already required for
+                                                                                                    aging
+
+ Payment reminders (WhatsApp/SMS/email)       Out of scope                                          The platform is read-only
+
+ Mobile access                                In scope as responsive web; native app out of         The dashboard must work on phone-width
+                                              scope                                                 screens
+
+
+ Offline access to synced data                Out of scope                                          The dashboard requires a connection to the
+                                                                                                    backend
+                                                                       backend
+
+
+1.4 Definitions
+
+                                   Term                                      Meaning
+
+TDL                                          Tally Definition Language, used to define custom Collections and
+                                             Reports that control exactly what data Tally exports
+
+TDL Collection                               A TDL-defined query over Tally objects (Ledger, Voucher, StockItem,
+                                             etc.)
+
+TDL Report                                   A TDL definition that formats a Collection’s data and returns it as XML
+                                             over Tally’s HTTP interface
+
+Tally XML/HTTP server                        Tally’s built-in HTTP server (default port 9000) that accepts XML export
+                                             requests
+
+Tally Sync Agent (Agent)                     A small Windows service installed on or near the Tally machine. It talks
+                                             to Tally locally and to the backend over outbound HTTPS only
+
+Company                                      One Tally company, identified by its Tally GUID
+
+GUID                                         Tally’s globally unique identifier for an object. The platform’s identity
+                                             key for every synced record
+
+ALTERID                                      Tally’s change counter for an object, used to detect new and modified
+                                             records
+
+Sync watermark                               The highest ALTERID successfully stored for one company and one
+                                             collection type
+
+Sync lease                                   A lock that allows only one Agent at a time to sync a given collection
+                                             for a company
+
+Stale record                                 An incoming record whose ALTERID is lower than the stored ALTERID
+                                             for the same GUID
+
+Voucher                                      A Tally transaction, made of a header, ledger entries, and optionally
+                                             inventory entries, bill allocations and cost-centre allocations
+
+Ledger entry                                 One debit or credit line of a voucher, posted to one ledger
+
+Group                                        A Tally account group. Groups are nested
+
+Primary group                                The predefined top-level group a ledger ultimately belongs to, found by
+                                             walking up the group hierarchy
+
+Base voucher type                            The predefined Tally voucher type (Sales, Purchase, Receipt, Payment,
+                                             Contra, Journal, Credit Note, Debit Note) that a user-created voucher
+                                             type derives from
+
+Opening balance                              A ledger’s balance, or a stock item’s quantity and value, at the start of
+                                             a financial year
+
+Stock snapshot                               Tally-computed closing quantity of a stock item as of a sync date
+
+Bill allocation                              The part of a ledger entry assigned to a bill reference (for bill-wise
+                                             receivables/payables)
+
+accounting_direction                         The normalized debit/credit direction of a ledger entry, independent of
+                                             Tally’s raw XML format
+
+Total Sales Revenue                          The authoritative sales figure (Section 8.4)
+
+Customer-attributed Revenue                  Sales revenue attributed to a customer when the transaction has
+                                             exactly one resolvable customer ledger
+
+Unattributed Customer Revenue                Sales revenue with no resolvable customer, or with more than one
+                                             candidate customer
+
+Product-attributed Revenue                   Revenue from inventory line items
+
+Product Attribution Difference               Total Sales Revenue minus Product-attributed Revenue, shown while
+                                             the two have not been proven to use the same accounting basis
+
+Unattributed / Non-product Sales Revenue     The same difference, shown under this label only after the same-basis
+                                             proof has passed
+
+Top-N                                        A ranked subset (default 10) of a list. Never assumed to add up to the
+                                             total
+
+Financial quarter                            A quarter counted from the company’s financial-year start date
+
+company_timezone                             The IANA time zone of a company, used for all date boundaries
+
+MCP                                          Model Context Protocol: a standard for exposing application functions
+                                             as tools to an LLM client
+
+User-defined field (UDF)                     A field added to Tally masters or vouchers through a TDL customisation
+
+
+1.5 References
+
+                                 Reference                                       Use
+ Tally Solutions — TDL documentation (Collections, Reports, Forms,         TDL export design
+ Parts, Lines, Fields)
+
+ Tally Solutions — XML/HTTP interface documentation                        Transport
+
+ Model Context Protocol specification and Python SDK                       Optional anomaly explanation layer
+
+ tally-database-loader (github.com/dhananjay1405/tally-database-           Reference implementation: master-data coverage, extraction batch
+ loader), MIT licence                                                      limits, company targeting, known Tally runtime behaviour
+
+ Biz Analyst (bizanalyst.in), commercial product                           Feature-scope comparison; confirms the desktop-connector
+                                                                           architecture
+
+
+The two reference implementations are guidance only. Nothing learned from them is treated as confirmed Tally behaviour until
+it passes the validation gate (Section 7).
+
+
+
+2. Overall Description
+2.1 Product perspective
+
+The platform sits beside Tally and never replaces it. Tally remains the source of truth for the books. The platform keeps a
+synchronized, read-only copy for analysis, and proves through reconciliation that the copy matches.
+
+The system has two layers:
+
+     Core layer (always on, no AI): Agent, synchronization, database, analytics, reconciliation, dashboard. It works fully with
+     no AI service.
+     Optional anomaly layer (off by default): deterministic anomaly rules, plus an optional Claude explanation through
+     MCP. Turning it off, or losing the AI service, never affects the core layer.
+
+2.2 User classes
+
+                    User class                                      Description                                       Key needs
+
+ Owner                                             Business owner, usually non-technical            Clear dashboard, trustworthy numbers, control
+                                                                                                    of users and connections
+
+ Accountant                                        Manages the books in Tally                       Accurate figures, sync status, reconciliation,
+                                                                                                    anomaly review
+
+ Admin/Developer                                   Maintains the integration                        Agent management, TDL definitions, logs,
+                                                                                                    configuration
+
+
+2.3 Operating environment
+
+                                 Component                                                              Environment
+
+ TallyPrime                                                                Windows machine, XML/HTTP server enabled, custom TDL files loaded,
+                                                                           running in a logged-in user session
+
+ Tally Sync Agent                                                          Windows service on the Tally machine or a machine on the same LAN
+                                                                           that can reach Tally’s port
+
+ Backend                                                                   Python (FastAPI), containerized (Docker), cloud-hosted
+
+ Database                                                                  PostgreSQL (production). SQLite is permitted only for isolated local unit
+                                                                           tests
+
+ Frontend                                                                  React single-page application in a modern browser, desktop or phone
+
+ Optional                                                                  MCP server (Python mcp SDK) and Claude, used only when anomaly
+                                                                           detection is enabled
+
+
+2.4 Design constraints
+
+  1. The analytics layer must not call any AI, ML or LLM component. Every figure must be traceable to a deterministic query
+     over synced data.
+  2. Data extraction uses custom TDL Collections/Reports, not Tally’s default reports, so the fields returned are controlled.
+  3. The Agent initiates every connection. The backend never connects into a customer network.
+  4. No synced accounting record is ever hard-deleted.
+  5. No MCP tool may execute arbitrary SQL, write to the database, or write to Tally.
+  6. Tally provides no push notifications; all synchronization is pull-based.
+
+2.5 Assumptions and dependencies
+
+  1. The company’s chart of accounts is set up in Tally before synchronization.
+  2. Bill-wise details are maintained in Tally for ledgers where bill-wise aging is expected. Ledgers without them are reported
+     without aging buckets (Section 10.3).
+  3. Custom TDL files are loaded into Tally on each Agent machine.
+  4. TallyPrime is kept running in a logged-in Windows session while synchronization is expected.
+  5. If anomaly explanation is enabled, Claude is reachable through the MCP client.
+3. Architecture and Deployment
+3.1 Deployment topology
+
+A cloud-hosted backend cannot open a connection to a private address such as 192.168.x.x inside a customer’s network. The
+platform therefore uses a local Agent that makes outbound HTTPS calls only. No firewall change, port forwarding or VPN is
+needed on the customer side.
+
+ Browser ──► React Frontend ──► FastAPI Backend ──► PostgreSQL
+                                      ▲
+                                      │ outbound HTTPS only
+                                      │ (heartbeat, command polling,
+                                      │ sync batch upload)
+               ┌──────────────────────┼──────────────────────┐
+               │                      │                      │
+         Agent A                Agent B               Agent C
+         (head office)          (branch)              (standby / manual failover)
+               │ local XML/HTTP        │                      │
+               ▼                      ▼                      ▼
+         TallyPrime + TDL       TallyPrime + TDL       TallyPrime + TDL
+         (company X)            (company X)            (company X)
+
+
+
+
+3.2 Connectivity design rules
+
+                                          Question                                                               Design rule
+
+ How does the website reach Tally?                                                  It does not. The Agent reaches the backend over outbound HTTPS
+
+ Is a local Agent required?                                                         Yes, for the hosted deployment
+
+ Where does the Agent run?                                                          On the Tally machine, or a machine on the same LAN that can reach
+                                                                                    Tally’s XML/HTTP port
+
+ How does the Agent talk to Tally?                                                  XML export requests to Tally’s HTTP server, using the project’s TDL
+                                                                                    Collections/Reports
+
+ How does the Agent talk to the backend securely?                                   TLS 1.2+ with a per-Agent credential (Section 4.3)
+
+ Internet unavailable?                                                              The Agent queues results locally and retries (Section 4.12)
+
+ Tally closed?                                                                      The Agent reports Tally as unreachable; nothing is lost; sync resumes
+                                                                                    when Tally is available
+
+ Tally XML server disabled?                                                         The Agent reports TALLY_SERVER_DISABLED with an actionable
+                                                                                    message
+
+ How are host and port configured?                                                  Per Agent, by Owner/Admin; default localhost:9000
+
+ How is the company selected and identified?                                        Each Agent is registered to one Tally company, named in every request
+                                                                                    and verified by GUID on every sync (Sections 4.6, 4.7)
+
+ Multiple Tally installations?                                                      One Agent per installation; a company may have several Agents
+                                                                                    (Section 4.5)
+
+
+3.3 Direct-connect mode
+
+If the backend runs on infrastructure the business controls on the same network as Tally, the Agent software runs on that
+backend host and reaches Tally directly. The data model, identity rules and synchronization logic are identical in both modes;
+only where the Agent runs changes.
+
+
+
+4. Tally Sync Agent
+4.1 Responsibilities
+
+The Agent (1) registers once with the backend, (2) sends heartbeats and polls for commands, (3) pulls data from Tally using the
+TDL Collections, (4) uploads data in batches, (5) buffers data locally when the backend is unreachable, and (6) reports Tally and
+Agent status.
+
+4.2 Registration and onboarding
+
+                                             Step                                                                    Action
+
+ 1                                                                                  Owner creates a company account in the web application
+
+ 2                                                                                  Backend creates a companies row (inactive until an Agent is
+                                                                                    confirmed)
+
+ 3                                                                                  Owner/Admin generates a one-time registration token (valid 24
+                                                                                    hours) for that company
+
+ 4                                                                                  The customer installs the Agent on the Tally machine and gives it a
+                                                                                    name (e.g. “Head Office”)
+
+ 5                                                                                  The customer enters the registration token in the Agent
+
+ 6                                                                                  The Agent reads the Tally company’s name and GUID from local Tally
+                                                                                    and sends them with the token
+
+ 7                                                                                  Backend validates the token, creates an agents row bound to the
+                                                                                    company, stores the Tally GUID and company name, and returns a
+                                                                                    permanent Agent credential
+ 8                                                              Backend marks the company active (if this is its first Agent) and
+                                                                returns configuration: poll interval, batch size, TDL definitions expected
+
+ 9                                                              The Agent begins heartbeats
+
+ 10                                                             Owner/Admin triggers the initial full sync
+
+
+For a company’s first Agent, the Tally GUID it reports becomes the company’s tally_guid. Every later Agent for the same
+company must report the same GUID, or registration is rejected with COMPANY_MISMATCH.
+
+4.3 Agent authentication
+
+                              ID                                                             Requirement
+
+ SEC-2.0                                                        All Agent–backend traffic uses HTTPS with TLS 1.2 or later
+
+ SEC-2.0a                                                       Each Agent holds its own long random credential, sent as a bearer
+                                                                token on every request
+
+ SEC-2.0b                                                       The backend stores only a salted hash of each credential and verifies
+                                                                requests by hashing and comparing
+
+ SEC-2.4                                                        No HMAC request-signing scheme is used or claimed. The model is
+                                                                bearer credential over TLS only
+
+
+4.4 Credential rotation and revocation
+
+                             Step                                                               Rotation
+
+ 1                                                              Owner/Admin requests rotation for one Agent from the dashboard
+
+ 2                                                              Backend generates a new credential and invalidates the old hash in the
+                                                                same transaction
+
+ 3                                                              The new credential is shown once to the requesting user in their
+                                                                authenticated session. It is never pushed to the Agent
+
+ 4                                                              The user enters the new credential into the Agent’s configuration
+
+ 5                                                              Calls with the old credential are rejected with 401
+                                                                CREDENTIAL_INVALID
+
+
+                              ID                                                             Requirement
+
+ SEC-2.1                                                        Rotation invalidates the old credential atomically with issuing the new
+                                                                one. There is no window where both are valid
+
+ SEC-2.2                                                        An invalid or revoked credential is rejected with a distinguishable error
+                                                                (CREDENTIAL_INVALID or AGENT_REVOKED)
+
+ SEC-2.3                                                        Rotation keeps the same agent_id. Revocation is permanent; the
+                                                                installation must re-register as a new Agent
+
+
+4.5 Multiple Agents per company
+
+One company can have one or more Agents (branch installations, separate Tally environments, a standby Agent). One Agent
+serves exactly one Tally company.
+
+                         Agent state                                                            Meaning
+
+ REGISTERING                                                    Token exchanged; awaiting first successful Tally GUID confirmation
+
+ ACTIVE                                                         Heartbeating normally
+
+ OFFLINE                                                        No heartbeat within the offline threshold (default 5 minutes,
+                                                                IMPLEMENTATION TEST)
+
+ INCOMPATIBLE                                                   Heartbeating, but its version or TDL version is below the backend
+                                                                minimum
+
+ REVOKED                                                        Credential revoked; permanently rejected
+
+
+Standby Agents: there is no automatic failover. If a primary Agent is offline or its command fails, an Owner/Admin sends a
+new command to the standby Agent. Automatic failover is a possible future feature, not part of this specification.
+
+4.6 Agent ↔ Tally company mapping
+
+                              ID                                                             Requirement
+
+ AGT-3.1                                                        Each Agent records the Tally company GUID it is bound to at
+                                                                registration
+
+ AGT-3.2                                                        Before every sync, the Agent confirms that the targeted Tally
+                                                                company’s GUID matches its registered GUID
+
+ AGT-3.3                                                        On a mismatch the Agent raises COMPANY_MISMATCH, halts, and pulls
+                                                                and uploads nothing
+ AGT-3.4                                                       A mismatch is shown as a warning against that Agent and requires
+                                                               explicit re-registration. An existing Agent is never silently re-bound to
+                                                               another company
+
+
+4.7 Explicit company targeting
+
+TallyPrime can have several companies loaded at once. Relying on the active company risks pulling data from the wrong one.
+
+                                               ID                                            Requirement
+
+ AGT-5.1                                                       Every TDL export request names the Agent’s registered company. The
+                                                               Agent never relies on Tally’s active company
+
+ AGT-5.2                                                       The name targets the request; the GUID check (AGT-3.2) confirms the
+                                                               result
+
+ AGT-5.3                                                       If the named company is not loaded in Tally, the Agent reports
+                                                               COMPANY_NOT_LOADED and pulls nothing
+
+ AGT-5.4                                                       If the company is renamed in Tally, the Agent reports
+                                                               COMPANY_NOT_LOADED; an Owner/Admin updates the stored name. No
+                                                               re-registration is needed, because the GUID is unchanged
+
+ AGT-5.5                                                       The exact request mechanism for naming a company is LIVE TALLY
+                                                               VERIFICATION REQUIRED
+
+
+4.8 Heartbeat, command polling and recovery
+
+The backend never contacts an Agent. Manual and scheduled syncs reach the Agent as commands it collects when it polls.
+
+ Agent ── heartbeat/poll every 30 s ──────────► Backend
+ Agent ◄─ pending command for this agent_id ── Backend
+ Agent ── claim (PENDING → CLAIMED) ──────────► Backend
+ Agent ── RUNNING + progress heartbeats         Backend
+ Agent ── TDL export ──► TallyPrime
+ Agent ── sync batches ───────────────────────► Backend
+ Agent ── COMPLETED / FAILED ─────────────────► Backend
+
+
+
+
+                                               ID                                            Requirement
+
+ AGT-1.1                                                       The Agent polls at a configurable interval, default 30 seconds. The
+                                                               heartbeat carries Agent version, TDL version, Tally version where
+                                                               available, Tally process uptime and queue status
+
+ AGT-1.2                                                       Command states: PENDING → CLAIMED → RUNNING → COMPLETED, or
+                                                               FAILED, EXPIRED, FAILED_AGENT_LOST
+
+ AGT-1.3                                                       Claiming is an atomic compare-and-set on the command’s status, so a
+                                                               command can be claimed only once
+
+ AGT-1.4                                                       A failed command is not retried automatically; a new command must
+                                                               be issued
+
+ AGT-1.5                                                       “Sync Now” creates a PENDING command; it never attempts to connect
+                                                               to the Agent
+
+ AGT-1.6                                                       Command status is visible on the dashboard as it changes
+
+ AGT-1.7                                                       A RUNNING command has a lease deadline (lease_expires_at) that
+                                                               the Agent extends with progress heartbeats
+
+ AGT-1.8                                                       If the lease deadline passes, the command becomes
+                                                               FAILED_AGENT_LOST and the reason is recorded
+
+ AGT-1.9                                                       A FAILED_AGENT_LOST or EXPIRED command is never reassigned to
+                                                               another Agent
+
+ AGT-1.10                                                      A PENDING command not claimed within a configurable window (default
+                                                               10 minutes) becomes EXPIRED
+
+
+4.9 Command routing
+
+                                               ID                                            Requirement
+
+ RTE-1.1                                                       If a company has exactly one ACTIVE Agent, “Sync Now” targets it
+                                                               automatically
+
+ RTE-1.2                                                       If it has more than one, the user must choose an Agent; the backend
+                                                               rejects a request without agent_id
+
+ RTE-1.3                                                       Every scheduled sync is bound to a specific Agent when the schedule is
+                                                               created
+
+ RTE-1.4                                                       A command’s agent_id is mandatory and cannot change after creation
+
+ RTE-1.5                                                       The backend verifies that the Agent belongs to the requesting user’s
+                                                               authorized company. Commands never cross company boundaries
+
+ RTE-1.6                                                       A command for an OFFLINE Agent stays PENDING, labelled “Waiting —
+                                                               Agent offline since ”, and is claimed when the Agent returns, unless it
+                                                               expires first
+4.10 Tally-side extraction batch size
+
+                                     ID                                                  Requirement
+
+AGT-4.1                                                     The Agent requests vouchers from Tally in batches; default 5,000
+                                                            vouchers per request, configurable per Agent
+
+AGT-4.2                                                     Batch sizes above 10,000 are rejected
+
+AGT-4.3                                                     A Tally request with no response within a timeout (default 10 minutes)
+                                                            is abandoned, logged as TALLY_EXPORT_TIMEOUT, and retried once at
+                                                            half the batch size; if it fails again the sync segment fails
+
+AGT-4.4                                                     These defaults come from the reference implementation and are
+                                                            confirmed on the project benchmark machine (IMPLEMENTATION TEST)
+
+
+4.11 Tally runtime operating constraints
+
+                                     ID                                                  Requirement
+
+AGT-6.1                                                     TallyPrime must be running in a logged-in Windows session. The Agent
+                                                            cannot start or keep Tally running
+
+AGT-6.2                                                     Installation guidance tells Remote Desktop users to disconnect, not log
+                                                            off, because logging off closes Tally
+
+AGT-6.3                                                     The Agent reports Tally’s process uptime, read from the Windows
+                                                            process table
+
+AGT-6.4                                                     When uptime exceeds a threshold (default 7 days), the dashboard
+                                                            advises restarting Tally, more prominently if the latest reconciliation
+                                                            found a discrepancy
+
+
+4.12 Local queue
+
+                                     ID                                                  Requirement
+
+AGT-2.1                                                     Each Agent keeps a local queue (a local SQLite file) of batches waiting
+                                                            to upload
+
+AGT-2.2                                                     Queue limit: 50,000 records or 7 days of data, whichever comes first
+                                                            (configurable)
+
+AGT-2.3                                                     Upload retries use exponential backoff from 30 seconds up to 15
+                                                            minutes
+
+AGT-2.4                                                     When the queue is full, the Agent stops pulling new data, keeps
+                                                            retrying uploads, and reports QUEUE_FULL
+
+AGT-2.5                                                     A batch that fails upload 20 times (configurable) moves to a local dead-
+                                                            letter file and is reported; it is never silently dropped
+
+AGT-2.6                                                     The queue file is restricted by operating-system permissions to the
+                                                            Agent’s service account. Disk encryption is the customer’s
+                                                            responsibility
+
+
+4.13 Version compatibility
+
+                                     ID                                                  Requirement
+
+VER-1.1                                                     The Agent reports its version, TDL package version and, where
+                                                            obtainable, TallyPrime version on every heartbeat
+
+VER-1.2                                                     The backend holds a minimum compatible Agent version and TDL
+                                                            version. An Agent below either is marked INCOMPATIBLE and receives
+                                                            no commands
+
+VER-1.3                                                     Certified TallyPrime releases are recorded in a compatibility table as
+                                                            they are tested (LIVE TALLY VERIFICATION REQUIRED); no version
+                                                            numbers are assumed in advance
+
+
+
+
+5. Data Model
+5.1 Principles
+
+ 1. Every company-scoped table carries company_id, even though the v1 interface works with one company at a time. Adding
+    a company is a new row, not a schema change.
+ 2. Every synced master and voucher is identified by (company_id, tally_guid). Voucher numbers are for display only.
+ 3. Every synced master and voucher stores its latest alter_id and a lifecycle status.
+ 4. Accounting amounts are stored in a normalized form that does not depend on Tally’s raw XML sign format.
+ 5. No synced accounting record is hard-deleted.
+
+5.2 Entity relationships
+
+Company ─┬─< Agent ─< AgentCommand
+         ├─< Group (self-referencing parent) ─< Ledger
+         ├─< VoucherType (self-referencing parent)
+         ├─< StockItem ─< StockSnapshot / StockOpeningBalance
+         ├─< CostCentre
+         ├─< LedgerOpeningBalance >─ Ledger
+         └─< Voucher >─ VoucherType
+               ├─< VoucherEntry >─ Ledger
+               │     ├─< BillAllocation
+               │     └─< CostCentreAllocation >─ CostCentre
+               └─< VoucherItem >─ StockItem
+
+
+
+
+5.3 Company, users and access
+
+                           Table                                                Key fields                             Constraints / indexes
+
+ companies                                                      company_id (UUID PK), tally_guid, name,      UNIQUE(tally_guid)
+                                                                financial_year_start, company_timezone
+                                                                (IANA), is_active, created_at
+
+ users                                                          user_id PK, email, password_hash (bcrypt),   UNIQUE(email)
+                                                                name, is_active, created_at
+
+ roles                                                          role_id PK, role_name (OWNER, ACCOUNTANT,    UNIQUE(role_name)
+                                                                ADMIN)
+
+ user_roles                                                     user_id, company_id, role_id                 PK(user_id,company_id,role_id); index
+                                                                                                             company_id
+
+
+5.4 Agents, commands and schedules
+
+               Table                                                           Key fields                                     Constraints / indexes
+
+ agents                                    agent_id PK, company_id, agent_name, credential_hash, status,                 UNIQUE(company_id,agent_name);
+                                           tally_guid, tally_company_name, tally_host, tally_port,                       index company_id
+                                           extraction_batch_size, agent_version, tdl_version, tally_version,
+                                           tally_uptime_seconds, queue_status, last_heartbeat_at,
+                                           registered_at, revoked_at
+
+ agent_registration_tokens                 token_id PK, company_id, token_hash, expires_at, used_at, created_by          index company_id
+
+ agent_commands                            command_id PK, company_id, agent_id (mandatory, immutable),                   index (agent_id,status)
+                                           command_type (RUN_SYNC), sync_mode
+                                           (FULL/INCREMENTAL/DATE_RANGE/RECONCILIATION), date_from, date_to,
+                                           status
+                                           (PENDING/CLAIMED/RUNNING/COMPLETED/FAILED/EXPIRED/FAILED_AGENT_LOST),
+                                           lease_expires_at, created_by, created_at, claimed_at, completed_at,
+                                           error_message
+
+ sync_schedules                            schedule_id PK, company_id, agent_id, cron_expression, sync_mode,             index company_id
+                                           is_active, created_by
+
+
+5.5 Masters
+
+         Table                                                          Key fields                                           Constraints / indexes
+
+ groups                     group_id PK, company_id, tally_guid, name, parent_group_id (null for a primary             UNIQUE(company_id,tally_guid);
+                            group), primary_group_id, nature (ASSET/LIABILITY/INCOME/EXPENSE), alter_id,               index primary_group_id
+                            status
+
+ ledgers                    ledger_id PK, company_id, tally_guid, name, group_id, primary_group_id                     UNIQUE(company_id,tally_guid);
+                            (cached), alter_id, status, custom_fields (JSONB), last_synced_at                          index
+                                                                                                                       (company_id,primary_group_id)
+
+ voucher_types              voucher_type_id PK, company_id, tally_guid, name, parent_voucher_type_id,                  UNIQUE(company_id,tally_guid)
+                            base_voucher_type
+                            (SALES/PURCHASE/RECEIPT/PAYMENT/CONTRA/JOURNAL/CREDIT_NOTE/DEBIT_NOTE/OTHER),
+                            alter_id, status
+
+ stock_items                stock_item_id PK, company_id, tally_guid, name, base_unit, gst_rate (descriptive           UNIQUE(company_id,tally_guid)
+                            only), alter_id, status, custom_fields (JSONB)
+
+ cost_centres               cost_centre_id PK, company_id, tally_guid, name, alter_id, status                          UNIQUE(company_id,tally_guid)
+
+
+ledgers has no stored closing balance. Tally has no fixed closing-balance field, because a balance depends on the date;
+balances are computed (Section 8.10).
+
+5.6 Opening balances and stock snapshots
+
+                           Table                                                Key fields                                   Primary key
+
+ ledger_opening_balances                                        company_id, ledger_id,                       (ledger_id,financial_year_start)
+                                                                financial_year_start, amount_absolute,
+                                                                accounting_direction
+
+ stock_opening_balances                                         company_id, stock_item_id,                   (stock_item_id,financial_year_start)
+                                                                financial_year_start, quantity, unit,
+                                                                value
+
+ stock_snapshots                                                company_id, stock_item_id, as_of_date,       (stock_item_id,as_of_date)
+                                                                closing_quantity, unit, sync_run_id
+5.7 Vouchers
+
+                   Table                            Key fields                                  Constraints / indexes
+
+vouchers                           voucher_id PK, company_id, tally_guid,           UNIQUE(company_id,tally_guid); index
+                                   voucher_number (display only),                   (company_id,voucher_date); index
+                                   voucher_type_id, voucher_date, narration,        (company_id,alter_id)
+                                   status
+                                   (ACTIVE/CANCELLED/MISSING_IN_TALLY),
+                                   alter_id, custom_fields (JSONB),
+                                   last_synced_at
+
+voucher_entries                    voucher_entry_id PK, voucher_id,                 index voucher_id; index ledger_id
+                                   ledger_id, line_sequence, stable_line_id
+                                   (nullable, Section 6.9), amount_raw, is_debit,
+                                   amount_absolute, amount_signed,
+                                   accounting_direction (DEBIT/CREDIT)
+
+bill_allocations                   bill_allocation_id PK, voucher_entry_id,         index voucher_entry_id; index
+                                   allocation_type, reference_name, due_date        (reference_name); index due_date
+                                   (nullable), amount_absolute
+
+cost_centre_allocations            id PK, voucher_entry_id, cost_centre_id,         index voucher_entry_id
+                                   amount_absolute
+
+voucher_items                      voucher_item_id PK, voucher_id,                  index voucher_id; index stock_item_id
+                                   stock_item_id, quantity, unit, rate,
+                                   amount, custom_fields (JSONB)
+
+
+5.8 Normalized accounting fields
+
+                           Field                                                           Meaning
+
+amount_raw                                                 Value exactly as received from Tally, kept for audit
+
+is_debit                                                   Set by the parser from Tally’s debit/credit indicator
+
+amount_absolute                                            Always non-negative
+
+amount_signed                                              Debit positive, credit negative, applied uniformly by the parser
+
+accounting_direction                                       DEBIT or CREDIT; the field all analytics read
+
+
+                            ID                                                          Requirement
+
+ACC-DATA-1                                                 All analytics use accounting_direction and amount_absolute (or
+                                                           amount_signed), never amount_raw
+
+ACC-DATA-2                                                 Conversion from Tally’s raw format to the normalized fields lives in one
+                                                           parser module with its own unit tests
+
+ACC-DATA-3                                                 The exact Tally XML indicator of debit/credit is LIVE TALLY
+                                                           VERIFICATION REQUIRED
+
+
+5.9 Synchronization control
+
+                   Table                            Key fields                                             Notes
+
+sync_watermarks                    PK(company_id,collection_type);                  collection_type: COMPANY, GROUP, LEDGER,
+                                   last_alter_id, last_successful_sync_at,          VOUCHER_TYPE, STOCK_ITEM, COST_CENTRE,
+                                   status, locked_by_agent_id,                      VOUCHER. The lock fields implement the sync
+                                   lock_acquired_at, lock_expires_at                lease (Section 6.3)
+
+sync_runs                          sync_run_id PK, company_id, agent_id,            index (company_id,started_at)
+                                   command_id, sync_mode, started_at,
+                                   ended_at, status
+                                   (IN_PROGRESS/COMPLETED/FAILED/PARTIAL),
+                                   records_fetched, records_failed
+
+sync_errors                        sync_error_id PK, sync_run_id,                   index sync_run_id
+                                   entity_type, tally_guid, error_code,
+                                   message, created_at
+
+reconciliation_results             result_id PK, company_id, run_at, metric,        index (company_id,run_at)
+                                   entity_id (nullable, e.g. ledger),
+                                   period_start, period_end, tally_value,
+                                   local_value, absolute_difference,
+                                   percentage_difference, result (PASS/FAIL)
+
+
+5.10 Configuration, audit and optional anomaly tables
+
+                           Table                                                          Key fields
+
+feature_config                                             PK(company_id,feature_name); enabled (boolean only), updated_by,
+                                                           updated_at
+
+company_settings                                           PK(company_id,setting_key); setting_value, data_type
+                                                           (INTEGER/DECIMAL/BOOLEAN/JSON), updated_by, updated_at
+custom_field_mappings           company_id, collection_type, tally_field, field_key, data_type,
+                                is_active, updated_by, updated_at
+
+audit_logs                      audit_log_id, company_id, user_id (null for system), action,
+                                entity_type, entity_id, before_value, after_value, data_range,
+                                result, created_at — append-only
+
+anomaly_flags                   anomaly_id, company_id, voucher_id, rule_triggered,
+                                transaction_amount, historical_average, historical_max,
+                                deviation_percent, duplicate_of_voucher_id, flagged_at,
+                                explanation_text, explanation_status
+                                (AVAILABLE/UNAVAILABLE/PENDING), reviewed, not_an_issue,
+                                reviewed_by, reviewed_at
+
+ai_tool_log                     id, company_id, tool_name, parameters, result_summary, status,
+                                created_at
+
+
+5.11 User-defined fields
+
+                           ID                                Requirement
+
+DR-UDF-1                        No user-defined fields are extracted by default; Owners/Admins add
+                                mappings
+
+DR-UDF-2                        Mapped values are stored in custom_fields, shown in drill-down and
+                                included in exports, and never used in analytics calculations
+
+DR-UDF-3                        A mapped field missing from an export is stored as null and logged
+                                once per run as UDF_NOT_FOUND; the sync continues
+
+DR-UDF-4                        The TDL export field list is generated from custom_field_mappings,
+                                not edited by hand
+
+
+
+
+6. Synchronization
+6.1 Sync modes
+
+                        Mode                                  Behaviour
+
+Initial full sync               Pulls every record of every collection with no ALTERID filter and sets
+                                the watermarks
+
+Incremental sync                Pulls records with ALTERID greater than the collection’s watermark.
+                                Default schedule hourly
+
+Manual sync                     “Sync Now” creates a command (Section 4.8); runs incremental by
+                                default
+
+Date-range sync                 Manual, for re-verifying a period. Does not move a watermark unless it
+                                processes records beyond it
+
+Reconciliation sync             Daily by default: pulls totals and key lists and compares them with
+                                local data (Section 9)
+
+
+6.2 Watermarks
+
+                           ID                                Requirement
+
+SYNC-1.1                        Each (company_id, collection_type) has its own watermark.
+                                Collections are synced as independent streams
+
+SYNC-1.2                        A watermark advances only after the batch containing those records
+                                has been committed
+
+SYNC-1.3                        The shared per-company watermark is valid only while all of a
+                                company’s Agents connect to the same Tally company GUID.
+                                Consolidating separate Tally companies under one business account is
+                                outside this specification
+
+
+6.3 Sync lease
+
+                           ID                                Requirement
+
+SYNC-4.1                        Before syncing a collection, an Agent acquires the lease on its
+                                sync_watermarks row with an atomic compare-and-set
+
+SYNC-4.2                        If another Agent holds an unexpired lease, the request is rejected with
+                                SYNC_LOCKED and nothing is pulled for that collection
+
+SYNC-4.3                        The lease is released on completion, or reclaimed automatically after
+                                lock_expires_at
+
+SYNC-4.4                        The lease prevents concurrent writers; stale-record protection (Section
+                                6.4) prevents out-of-order data. Both are required
+6.4 Stale-record protection
+
+                              ID                                                                  Requirement
+
+ SYNC-3.1                                                           Every upsert compares the incoming ALTERID with the stored ALTERID
+                                                                    for that (company_id, GUID)
+
+ SYNC-3.2                                                           Incoming lower than stored: the record is rejected, the local record is
+                                                                    unchanged, and STALE_ALTERID is logged
+
+ SYNC-3.3                                                           Equal: no change, not an error
+
+ SYNC-3.4                                                           Higher: the update is applied (Section 6.9 for vouchers)
+
+ SYNC-3.5                                                           This rule applies to groups, ledgers, voucher types, stock items, cost
+                                                                    centres and vouchers
+
+
+6.5 Batching, idempotency and partial failure
+
+                              ID                                                                  Requirement
+
+ SYNC-6.1                                                           The backend commits uploads in batches (default 500 records), each in
+                                                                    its own transaction
+
+ SYNC-6.2                                                           Each voucher’s full write (header, entries, bill allocations, cost-centre
+                                                                    allocations, items) is one transaction; a voucher is never left partly
+                                                                    written
+
+ SYNC-6.3                                                           Every write is an upsert keyed on (company_id, tally_guid), so
+                                                                    replaying a batch is always safe
+
+ SYNC-6.4                                                           If a run fails part-way (for example after 50,000 of 100,000 records),
+                                                                    committed batches remain, the watermark reflects the last committed
+                                                                    batch, the run is marked PARTIAL, and the next run resumes from the
+                                                                    watermark with no duplicates
+
+ SYNC-6.5                                                           A record that cannot be parsed is logged to sync_errors; the rest of
+                                                                    the batch continues
+
+ SYNC-6.6                                                           If Tally is unreachable, no local data is changed
+
+
+6.6 Record identity
+
+                              ID                                                                  Requirement
+
+ DR-4.1                                                             A voucher is identified by (company_id, tally_guid).
+                                                                    voucher_number is display-only, because Tally voucher numbers can
+                                                                    repeat across financial years and be edited
+
+ DR-4.2                                                             Groups, ledgers, voucher types, stock items and cost centres are also
+                                                                    identified by (company_id, tally_guid)
+
+ DR-4.4                                                             Two companies using the same voucher number, or a reused voucher
+                                                                    number, cannot cause a collision
+
+ DR-4.6                                                             UNIQUE(company_id,tally_guid) is enforced by the database on every
+                                                                    synced master and voucher table
+
+
+6.7 Voucher lifecycle
+
+              State change                                   Detection                                          Local effect
+
+ New                                       GUID not stored                                    Insert; status = ACTIVE
+
+ Modified                                  ALTERID higher than stored                         Header updated, children replaced (Section
+                                                                                              6.9), before/after of header values written to
+                                                                                              audit_logs
+
+ Cancelled                                 ALTERID higher, cancellation indicator set         status = CANCELLED; row kept; excluded
+                                                                                              from standard analytics
+
+ Deleted                                   GUID missing from a key list or full               status = MISSING_IN_TALLY; row kept;
+                                           reconciliation (Section 6.8)                       excluded from standard analytics; listed for
+                                                                                              review
+
+ Reappeared                                A MISSING_IN_TALLY GUID is present again           status = ACTIVE; logged to audit_logs
+
+Worked example: voucher 100 is ₹10,000 on day 1 and edited to ₹15,000 on day 2. Editing raises its ALTERID, so the next
+incremental sync returns it; the stored ALTERID is lower, so the voucher is updated and the change from ₹10,000 to ₹15,000 is
+recorded in audit_logs.
+
+6.8 Deletion detection
+
+                              ID                                                                  Requirement
+
+ SYNC-5.1                                                           After each incremental sync of a collection, the Agent requests a key-
+                                                                    only list (GUID, ALTERID) of that collection for the synced period
+
+ SYNC-5.2                                                           Any ACTIVE local record missing from the list becomes
+                                                                   MISSING_IN_TALLY
+
+ SYNC-5.3                                                          The daily full reconciliation remains required; it checks totals and
+                                                                   covers periods outside the incremental window
+
+ SYNC-5.4                                                          If the key list proves too costly on large companies, it runs on an
+                                                                   interval (default hourly) instead (IMPLEMENTATION TEST)
+
+ SYNC-5.5                                                          The reference implementation’s deletion handling is reviewed before
+                                                                   this mechanism is finalized
+
+
+6.9 Voucher child-row updates
+
+Whether Tally exposes a stable identifier for each ledger-entry and inventory line is LIVE TALLY VERIFICATION REQUIRED.
+
+                                ID                                                                Requirement
+
+ DR-VE-1                                                           A live export is inspected during implementation to determine whether
+                                                                   a stable per-line identifier exists
+
+ DR-VE-2                                                           If it exists, lines are updated individually using it
+
+ DR-VE-3                                                           If not, a modified voucher’s children are replaced in full; fragile
+                                                                   composite keys (ledger + amount + position) are never used for
+                                                                   matching
+
+ DR-VE-4                                                           The replacement is one transaction; any failure rolls back the whole
+                                                                   voucher
+
+Replacement order, inside one transaction:
+
+  1. Update the voucher header.
+  2. Delete bill allocations and cost-centre allocations belonging to the voucher’s ledger entries.
+  3. Delete the voucher’s ledger entries.
+  4. Delete the voucher’s inventory items.
+  5. Insert the current ledger entries, bill allocations, cost-centre allocations and inventory items.
+  6. Commit.
+
+6.10 Master-data lifecycle
+
+                                ID                                                                Requirement
+
+ DR-ML-1                                                           Groups, ledgers, voucher types, stock items and cost centres are never
+                                                                   hard-deleted by sync
+
+ DR-ML-2                                                           Historical vouchers keep their links to a master that becomes
+                                                                   MISSING_IN_TALLY; past-period analytics are unaffected
+
+ DR-ML-3                                                           MISSING_IN_TALLY masters appear in a “missing masters” review list
+
+ DR-ML-4                                                           A master that reappears returns to ACTIVE, and this is logged
+
+ DR-ML-5                                                           An INACTIVE state is recorded if Tally exposes one (LIVE TALLY
+                                                                   VERIFICATION REQUIRED)
+
+
+6.11 TDL export definitions
+
+                                ID                                                                Requirement
+
+ FR-1.1                                                            Custom TDL Collections exist for company, groups, ledgers (with
+                                                                   opening balances), voucher types, stock items (with opening balances),
+                                                                   cost centres, vouchers (header, ledger entries, inventory entries, bill
+                                                                   allocations, cost-centre allocations), stock closing quantities as of a
+                                                                   date, ledger closing balances as of a date, and reconciliation totals
+
+ FR-1.2                                                            Every Collection returns GUID and ALTERID and supports an ALTERID >
+                                                                   filter and a key-only form
+
+ FR-1.3                                                            A custom TDL Report per Collection returns the data as XML over
+                                                                   Tally’s HTTP interface
+
+ FR-1.4                                                            If a required TDL definition is not loaded in Tally, the Agent reports
+                                                                   TDL_NOT_LOADED and never falls back to default reports
+
+
+
+
+7. Tally Validation Gate
+The design depends on specific Tally behaviour. Each item below must reach PASSED, with evidence, on a live TallyPrime
+installation before the dependent feature is declared complete.
+
+                                ID                                                                Requirement
+
+ VAL-1.1                                                           No release claims incremental-sync compatibility for a collection until
+                                                                   all of that collection’s ALTERID rows are PASSED
+
+ VAL-1.2                                                           If an ALTERID row is FAILED, the affected collection falls back to full-
+                                                                   pull-only sync
+VAL-1.3                                                     This table is a maintained project artifact, updated with evidence
+                                                            during implementation
+
+            #                          Test                          Expected result                           Status
+
+G1                    ALTERID on Ledger export              Present, integer                      NOT TESTED
+
+G2                    ALTERID on Stock Item export          Present, integer                      NOT TESTED
+
+G3                    ALTERID on Voucher export             Present, integer                      NOT TESTED
+
+G4                    ALTERID on Cost Centre export         Present, integer                      NOT TESTED
+
+G5                    ALTERID type and range                Integer, increasing per company       NOT TESTED
+
+G6                    ALTERID ordering                      Increases on every change to an       NOT TESTED
+                                                            object
+
+G7                    ALTERID > filter in TDL               Collection accepts a numeric filter   NOT TESTED
+
+G8                    Modified voucher                      Editing raises its ALTERID            NOT TESTED
+
+G9                    Cancelled voucher                     Cancelling raises ALTERID and         NOT TESTED
+                                                            sets a detectable indicator
+
+G10                   Consistency across collections        Same ALTERID behaviour for all        NOT TESTED
+                                                            collection types
+
+G11                   Deletion                              Deleting a record produces no         NOT TESTED
+                                                            ALTERID signal on other records
+
+G12                   Group parent reference                Each group’s parent is identifiable   NOT TESTED
+
+G13                   Primary group resolution              Every group’s chain reaches a         NOT TESTED
+                                                            predefined primary group
+
+G14                   Group nature                          Income/expense/asset/liability        NOT TESTED
+                                                            nature identifiable from export or
+                                                            fixed mapping
+
+G15                   Voucher type parent                   Each voucher type’s parent is         NOT TESTED
+                                                            identifiable
+
+G16                   Ledger opening balance                Exportable with debit/credit          NOT TESTED
+                                                            direction
+
+G17                   Stock opening balance                 Opening quantity and value            NOT TESTED
+                                                            exportable
+
+G18                   Stock closing quantity as of a date   Returned for a given date             NOT TESTED
+
+G19                   Ledger closing balance as of a        Returned for a given date             NOT TESTED
+                      date
+
+G20                   Named-company targeting               A request can target a loaded,        NOT TESTED
+                                                            non-active company
+
+G21                   Key-only export                       Collection exportable with only       NOT TESTED
+                                                            GUID and ALTERID
+
+G22                   User-defined field extraction         A TDL-customised field can be         NOT TESTED
+                                                            requested
+
+G23                   Debit/credit indicator                The raw indicator is identified and   NOT TESTED
+                                                            the parser maps it correctly (ACC-
+                                                            DATA-3)
+
+G24                   Stable line identifier                Whether ledger-entry/inventory        NOT TESTED
+                                                            lines have a stable identifier (DR-
+                                                            VE-1)
+
+G25                   Bill allocation types                 Exact exported values for New         NOT TESTED
+                                                            Reference, Against Reference,
+                                                            Advance, On Account
+
+G26                   Return linkage                        How Credit/Debit Notes reference      NOT TESTED
+                                                            original bills in the export
+
+G27                   Unit data                             Whether base units and                NOT TESTED
+                                                            conversion factors are exported
+
+G28                   Product revenue basis                 Whether product-line revenue          NOT TESTED
+                                                            uses the same basis as Total Sales
+                                                            (ACC-VAL-1)
+
+G29                   Master inactive state                 Whether Tally exposes an inactive     NOT TESTED
+                                                            state for masters
+
+
+
+
+8. Accounting and Analytics Rules
+8.1 Core principles
+  1. Every metric is computed by direct SQL/pandas aggregation over synced data. No AI, ML or LLM component is used.
+  2. Every metric filters ledger entries by both the ledger’s primary group and the entry’s accounting direction. A voucher’s
+     entries are never summed as a whole, because a balanced voucher’s debits and credits cancel out.
+  3. Standard analytics include only ACTIVE vouchers. CANCELLED and MISSING_IN_TALLY vouchers are excluded unless the
+     user explicitly asks to see them.
+  4. All date grouping uses company_timezone (Section 17.5).
+
+8.2 Ledger classification by primary group
+
+                              ID                                                               Requirement
+
+ ACC-7.1                                                           Every rule that classifies a ledger (sales, purchase, expense, cash,
+                                                                   bank, duties and taxes, customer, supplier) uses the ledger’s primary
+                                                                   group, never its immediate parent
+
+ ACC-7.2                                                           The primary group is resolved at sync time by following parent groups
+                                                                   to a predefined primary group, and cached
+
+ ACC-7.3                                                           Classification allow-lists in company_settings contain primary groups
+                                                                   only
+
+ ACC-7.4                                                           A group whose chain does not reach a primary group (missing parent
+                                                                   or a loop) is marked UNRESOLVED_GROUP; its ledgers are excluded from
+                                                                   classified metrics and listed for data-quality review
+
+ ACC-7.5                                                           When a group’s parent changes, primary groups are recalculated for it
+                                                                   and everything beneath it on the next sync, and the change is logged
+
+ ACC-7.6                                                           Customers are ledgers whose primary group is Sundry Debtors;
+                                                                   suppliers are ledgers whose primary group is Sundry Creditors
+
+
+Default allow-lists: Sales = Sales Accounts; Purchase = Purchase Accounts; Expense = Direct Expenses, Indirect Expenses;
+Cash/Bank = Cash-in-Hand, Bank Accounts; Tax = Duties & Taxes.
+
+8.3 Voucher classification by base voucher type
+
+                              ID                                                               Requirement
+
+ ACC-8.1                                                           Every rule that filters by voucher type uses base_voucher_type, never
+                                                                   the voucher-type name
+
+ ACC-8.2                                                           A user-created type such as “POS Invoice” derived from Sales is
+                                                                   included wherever Sales is
+
+ ACC-8.3                                                           A voucher whose type cannot be resolved is classified OTHER, excluded
+                                                                   from type-filtered metrics, and listed for data-quality review
+
+
+8.4 Sales revenue
+
+                    ID                                          Metric                                          Rule
+
+ ACC-1.1                                   Total Sales Revenue (authoritative)             Sum of CREDIT entries on ledgers whose
+                                                                                           primary group is in the Sales allow-list, on
+                                                                                           ACTIVE vouchers whose base type is SALES,
+                                                                                           minus linked Sales Returns (Section 8.7). In
+                                                                                           taxable-value mode (default), entries on
+                                                                                           Duties & Taxes ledgers are excluded
+
+ ACC-2.1                                   No double counting                              No metric adds both the debit and credit sides
+                                                                                           of the same voucher
+
+ ACC-2.2                                   Tax exclusion                                   Tax-classified entries are excluded from all
+                                                                                           revenue and purchase metrics in taxable-
+                                                                                           value mode
+
+
+8.5 Customer attribution
+
+                              ID                                                               Requirement
+
+ ACC-6.1                                                           A qualifying Sales voucher with exactly one customer ledger among its
+                                                                   entries: its revenue is Customer-attributed Revenue for that customer
+
+ ACC-6.2                                                           No customer ledger (for example a cash sale): Unattributed Customer
+                                                                   Revenue
+
+ ACC-6.3                                                           More than one customer ledger: Unattributed Customer Revenue.
+                                                                   Revenue is never split between customers by guesswork
+
+ ACC-6.4                                                           All customer-attributed revenue plus Unattributed Customer Revenue
+                                                                   equals Total Sales Revenue for the same period and filters
+
+ ACC-1.4                                                           Supplier amounts follow the same pattern using Purchase Value and
+                                                                   Sundry Creditors
+
+
+8.6 Product attribution
+
+                              ID                                                               Requirement
+ACC-1.8                                              Product-attributed Revenue = sum of voucher_items.amount on
+                                                     vouchers that qualify under ACC-1.1
+
+ACC-1.10                                             By default, Total Sales Revenue minus Product-attributed Revenue is
+                                                     shown as Product Attribution Difference, a data-quality figure, not
+                                                     an accounting claim
+
+ACC-1.9                                              Only after validation gate G28 passes (Product-attributed Revenue
+                                                     proven to use the same basis as Total Sales: same vouchers, tax
+                                                     treatment, return treatment, discounts and period) is the difference
+                                                     shown as Unattributed / Non-product Sales Revenue
+
+ACC-VAL-1                                            The dashboard shows exactly one of the two labels above, never both
+
+
+8.7 Sales and purchase returns
+
+                       ID                                                          Requirement
+
+ACC-5.1                                              A Credit Note is a Sales Return only when its bill allocation links it to an
+                                                     original Sales bill reference
+
+ACC-5.2                                              A Debit Note is a Purchase Return only under the equivalent link to an
+                                                     original Purchase bill
+
+ACC-5.3                                              Notes without a resolvable link are classified UNLINKED_CREDIT_NOTE /
+                                                     UNLINKED_DEBIT_NOTE
+
+ACC-5.4                                              Unlinked notes are not subtracted from sales or purchases; they
+                                                     appear in an “Unclassified Adjustments” view
+
+ACC-5.5                                              How return links appear in the export is gate G26 (LIVE TALLY
+                                                     VERIFICATION REQUIRED); until it passes, all notes are treated as
+                                                     unlinked
+
+
+8.8 Purchases and expenses
+
+                ID                                Metric                                             Rule
+
+ACC-1.2                          Purchase Value                                Sum of DEBIT entries on ledgers in the
+                                                                               Purchase allow-list, on ACTIVE vouchers of
+                                                                               base type PURCHASE, minus linked Purchase
+                                                                               Returns, tax entries excluded in taxable-value
+                                                                               mode
+
+ACC-1.5                          Expenses                                      Sum of DEBIT entries on ledgers in the
+                                                                               Expense allow-list, grouped by ledger, primary
+                                                                               group or cost centre
+
+
+8.9 Cash flow
+
+                       ID                                                          Requirement
+
+ACC-1.6                                              Cash inflow = DEBIT entries on Cash/Bank ledgers in vouchers of base
+                                                     type RECEIPT
+
+ACC-1.7                                              Cash outflow = CREDIT entries on Cash/Bank ledgers in vouchers of
+                                                     base type PAYMENT
+
+ACC-3.1                                              Inflow is positive and outflow negative in the net cash-flow series
+
+ACC-3.3                                              CONTRA vouchers (transfers between the company’s own cash and bank
+                                                     ledgers) are excluded
+
+ACC-3.4                                              JOURNAL vouchers touching cash/bank ledgers are excluded by default
+                                                     and included only if enabled per company (OPEN — BUSINESS
+                                                     DECISION)
+
+
+8.10 Balances
+
+                       ID                                                          Requirement
+
+ACC-9.1                                              A balance-sheet ledger’s balance on date D = its opening balance for
+                                                     the financial year containing D, plus the net of its ACTIVE entries from
+                                                     the start of that year to D
+
+ACC-9.2                                              Income and expense ledgers report period movements only; their
+                                                     balances do not carry into the next financial year
+
+ACC-9.3                                              Cash and bank position on date D = sum of balances of ledgers in the
+                                                     Cash/Bank allow-list. Bank overdraft ledgers are included only if added
+                                                     to the list
+
+ACC-9.4                                              Total receivables and payables on date D use the same rule for Sundry
+                                                     Debtors and Sundry Creditors
+
+ACC-9.5                                              Computed ledger balances are checked against Tally’s own closing
+                                                     balances on the sync date (Section 9)
+ ACC-9.6                                                                A ledger with no opening balance for the relevant year shows “opening
+                                                                        balance unavailable”; zero is never assumed
+
+
+8.11 Top-N rankings
+
+                                   ID                                                                 Requirement
+
+ TOPN-1.1                                                               Default N is 10, configurable per company
+
+ TOPN-1.2                                                               Top-N lists use exactly the same query as the full list; only the cut-off
+                                                                        differs
+
+ TOPN-1.3                                                               Each Top-N view is labelled “Top N” and offers “View All”
+
+ TOPN-1.4                                                               Top-N totals are never presented as adding up to the overall total
+
+
+8.12 Cross-module consistency
+
+                     Metric                                       Source                                          Reconciles to
+
+ Total Sales Revenue                            ACC-1.1                                          Reference figure
+
+ Customer-attributed + Unattributed Customer    ACC-6.x                                          Total Sales Revenue
+ Revenue
+
+ Product-attributed Revenue + Product           ACC-1.8–1.10                                     Total Sales Revenue
+ Attribution Difference (or Unattributed/Non-
+ product Revenue)
+
+ Top-N lists                                    Same queries, limited                            Not required to equal any total
+
+                                   ID                                                                 Requirement
+
+ ACC-4.4                                                                Dashboard views, drill-downs and exports of a metric all call the same
+                                                                        shared query function
+
+ ACC-4.5                                                                Cancelled and MISSING_IN_TALLY records are excluded from every
+                                                                        standard metric consistently
+
+ ACC-4.6                                                                Anomaly evidence is never used as a source for any accounting figure
+
+
+8.13 Customer-level and product-level views
+
+                                   ID                                                                 Requirement
+
+ FR-2.4                                                                 Top customers are ranked by Customer-attributed Revenue; top
+                                                                        products by Product-attributed Revenue and by quantity sold
+
+ FR-2.1                                                                 Sales, purchases and cash flow can be viewed daily, monthly and by
+                                                                        financial quarter
+
+
+8.14 Configurable accounting settings
+
+The Sales, Purchase, Expense, Cash/Bank and Tax allow-lists, taxable-value mode and journal inclusion are stored in
+company_settings (Section 18).
+
+8.15 GST and tax scope
+
+OPEN — BUSINESS DECISION. Default: out of scope for v1. Revenue and purchases are reported at taxable value, excluding
+tax ledgers. If GST analytics are brought into scope, a tax_details table (CGST/SGST/IGST/cess, rate, taxable value, tax
+amount, HSN/SAC), matching TDL extensions and new requirements must be added. This must be decided before the voucher
+TDL Collection is finalized.
+
+
+
+9. Reconciliation
+9.1 Purpose
+
+Reconciliation answers “does the local database match Tally?” using totals from a separate TDL Totals Collection, not by re-
+adding the synced detail rows. This way a bug in the sync or parser cannot hide itself.
+
+                                   ID                                                                 Requirement
+
+ REC-1.1                                                                For each company and period, compare Tally and local values for:
+                                                                        Sales, Purchases, Receipts, Payments, closing stock quantity per item,
+                                                                        and ledger closing balances
+
+ REC-1.2                                                                Show the Tally value, the local value, the absolute difference and the
+                                                                        percentage difference
+
+ REC-1.3                                                                Record every comparison in reconciliation_results
+
+ REC-1.4                                                                Run automatically after every full sync and daily reconciliation sync,
+                                                                        and on demand
+
+ REC-1.5                                                                A voucher or master found only locally during reconciliation is marked
+                                                                                                 MISSING_IN_TALLY (Section 6.7)
+
+
+9.2 Tolerance rule
+
+ absolute_difference   = |tally_value − local_value|
+ percentage_difference = absolute_difference / |tally_value| × 100        (tally_value ≠ 0)
+
+ If tally_value = 0:   PASS when local_value = 0, otherwise FAIL.
+ Otherwise:            PASS when absolute_difference ≤ absolute tolerance
+                            OR percentage_difference ≤ percentage tolerance.
+                       FAIL only when both tolerances are exceeded.
+
+
+
+
+                            Metric                                                       Tolerances used                                       Defaults
+
+ Sales, Purchases, Receipts, Payments, ledger                        Money                                                   ₹1.00 absolute, 0.01%
+ balances
+
+ Stock quantity                                                      Quantity                                                0 units absolute, 0.5%
+
+
+9.3 Worked examples (₹1 / 0.01%)
+
+            Tally                             Local                            Abs. diff                  % diff                    Result                      Reason
+
+ ₹100,000                          ₹100,000.50                       ₹0.50                       0.0005%                     PASS                     Within absolute
+                                                                                                                                                      tolerance
+
+ ₹100,000                          ₹100,010                          ₹10                         0.01%                       PASS                     Equal to percentage
+                                                                                                                                                      tolerance
+
+ ₹100,000                          ₹100,012                          ₹12                         0.012%                      FAIL                     Both tolerances
+                                                                                                                                                      exceeded
+
+ ₹100,000                          ₹100,500                          ₹500                        0.5%                        FAIL                     Both tolerances
+                                                                                                                                                      exceeded
+
+ ₹0                                ₹0                                ₹0                          —                           PASS                     Zero matches zero
+
+ ₹0                                ₹50                               ₹50                         —                           FAIL                     Non-zero against zero
+
+
+
+
+10. Aging and Payment Behaviour
+10.1 Aging categories
+
+                                           Category                                                                                  Rule
+
+ Not yet due                                                                                     due_date after today
+
+ Overdue 0–30 / 31–60 / 61–90 / 90+ days                                                         today − due_date, for due_date on or before today; boundaries
+                                                                                                 configurable, default [30, 60, 90]
+
+ Due date unavailable                                                                            No due date on the bill
+
+“Today” is the current date in company_timezone. A bill not yet due is never shown with negative overdue days.
+
+10.2 Bill allocation rules
+
+       Allocation type                      Creates outstanding                       Settles outstanding                In aging buckets                  Effect
+
+ New Reference                           Yes                                       No                              Yes                          Raises a bill
+
+ Against Reference                       No                                        Yes                             Reduces the referenced       Reduces that bill’s
+                                                                                                                   bill                         outstanding
+
+ Advance                                 No                                        No                              No — shown as                Reduces the party’s net
+                                                                                                                   “Unadjusted Advances”        exposure until allocated to
+                                                                                                                                                a bill
+
+ On Account                              No                                        No                              No — shown as “On-           Reduces the party’s net
+                                                                                                                   Account / Unallocated”       exposure until allocated to
+                                                                                                                                                a bill
+
+
+                                                ID                                                                               Requirement
+
+ FR-AGE-1                                                                                        Aging is computed per bill reference, not per voucher
+
+ FR-AGE-2                                                                                        A bill’s outstanding = its New Reference amount minus all Against
+                                                                                                 Reference amounts for the same reference, including those from
+                                                                                                 receipts, payments and linked credit/debit notes
+
+ AGE-BILL-1                                                                                      An allocation type that cannot be mapped to the table above is
+                                                                                                 UNSUPPORTED_ALLOCATION_TYPE
+
+ AGE-BILL-2                                                                                      Unsupported allocations are never included in aging; they are listed for
+                                                                                                 review
+
+ AGE-BILL-3                                                                                      Advance and On Account totals are shown as separate summary lines
+
+ AGE-BILL-4                                                                                      Customer (receivable) and supplier (payable) advances and on-account
+                                                                                                 amounts are shown separately and never netted together
+ AGE-BILL-5                                                          The exact exported allocation-type values are gate G25 (LIVE TALLY
+                                                                     VERIFICATION REQUIRED)
+
+
+10.3 Ledgers without bill-wise details
+
+If bill-wise details are not maintained for a ledger in Tally, its outstanding is shown as one total with the note “bill details not
+available”. It is never placed into guessed buckets.
+
+10.4 Customer payment behaviour
+
+                                 ID                                                               Requirement
+
+ FR-PAY-1                                                            Average days to pay = Σ(settled amount × days from bill date to
+                                                                     settlement date) ÷ Σ(settled amount), over settlements in a trailing
+                                                                     window (default 365 days)
+
+ FR-PAY-2                                                            Bill date is the date of the New Reference voucher; settlement date is
+                                                                     the date of each Against Reference voucher. Part settlements count
+                                                                     separately
+
+ FR-PAY-3                                                            Average days past due uses due date instead of bill date; early
+                                                                     payments count as 0
+
+ FR-PAY-4                                                            Advance and On Account amounts are excluded
+
+ FR-PAY-5                                                            Customers with fewer than 3 settlements in the window (configurable)
+                                                                     show “insufficient history”
+
+ FR-PAY-6                                                            The metric is hidden until gate G25 passes
+
+
+
+
+11. Stock Analytics
+11.1 Movement classification
+
+All thresholds are configurable per company. The values shown are defaults.
+
+                     ID                                          Class                                              Rule
+
+ FR-STK-1                                     Measurement period                              90 days (30/60/90/180 selectable)
+
+ FR-STK-2                                     Fast-moving                                     Sales quantity in the period is at or above the
+                                                                                              75th percentile of items sold in the period
+
+ FR-STK-3                                     Normal                                          Sold in the period, below the fast-moving
+                                                                                              threshold
+
+ FR-STK-4                                     Slow-moving                                     Last sale more than 90 days ago and within
+                                                                                              180 days
+
+ FR-STK-5                                     Dead stock                                      No sale for 180 days or more, and current
+                                                                                              stock above zero
+
+ FR-STK-12                                    Never sold                                      No sale anywhere in the synced history, and
+                                                                                              current stock above zero
+
+ FR-STK-19                                    Not classified                                  No current stock and no sale in the period;
+                                                                                              excluded from movement views
+
+
+                                 ID                                                               Requirement
+
+ FR-STK-6                                                            Sales quantity is net of linked sales returns; cancelled vouchers are
+                                                                     excluded
+
+ FR-STK-13                                                           An item with no sale date at all is Never Sold, never Slow-moving
+
+ FR-STK-14                                                           Never Sold is its own filterable category
+
+ FR-STK-7                                                            Thresholds are stored in company_settings
+
+ FR-STK-20                                                           Ranking by quantity compares items measured in different units.
+                                                                     Whether fast-moving should instead be ranked by sales value is OPEN
+                                                                     — BUSINESS DECISION (default: quantity, as specified;
+                                                                     recommendation: value)
+
+
+11.2 Units
+
+                                 ID                                                               Requirement
+
+ FR-STK-8                                                            A live export determines whether transaction units, base units and
+                                                                     conversion factors are available (gate G27)
+
+ FR-STK-9                                                            If available, all quantities are converted to each item’s base unit before
+                                                                     use
+
+ FR-STK-10                                                           If not, multi-unit conversion is out of scope for v1; items with more
+                                                                     than one transaction unit are flagged and the limitation is stated on the
+                                                                     stock view
+11.3 Current stock quantity
+
+                                               ID                                                                             Requirement
+
+ FR-STK-15                                                                                      Current stock quantity is the Tally-computed closing quantity on the
+                                                                                                sync date, stored in stock_snapshots, because inventory-only
+                                                                                                vouchers are not synced
+
+ FR-STK-16                                                                                      Every stock classification shows the snapshot date it used
+
+ FR-STK-17                                                                                      Stock is reported at company level; godown and batch breakdowns are
+                                                                                                out of scope for v1
+
+
+
+
+12. Anomaly Detection (Optional)
+12.1 Feature flag behaviour
+
+             Condition                              Rules engine                         Anomaly records            MCP / Claude calls              Anomalies view
+
+ FEATURE_ANOMALY_DETECTION                  Does not run                           None created                 None                           Hidden
+ off
+
+ On, Claude reachable                       Runs                                   Created with full evidence   Explanation requested          Evidence and explanation
+                                                                                                                                               shown
+
+ On, Claude unreachable                     Runs                                   Created with full evidence   Attempted, fails safely        Evidence shown;
+                                                                                                                                               explanation marked
+                                                                                                                                               unavailable
+
+
+12.2 Flow
+
+ Database → deterministic rules engine (SQL/Python) → anomaly_flags (numeric evidence)
+         → MCP server tool get_anomaly_evidence(anomaly_id) → MCP client → Claude
+         → plain-language explanation → stored with the flag → dashboard
+
+
+
+The application’s rules engine finds every anomaly and computes every number. Claude only reads the evidence for one
+anomaly and writes an explanation of it.
+
+12.3 Rules
+
+                                               ID                                                                             Requirement
+
+ FR-3.1                                                                                         Nothing in this section runs while the feature flag is off
+
+ FR-3.2                                                                                         Unusually large transaction: for each party ledger, compute the
+                                                                                                mean and standard deviation of transaction amounts over a trailing
+                                                                                                window (default 180 days). Flag a transaction above mean + 3
+                                                                                                standard deviations, or above the previous maximum × a configurable
+                                                                                                multiplier (default not set; rule inactive until configured,
+                                                                                                IMPLEMENTATION TEST)
+
+ FR-3.3                                                                                         Possible duplicate: same party ledger, same amount, within a
+                                                                                                configurable window (default 3 days)
+
+ FR-3.4                                                                                         Every flag stores the transaction amount, historical average, historical
+                                                                                                maximum, deviation percentage and the rule triggered
+
+ FR-3.5                                                                                         The MCP tool returns only the stored evidence for one anomaly; it
+                                                                                                never returns bulk data and never runs arbitrary queries
+
+ FR-3.6                                                                                         Claude is asked only to explain the supplied evidence; it is never asked
+                                                                                                to calculate a number
+
+ FR-3.7                                                                                         Evidence and explanation are shown in separate, clearly labelled areas
+
+ FR-3.8                                                                                         A user can mark a flag “reviewed” or “not an issue”; this is recorded in
+                                                                                                audit_logs
+
+ FR-3.9                                                                                         Every MCP tool call is recorded in ai_tool_log
+
+Example evidence: transaction ₹4,50,000; historical average ₹70,000; previous maximum ₹1,20,000; deviation +543%; rule:
+amount above mean + 3 SD.
+
+12.4 Why Claude, and does the system need it?
+
+Claude turns numeric evidence into a sentence a non-technical owner can act on. It is not needed for detection or for any
+figure. With the flag on and Claude unavailable, anomalies are still found and shown with their evidence. With the flag off, the
+core system is unaffected.
+
+
+
+13. Dashboard, Drill-Down and Exports
+13.1 Dashboard
+                                    ID                                         Requirement
+
+FR-4.1                                           The home view shows sales, cash and bank position, receivables,
+                                                 payables, last sync time and status, and reconciliation status
+
+FR-4.2                                           Sections: Sales, Purchases, Cash Flow, Balances, Aging, Payment
+                                                 Behaviour, Customers, Products, Expenses, Stock, Reconciliation, Data
+                                                 Quality, Anomalies (only if enabled), Settings (role-restricted)
+
+FR-4.3                                           Filters: date range, customer, product, cost centre
+
+FR-4.4                                           The Agents view lists every Agent with status, versions, last heartbeat,
+                                                 Tally uptime and queue status
+
+FR-4.5                                           The Data Quality view lists unresolved groups, unresolved voucher
+                                                 types, missing opening balances, unsupported allocations, unlinked
+                                                 credit/debit notes, missing masters and MISSING_IN_TALLY vouchers
+
+
+13.2 Drill-down
+
+                                    ID                                         Requirement
+
+FR-DD-1                                          Revenue → customer → vouchers → voucher detail (ledger entries and
+                                                 line items)
+
+FR-DD-2                                          Product revenue → product → contributing line items
+
+FR-DD-3                                          Expense category → ledger → vouchers
+
+FR-DD-4                                          Product Attribution Difference (or Unattributed/Non-product Revenue)
+                                                 → contributing vouchers
+
+FR-DD-5                                          Every drilled list totals exactly to the figure it expands
+
+
+13.3 Exports
+
+                                    ID                                         Requirement
+
+EXP-1.1                                          Every CSV/PDF export contains the report title, company name, date
+                                                 range, active filters, generation timestamp (in company_timezone),
+                                                 summary figures and the detailed rows shown on screen
+
+EXP-1.2                                          PDF exports include the charts shown on screen
+
+EXP-1.3                                          Exports use the same query functions as the screen, so their figures
+                                                 match exactly
+
+EXP-1.4                                          Sales exports show Total Sales Revenue, Product-attributed Revenue
+                                                 and whichever difference label the dashboard is showing, as separate
+                                                 lines
+
+EXP-1.5                                          Mapped custom fields are included in detailed rows
+
+EXP-1.6                                          The export endpoint re-checks the user’s role and company access
+                                                 before producing a file
+
+
+
+
+14. Authentication, Access Control and Security
+14.1 Roles and permissions
+
+             Action                      Owner              Accountant                          Admin/Developer
+
+View dashboard and financial data    ✅           ✅                                      ✅ (companies assigned to them)
+
+Run manual sync                      ✅           ✅                                      ✅
+
+Create or change sync schedules      ✅           ❌                                      ✅
+
+Export reports                       ✅           ✅                                      ✅
+
+View reconciliation and data-        ✅           ✅                                      ✅
+quality views
+
+View sync and system logs            ✅           ❌                                      ✅
+
+Review / dismiss anomalies           ✅           ✅                                      ❌
+
+Change feature flags and settings    ✅           ❌                                      ✅
+
+Register, rotate, revoke Agents;     ✅           ❌                                      ✅
+change Tally connection settings
+
+Manage custom field mappings         ✅           ❌                                      ✅
+
+Manage users and roles               ✅           ❌                                      ❌
+
+
+                                    ID                                         Requirement
+
+RBAC-1.1                                         Permissions are enforced on the server for every endpoint; hiding a
+                                                                     button is never the only control
+
+RBAC-1.2                                                             A user’s roles are held per company (user_roles)
+
+
+14.2 Security requirements
+
+                              ID                                                                  Requirement
+
+SEC-1.1                                                              Users authenticate with email and password (bcrypt hash); the
+                                                                     backend issues JWTs that expire within 24 hours, with a refresh flow
+
+SEC-1.2                                                              Every endpoint checks role claims on the server
+
+SEC-1.3                                                              All traffic uses HTTPS with TLS 1.2 or later; plain HTTP is rejected
+
+SEC-1.4                                                              CORS allows only the known frontend origin(s)
+
+SEC-1.5                                                              CSRF protection applies to any cookie-based session flow; bearer
+                                                                     tokens in headers are used by default
+
+SEC-1.6                                                              All database access uses parameterized queries through the ORM; no
+                                                                     SQL is built by string concatenation
+
+SEC-1.7                                                              Every company-scoped query includes a company_id filter taken from
+                                                                     the authenticated session, never from client input
+
+SEC-1.8                                                              Agent authentication follows Section 4.3–4.4
+
+SEC-1.9                                                              Rate limits: 100 requests/minute per IP unauthenticated; 1,000
+                                                                     requests/minute per authenticated user
+
+SEC-1.10                                                             Every request body is validated against a schema (Pydantic)
+
+SEC-1.11                                                             Exports re-check permission and company scope on the server
+
+SEC-1.12                                                             Only the evidence for a single anomaly is ever sent to the LLM; no bulk
+                                                                     data, no unrelated narration text
+
+SEC-1.13                                                             audit_logs is append-only; the application has no update or delete
+                                                                     path for it
+
+SEC-1.14                                                             Secrets (database credentials, JWT signing key, Claude API key) are
+                                                                     held in environment configuration or a secret store, never in source
+                                                                     code
+
+SEC-1.15                                                             The database user used by the application has no rights to alter the
+                                                                     schema in production
+
+
+
+
+15. Logging and Audit
+               Log                             Contents                            Storage                              Retention
+
+System log                      Application errors, request traces   Log files / log service               30 days
+
+Sync log                        One row per sync run and per         sync_runs, sync_errors                At least 90 days
+                                record-level failure
+
+Audit log                       Who did what, when, to which         audit_logs                            For as long as the company’s data
+                                company and data range,                                                    is kept
+                                before/after values, success or
+                                failure
+
+AI tool log                     Every MCP tool call: tool,           ai_tool_log                           At least 90 days
+                                parameters, result summary,
+                                status
+
+                              ID                                                                  Requirement
+
+LOG-1.1                                                              Audited actions include: login, sync requests, schedule changes, Agent
+                                                                     registration/rotation/revocation, setting and feature-flag changes, user
+                                                                     and role changes, anomaly reviews, exports, and system changes to
+                                                                     vouchers and masters (modifications, cancellations, missing and
+                                                                     reappeared records)
+
+LOG-1.2                                                              Each audit entry records user (or “system”), action, company, entity,
+                                                                     data range where relevant, before/after values where relevant, result,
+                                                                     and timestamp
+
+
+
+
+16. Failure Modes
+          Condition                Detection                   Behaviour                What the user sees                  Recovery
+
+Tally closed              Agent cannot connect        Nothing pulled; no data        “Tally unreachable since ”    Resumes when Tally runs
+                                                      changed
+
+Windows user logged off   Agent cannot connect        As above                       “Tally not running — the      Log in and start Tally;
+                                                                                      Windows user may have        disconnect instead of
+                                                                                      logged off”                  logging off
+
+Tally XML server disabled     Connection refused        TALLY_SERVER_DISABLED         Message naming the Tally     Enable the server
+                                                                                      setting to enable
+
+Required TDL not loaded       Unknown report response   TDL_NOT_LOADED; no            Configuration error          Load the TDL files
+                                                        fallback
+
+Named company not             Targeted request fails    COMPANY_NOT_LOADED;           Warning on the Agent         Load the company, or
+loaded                                                  nothing pulled                                             update its stored name
+
+Company mismatch              GUID check fails          COMPANY_MISMATCH; sync        Warning on the Agent         Re-register
+                                                        halted
+
+Tally export stalls           No response within        Retry at half batch, then     Run PARTIAL,                 Lower the batch size
+                              timeout                   fail the segment              TALLY_EXPORT_TIMEOUT
+
+Long Tally uptime             Uptime above threshold    Sync continues; advisory      “Restart recommended”        Restart Tally, run
+                                                        raised                                                     reconciliation
+
+Malformed XML                 Parser error              Record logged in              Run PARTIAL with error       Investigate; fix TDL if
+                                                        sync_errors; batch            count                        needed
+                                                        continues
+
+Debit/credit inconsistency    A voucher’s normalized    Voucher not written;          Listed in Data Quality       Investigate parser
+                              entries do not balance    flagged                                                    mapping
+
+Agent loses internet          Upload fails              Local queue, backoff          “Last contact ”              Automatic on reconnect
+                                                        retries
+
+Agent queue full              Queue limit reached       Pulling stops; uploads keep   QUEUE_FULL                   Restore connectivity
+                                                        retrying
+
+Agent crashes                 Heartbeats stop           Agent OFFLINE; running        Agent offline; command       Restart Agent; issue a new
+                                                        command becomes               failed                       command
+                                                        FAILED_AGENT_LOST
+
+Selected Agent offline        No recent heartbeat       Command stays PENDING         “Waiting — Agent offline     Claimed on return, or
+                                                                                      since ”                      expires
+
+Several Agents, no Agent      Request lacks agent_id    Request rejected              Agent selector shown         Choose an Agent
+chosen
+
+Two Agents sync the same      Lease already held        Second gets SYNC_LOCKED       “Sync in progress by ”       Retries after release
+collection
+
+Duplicate command claim       Compare-and-set fails     Second claim rejected         None                         None needed
+
+Stale record                  Lower ALTERID             Rejected, STALE_ALTERID       Sync log entry               None needed
+
+Partial batch failure         Transaction failure       Batch rolled back;            Run PARTIAL                  Next run resumes
+                                                        watermark not advanced
+
+Invalid or revoked            Auth fails                401 CREDENTIAL_INVALID        Agent-side error             Re-provision or re-register
+credential                                              / AGENT_REVOKED
+
+Incompatible Agent or TDL     Version below minimum     INCOMPATIBLE; no              “Agent update required”      Update Agent or TDL
+version                                                 commands
+
+Unresolved group /            Resolution fails          Excluded from classified      Data Quality list            Fix in Tally
+voucher type                                            metrics
+
+Missing opening balance       No record for the year    Balance shown as              “Opening balance             Re-sync masters
+                                                        unavailable                   unavailable”
+
+Unsupported bill allocation   Unknown type              Excluded from aging           Review list                  Classify; update parser if
+                                                                                                                   needed
+
+Unlinked credit/debit note    No bill link              Not subtracted                Unclassified Adjustments     Manual review
+
+Master missing in Tally       Absent from key list or   MISSING_IN_TALLY; history     Missing masters list         Automatic if it returns
+                              reconciliation            kept
+
+Reconciliation with zero      Tally value is 0          Exact-match rule (Section     PASS/FAIL                    None needed
+Tally value                                             9.2)
+
+Mapped custom field           Absent from export        Stored as null,               Sync log                     Fix mapping or
+missing                                                 UDF_NOT_FOUND                                              customisation
+
+Invalid time zone or          Settings validation       Save rejected; quarter        Validation message           Correct the setting
+financial-year start                                    views show “financial year
+                                                        not configured”
+
+ALTERID gate row failed       Validation table          Collection uses full-pull-    “Full sync only” indicator   Fix and re-validate
+                                                        only sync
+
+Backend unavailable           Agent calls fail          Agent queues                  Service-unavailable page     Operations recovery
+
+Database unavailable          Backend DB calls fail     HTTP 503; no partial writes   Service-unavailable page     Operations recovery
+
+MCP server or Claude          Tool call fails           Evidence still created and    “Explanation unavailable”    Automatic when restored
+unavailable                                             shown
+17. Non-Functional Requirements
+17.1 Performance targets
+
+                   ID                                  Metric                                              Target
+
+PERF-1.1                            Dashboard summary load                          ≤ 3 seconds
+
+PERF-1.2                            Full sync of the benchmark dataset              ≤ 30 minutes
+
+PERF-1.3                            Incremental sync (about 500 changed records)    ≤ 2 minutes
+
+PERF-1.4                            Anomaly evidence tool call                      ≤ 2 seconds
+
+
+17.2 Benchmark conditions
+
+                        Parameter                                                           Value
+
+Dataset                                                    100,000 vouchers, 500,000 voucher entries, 5,000 ledgers, 10,000
+                                                           stock items; seeded, reproducible, version-controlled
+
+Concurrent users                                           10
+
+Backend                                                    4 vCPU, 8 GB RAM
+
+PostgreSQL                                                 Managed instance, 4 vCPU, 16 GB RAM, SSD
+
+Agent machine                                              2 vCPU, 4 GB RAM (also running TallyPrime)
+
+Network                                                    ≥ 10 Mbps between Agent and backend
+
+
+                           ID                                                           Requirement
+
+PERF-VAL-1                                                 A benchmark result is valid evidence only if it records: Windows edition
+                                                           and build, Tally machine CPU model and RAM, storage type and free
+                                                           space, TallyPrime version and build, dataset identifier, Agent version
+                                                           and configuration, and measured bandwidth and latency during the run
+
+PERF-VAL-2                                                 These are benchmark conditions for repeatable testing, not a
+                                                           guarantee for every customer environment
+
+
+17.3 Reliability and scalability
+
+                           ID                                                           Requirement
+
+NFR-REL-1                                                  The core system works fully with anomaly detection disabled or the AI
+                                                           service unavailable
+
+NFR-REL-2                                                  No failure leaves a voucher partly written
+
+NFR-SCALE-1                                                The schema supports multiple companies without redesign
+
+
+17.4 Usability
+
+                           ID                                                           Requirement
+
+NFR-UI-1                                                   Every view is usable at 360 px width or wider without page-level
+                                                           horizontal scrolling; wide tables scroll inside their own container
+
+NFR-UI-2                                                   Charts, filters and drill-downs work by touch
+
+NFR-UI-3                                                   A non-technical owner can read the dashboard without training
+
+
+17.5 Dates, time zones and quarters
+
+                           ID                                                           Requirement
+
+TZ-1.1                                                     All date grouping, aging “today”, report periods, date-based schedules
+                                                           and displayed timestamps use company_timezone, never the server
+                                                           time zone
+
+TZ-1.2                                                     Day boundaries are computed in company_timezone, so a transaction
+                                                           at 11:58 PM local time belongs to that local day
+
+Q-1.1                                                      Quarters are financial quarters counted from financial_year_start,
+                                                           unless a company chooses calendar quarters
+
+Q-1.2                                                      With a 1 April start: Q1 Apr–Jun, Q2 Jul–Sep, Q3 Oct–Dec, Q4 Jan–Mar. A
+                                                           1 January start gives calendar quarters by the same rule
+
+
+17.6 Maintainability
+
+                           ID                                                           Requirement
+
+NFR-MAINT-1                                                TDL definitions, field mappings, parser and MCP tool definitions are
+                                                           kept in separate, version-controlled modules
+ NFR-MAINT-2                                                    Accounting rule queries are defined once and reused by dashboard,
+                                                                drill-down and export
+
+
+
+
+18. Configuration
+18.1 Feature flags (feature_config, boolean only)
+
+                                                 Flag                                                           Default
+
+ FEATURE_ANOMALY_DETECTION                                                                           Off
+
+
+18.2 Company settings (company_settings)
+
+                                Key                                                           Default
+
+ classification.sales_groups                                    Sales Accounts
+
+ classification.purchase_groups                                 Purchase Accounts
+
+ classification.expense_groups                                  Direct Expenses, Indirect Expenses
+
+ classification.cash_bank_groups                                Cash-in-Hand, Bank Accounts
+
+ classification.tax_groups                                      Duties & Taxes
+
+ analytics.taxable_value_mode                                   true
+
+ analytics.top_n_default                                        10
+
+ analytics.quarter_mode                                         financial
+
+ cashflow.include_journal                                       false
+
+ aging.bucket_boundaries                                        [30, 60, 90]
+
+ payment.window_days / payment.min_settlements                  365 / 3
+
+ stock.measurement_period_days                                  90
+
+ stock.fast_percentile                                          75
+
+ stock.slow_threshold_days / stock.dead_stock_days              90 / 180
+
+ reconciliation.money_absolute_tolerance /                      ₹1.00 / 0.01%
+ money_percentage_tolerance
+
+ reconciliation.quantity_absolute_tolerance /                   0 / 0.5%
+ quantity_percentage_tolerance
+
+ sync.incremental_interval                                      Hourly
+
+ sync.full_reconciliation_interval                              Daily
+
+ sync.key_list_interval                                         Every incremental run
+
+ sync.db_commit_batch                                           500
+
+ agent.poll_interval_seconds                                    30
+
+ agent.offline_threshold_minutes                                5
+
+ agent.command_claim_timeout_minutes                            10
+
+ agent.tally_uptime_advisory_days                               7
+
+ anomaly.history_window_days                                    180
+
+ anomaly.deviation_sd                                           3
+
+ anomaly.max_multiplier                                         Not set (rule inactive)
+
+ anomaly.duplicate_window_days                                  3
+
+
+Agent-level settings (host, port, company name, extraction batch size, queue limits) are stored on the agents row.
+
+
+
+19. External Interfaces and API
+19.1 Tally interface
+
+The Agent sends HTTP POST requests containing XML export requests that reference the project’s TDL Reports to
+http://<tally-host>:<port> (default localhost:9000), naming the registered company, and parses the XML responses.
+
+19.2 Backend API
+
+All endpoints use HTTPS. User endpoints require a JWT; Agent endpoints require an Agent credential. Every company-scoped
+endpoint enforces company_id from the session and verifies that any agent_id belongs to that company.
+
+                 Area                                   Method and path                                    Access
+ Login                                      POST /auth/login                                   Public
+
+ Token refresh                              POST /auth/refresh                                 JWT
+
+ Registration token                         POST /companies/{id}/agents/register-token         Owner/Admin
+
+ Agent registration                         POST /agent/register                               Registration token
+
+ Agent heartbeat and polling                POST /agent/heartbeat                              Agent credential
+
+ Command claim / progress / result, batch   POST /agent/commands/{id}/claim, /progress,        Agent credential
+ upload                                     /result, /batches
+
+ List Agents                                GET /companies/{id}/agents                         JWT
+
+ Rotate / revoke Agent                      POST                                               Owner/Admin
+                                            /companies/{id}/agents/{agent_id}/rotate-
+                                            credential, /revoke
+
+ Agent Tally settings                       PUT /companies/{id}/agents/{agent_id}/tally-       Owner/Admin
+                                            settings
+
+ Manual sync                                POST /companies/{id}/agents/{agent_id}/sync        Owner/Accountant/Admin
+
+ Schedules                                  GET/POST/PUT /companies/{id}/sync-schedules        Owner/Admin
+
+ Sync status, errors, lease status          GET /companies/{id}/sync/status, /errors,          JWT (errors: Owner/Admin)
+                                            /lease-status
+
+ Reconciliation                             GET /companies/{id}/reconciliation; POST           JWT
+                                            .../reconciliation/run
+
+ Analytics                                  GET /companies/{id}/analytics/{metric} (sales,     JWT
+                                            purchases, cash-flow, balances, aging, payment-
+                                            behaviour, customers, products, expenses, stock)
+                                            with from, to, filters, top_n
+
+ Drill-down                                 GET                                                JWT
+                                            /companies/{id}/analytics/{metric}/drilldown
+
+ Voucher detail                             GET /companies/{id}/vouchers/{voucher_id}          JWT
+
+ Masters                                    GET /companies/{id}/masters/groups,                JWT
+                                            /voucher-types
+
+ Data quality                               GET /companies/{id}/data-quality                   JWT
+
+ Exports                                    GET /companies/{id}/exports/{report}?              JWT
+                                            format=csv|pdf
+
+ Settings and flags                         GET/PUT /companies/{id}/settings                   Owner/Admin to change
+
+ Custom field mappings                      GET/PUT /companies/{id}/settings/custom-           Owner/Admin
+                                            fields
+
+ Anomalies                                  GET /companies/{id}/anomalies; POST                JWT; review Owner/Accountant
+                                            .../anomalies/{id}/review
+
+ Users                                      GET/POST/PUT /companies/{id}/users                 Owner
+
+
+Errors return a JSON body with a machine-readable code (for example SYNC_LOCKED, COMPANY_MISMATCH, CREDENTIAL_INVALID)
+and a message; validation errors use 422, authorization errors 403, authentication errors 401.
+
+19.3 MCP interface (optional)
+
+The MCP server exposes one read-only tool, get_anomaly_evidence(anomaly_id), returning the stored evidence for that
+anomaly. It is available only when anomaly detection is enabled.
+
+
+
+20. Use Cases
+UC-1 Onboarding. Owner creates the company, generates a registration token, installs and names the Agent, enters the
+token; the Agent confirms the Tally company; the Owner triggers the initial full sync.
+
+UC-2 Scheduled incremental sync. A schedule creates a command for its Agent; the Agent claims it, acquires the leases,
+pulls changes above each watermark, runs the key-list check, uploads batches, and completes; the dashboard updates.
+
+UC-3 Manual sync with several Agents. The Owner clicks “Sync Now”, chooses an Agent, and only that Agent claims the
+command.
+
+UC-4 Modified voucher. A voucher edited in Tally is pulled with a higher ALTERID; its children are replaced in one transaction
+and the change is audited.
+
+UC-5 Cancelled and deleted vouchers. A cancelled voucher becomes CANCELLED; a deleted voucher becomes
+MISSING_IN_TALLY after the key-list check; neither row is deleted.
+
+UC-6 Stale record. A retried older batch arrives after a newer one; the older record is rejected and logged.
+
+UC-7 Concurrent Agents. Two Agents try to sync the same collection; one gets the lease, the other receives SYNC_LOCKED.
+UC-8 Agent crash. An Agent crashes mid-sync; the command becomes FAILED_AGENT_LOST; the Owner issues a new
+command.
+
+UC-9 Credential rotation. The Owner rotates an Agent’s credential, sees the new value once, and enters it in the Agent.
+
+UC-10 Reconciliation review. The Accountant opens Reconciliation, sees Tally and local values with differences, and
+investigates any FAIL.
+
+UC-11 Analytics review and export. The Owner reviews sales, cash position and aging for a period, drills into a customer’s
+vouchers, and exports the view.
+
+UC-12 Product Attribution Difference review. The Accountant drills into the difference to see which vouchers contain
+revenue not tied to stock items.
+
+UC-13 Anomaly review (optional). A large transaction is flagged with evidence and, if available, an explanation; the
+Accountant marks it reviewed.
+
+UC-14 Data-quality review. The Admin checks unresolved groups, unresolved voucher types, missing opening balances and
+unlinked notes.
+
+
+
+21. Technology Stack
+                       Layer                                  Choice                                            Reason
+
+ Tally customisation                      TDL Collections and Reports                       Controlled, stable export shape
+
+ Agent                                    Python, packaged as a Windows Service             Shares parsing code with the backend;
+                                          (NSSM or pywin32 wrapper, IMPLEMENTATION          Windows matches Tally’s platform
+                                          TEST)
+
+ Tally connectivity                       requests + lxml                                   HTTP XML requests and tolerant XML parsing
+
+ Agent local queue                        SQLite                                            Simple embedded store
+
+ Backend                                  Python, FastAPI, Pydantic                         Async API, strict request validation
+
+ Database                                 PostgreSQL                                        Relational integrity, concurrent access, JSONB
+                                                                                            for custom fields
+
+ ORM / migrations                         SQLAlchemy, Alembic                               Parameterized queries; versioned schema
+
+ Scheduling                               APScheduler (backend schedules and                Lightweight
+                                          reconciliation)
+
+ Analytics                                SQL views and pandas                              Deterministic aggregation
+
+ Frontend                                 React, Tailwind CSS, Recharts                     Routing for drill-down, responsive layout,
+                                                                                            charts
+
+ Authentication                           JWT, bcrypt (passlib)                             Standard, well understood
+
+ Optional anomaly explanation             MCP server (Python mcp SDK) + Claude              Explanation only
+
+ Testing                                  pytest; Playwright for end-to-end                 Backend/Agent and UI coverage
+
+ Deployment                               Docker (backend), Windows installer (Agent)       Matches the topology
+
+ Version control                          Git                                               Includes TDL sources
+
+
+
+
+22. Backup and Recovery
+                                ID                                                              Requirement
+
+ BKP-1.1                                                          PostgreSQL: daily full backup plus continuous WAL archiving, retained
+                                                                  at least 30 days
+
+ BKP-1.2                                                          A restore is tested before go-live: restore to staging and compare row
+                                                                  counts with a known reconciliation snapshot
+
+ BKP-1.3                                                          A failed backup raises an alert; it is never skipped silently
+
+ BKP-1.4                                                          Recovery targets: RPO ≤ 24 hours, RTO ≤ 4 hours (OPEN — BUSINESS
+                                                                  DECISION to confirm)
+
+ BKP-1.5                                                          A fresh full sync recovers records that still exist in Tally. Records
+                                                                  deleted from Tally can be recovered only from a database backup
+
+ BKP-1.6                                                          Agent local queues are transient and not backed up; data in them is re-
+                                                                  pulled from Tally if lost
+
+
+
+
+23. Testing Strategy
+                                ID                                                              Requirement
+ TEST-1.1                                                         TDL/XML contract tests: fixed XML fixtures run through the parser to a
+                                                                  normalized model and compared with expected database rows
+
+ TEST-1.2                                                         Fixtures cover: new, modified and cancelled vouchers; multiple ledger
+                                                                  entries; inventory entries; bill allocations of every type; cost-centre
+                                                                  allocations; missing optional fields; malformed XML; unexpected
+                                                                  structure; a three-level group chain; a group with a missing parent; a
+                                                                  custom voucher type derived from Sales; an unresolvable voucher
+                                                                  type; opening balances; stock snapshots; debit and credit entries on
+                                                                  sales, purchase, receipt, payment and tax ledgers
+
+ TEST-1.3                                                         Contract tests run in CI without a live Tally connection
+
+ TEST-1.4                                                         Malformed fixtures must produce logged errors, never unhandled
+                                                                  exceptions
+
+ TEST-2.1                                                         Accounting unit tests for every ACC rule, reconciliation example
+                                                                  (Section 9.3), aging bucket and stock class
+
+ TEST-2.2                                                         The validation gate (Section 7) is executed on a live TallyPrime
+                                                                  installation and its evidence recorded
+
+ TEST-3.1                                                         Concurrency: two simulated Agents contend for one lease; exactly one
+                                                                  succeeds
+
+ TEST-3.2                                                         Recovery: a simulated Agent stops mid-command; the command
+                                                                  becomes FAILED_AGENT_LOST and is not reassigned
+
+ TEST-3.3                                                         Fault injection: processes killed mid-voucher and mid-batch leave no
+                                                                  partial vouchers
+
+ TEST-4.1                                                         Before implementation, tally-database-loader is run against the
+                                                                  project’s Tally test company and its output kept as comparison
+                                                                  evidence for gate items
+
+ TEST-4.2                                                         Balance test: computed ledger balances match Tally’s closing balances
+                                                                  for every ledger in the test dataset
+
+ TEST-5.1                                                         End-to-end tests cover RBAC (403 on forbidden actions), drill-down
+                                                                  totals, export/screen consistency and 360 px layouts
+
+ TEST-5.2                                                         Performance tests run under Section 17.2 conditions with full recording
+
+
+
+
+24. Acceptance Criteria
+Each criterion is written as Given / When / Then and is the basis of a test case with the same ID.
+
+24.1 Synchronization and identity
+
+AC-01 Full sync. Given Tally holds X active vouchers, when a full sync runs, then the database holds exactly X corresponding
+vouchers keyed by (company_id, GUID), and running it again adds no rows.
+
+AC-02 Modified voucher. Given voucher 100 was synced at ₹10,000, when it is edited in Tally to ₹15,000 and an incremental
+sync runs, then the local voucher shows ₹15,000 and audit_logs records the old and new values.
+
+AC-03 Cancelled voucher. Given a synced voucher is cancelled in Tally, when an incremental sync runs, then its status is
+CANCELLED, the row still exists, and it is excluded from standard analytics.
+
+AC-04 Deleted voucher. Given a synced voucher is deleted in Tally, when the next incremental sync and key-list check
+complete, then its status is MISSING_IN_TALLY, the row still exists, and it appears in the Data Quality view.
+
+AC-05 Partial failure. Given a sync fails after 50,000 of 100,000 records, when the next sync runs, then it resumes from the
+last committed watermark, no duplicates exist, and the failed run is recorded as PARTIAL.
+
+AC-06 Stale record. Given a local voucher with ALTERID 108, when a record for it with ALTERID 106 arrives, then the local
+voucher is unchanged and STALE_ALTERID is logged.
+
+AC-07 Independent watermarks. Given the Voucher watermark is 500 and the Ledger watermark is 50, when an
+incremental sync runs, then each collection is pulled from its own watermark and a ledger change is neither skipped nor
+affected by the voucher watermark.
+
+AC-08 Child replacement. Given a synced voucher is modified and no stable line identifier exists, when it is synced, then all
+its child rows are replaced in one transaction and no orphaned or duplicate child rows remain.
+
+AC-09 Sync lease. Given two Agents request the same company and collection at the same time, when both try to acquire the
+lease, then exactly one succeeds and the other receives SYNC_LOCKED without pulling data.
+
+AC-10 Master disappears. Given a synced ledger is missing from a full reconciliation, when reconciliation completes, then the
+ledger is MISSING_IN_TALLY, is not deleted, and historical vouchers still reference it.
+
+AC-11 Master reappears. Given a MISSING_IN_TALLY ledger appears again with the same GUID, when it is synced, then it
+becomes ACTIVE and the event is audited.
+
+AC-12 Failed ALTERID gate. Given a validation-gate row for a collection is FAILED, when syncs run, then that collection is
+synced by full pull only and the dashboard shows “Full sync only”.
+24.2 Agent
+
+AC-13 Registration. Given a valid registration token, when the Agent registers, then an Agent credential is issued and bound
+to exactly one company.
+
+AC-14 Second Agent, different company. Given a company already bound to Tally GUID G1, when a new Agent registers
+reporting GUID G2, then registration is rejected with COMPANY_MISMATCH.
+
+AC-15 Revocation. Given an Agent is revoked, when it next sends a heartbeat, then it receives AGENT_REVOKED and no
+commands.
+
+AC-16 Rotation. Given an Agent’s credential is rotated, when the Agent uses the old credential, then it receives 401
+CREDENTIAL_INVALID, and the new credential works.
+
+AC-17 Manual sync by polling. Given the Owner clicks “Sync Now”, when the Agent next polls, then it claims the command,
+which moves through CLAIMED, RUNNING and COMPLETED, each shown on the dashboard.
+
+AC-18 Routing. Given two active Agents, when a sync request has no agent_id, then it is rejected; when it names one Agent,
+then only that Agent receives the command.
+
+AC-19 Offline Agent. Given the chosen Agent is offline, when a command is created for it, then it stays PENDING with “Agent
+offline” shown, and is claimed when the Agent returns unless it expires.
+
+AC-20 Agent crash. Given a command is RUNNING and the Agent stops heartbeating past the lease deadline, then the
+command becomes FAILED_AGENT_LOST and is not reassigned.
+
+AC-21 Queue full. Given the Agent’s queue reaches its limit, then the Agent stops pulling new data, keeps retrying uploads
+and reports QUEUE_FULL.
+
+AC-22 Version check. Given an Agent below the minimum version, when it sends a heartbeat, then it is marked
+INCOMPATIBLE and receives no commands.
+
+AC-23 Company targeting. Given two companies are loaded in Tally and the other one is active, when the Agent syncs, then
+it pulls only from its registered company; if that company is closed, it reports COMPANY_NOT_LOADED and pulls nothing.
+
+AC-24 Batch limit. Given a configured batch size of 15,000, then the setting is rejected; given a Tally request exceeds the
+timeout, then it is retried once at half size and logged as TALLY_EXPORT_TIMEOUT.
+
+AC-25 Uptime advisory. Given Tally’s uptime exceeds the threshold, then a restart advisory is shown against that Agent.
+
+24.3 Accounting and analytics
+
+AC-26 Sales is single-sided. Given a Sales voucher debiting a customer ₹10,000 and crediting Sales ₹10,000, when Total
+Sales Revenue is computed, then it is ₹10,000 — not ₹20,000 and not ₹0.
+
+AC-27 Purchases. Given a Purchase voucher with matching debit and credit entries, then Purchase Value counts only the
+debit on the purchase ledger.
+
+AC-28 Nested groups. Given a ledger under “Sales – Online”, itself under Sales Accounts, then its qualifying credits are
+included in Total Sales Revenue.
+
+AC-29 Custom voucher type. Given a “POS Invoice” voucher type derived from Sales, then its vouchers are included in sales
+exactly like Sales vouchers.
+
+AC-30 Customer attribution. Given a Sales voucher with exactly one customer ledger and ₹50,000 revenue, then ₹50,000 is
+attributed to that customer.
+
+AC-31 Cash sale. Given a Sales voucher with no customer ledger, then its revenue is Unattributed Customer Revenue, and
+customer-attributed plus unattributed revenue equals Total Sales Revenue.
+
+AC-32 Product Attribution Difference. Given a Sales voucher with ₹92,000 of stock-item lines and an ₹8,000 service line,
+and gate G28 not yet passed, then Total Sales Revenue is ₹100,000, Product-attributed Revenue ₹92,000, and ₹8,000 is shown
+as Product Attribution Difference, not as service revenue.
+
+AC-33 Top-N. Given N = 10 and 25 customers with sales, then the Top view shows 10, does not claim their sum equals total
+sales, and “View All” shows 25.
+
+AC-34 Sign normalization. Given raw Tally entries, when parsed, then accounting_direction, is_debit and
+amount_absolute are correct, and no analytics query reads amount_raw.
+
+AC-35 Linked return. Given a Credit Note linked by bill reference to a Sales invoice, then it reduces Total Sales Revenue.
+
+AC-36 Unlinked note. Given a Credit Note with no bill link, then it is UNLINKED_CREDIT_NOTE, is not subtracted, and appears in
+Unclassified Adjustments.
+
+AC-37 Cash flow. Given a Receipt of ₹5,000, a Payment of ₹3,000 and a Contra transfer of ₹10,000, then the net cash flow
+shows +₹5,000 and −₹3,000, and the Contra is excluded.
+
+AC-38 Ledger balance. Given a bank ledger with a ₹50,000 debit opening balance and ₹20,000 net debit movements up to
+date D, then its balance on D is ₹70,000 debit and matches Tally within tolerance.
+
+AC-39 Screen and export match. Given the same filters, then dashboard, drill-down total and CSV/PDF export show identical
+figures.
+24.4 Reconciliation
+
+AC-40 Display. Given Tally total X and local total Y, then reconciliation shows X, Y, the absolute and percentage difference,
+and PASS or FAIL.
+
+AC-41 Both tolerances exceeded. Given Tally ₹100,000 and local ₹100,012 with tolerances ₹1 and 0.01%, then the result is
+FAIL.
+
+AC-42 One tolerance met. Given Tally ₹100,000 and local ₹100,010, then the result is PASS.
+
+AC-43 Zero Tally value. Given a Tally value of 0, then a local value of 0 passes and a local value of 50 fails.
+
+AC-44 Quantity tolerance. Given Tally stock of 100 units and local 98 with tolerances 0 units and 0.5%, then the result is
+FAIL.
+
+24.5 Aging, payment behaviour and stock
+
+AC-45 Overdue bucket. Given a bill with ₹20,000 outstanding and a due date 45 days ago, then it appears in 31–60 days with
+₹20,000.
+
+AC-46 Not yet due. Given a bill due in 5 days, then it is “Not yet due”, never overdue and never negative.
+
+AC-47 No due date. Given a bill without a due date, then it is “Due date unavailable”.
+
+AC-48 Advance. Given a customer receipt allocated as Advance, then it appears under customer “Unadjusted Advances” and
+in no aging bucket.
+
+AC-49 On Account. Given a payment allocated On Account, then it appears under “On-Account / Unallocated” and in no aging
+bucket.
+
+AC-50 Receivable and payable separation. Given a customer advance and a supplier advance of the same amount, then
+they appear on their respective sides and are not netted.
+
+AC-51 Payment behaviour. Given a ₹10,000 bill dated 1 June, settled ₹6,000 on 11 June and ₹4,000 on 21 June, then
+average days to pay is 14.
+
+AC-52 Never sold. Given an item with stock above zero and no sales history, then it is Never Sold, not Slow-moving or Dead.
+
+AC-53 Dead stock from snapshot. Given an item with a snapshot quantity of 40 and no sale for 200 days, then it is Dead
+stock and the snapshot date is shown.
+
+AC-54 Unit limitation. Given unit data is unavailable and an item sold in two units, then the item is flagged and the stock
+view states the limitation.
+
+24.6 Anomaly detection
+
+AC-55 Flag off. Given anomaly detection is off, when syncs complete, then no anomaly records are created and no MCP or
+Claude calls are made.
+
+AC-56 Large transaction. Given a transaction above mean + 3 standard deviations for its party, then an anomaly record is
+created with amount, average, maximum, deviation and rule.
+
+AC-57 Duplicate. Given two vouchers for the same party and amount within 3 days, then a duplicate anomaly is created
+referencing both.
+
+AC-58 Claude unavailable. Given anomaly detection is on and Claude is unreachable, then anomalies are still created and
+shown with evidence, and the explanation is marked unavailable.
+
+24.7 Security, configuration and non-functional
+
+AC-59 RBAC. Given an Accountant, when they call a Settings or user-management endpoint, then the API returns 403
+regardless of the UI.
+
+AC-60 Tenant isolation. Given a user of company A, when they request any company B resource, then they receive 403 and
+no data.
+
+AC-61 Custom field. Given a mapped custom voucher field, when a voucher with it is synced, then the value appears in drill-
+down and export and no analytics total changes.
+
+AC-62 Time zone. Given company_timezone Asia/Kolkata and a transaction at 11:58 PM IST on day 1, then daily grouping
+places it on day 1 regardless of server time zone.
+
+AC-63 Financial quarter. Given a 1 April financial year start, then an August transaction falls in Q2.
+
+AC-64 Performance. Given the Section 17.2 environment and dataset, when the performance suite runs, then the Section
+17.1 targets are met and every PERF-VAL-1 field is recorded.
+
+AC-65 Responsive layout. Given a 360 px viewport, then no view scrolls horizontally at page level and filters and drill-downs
+work by touch.
+
+AC-66 Contract test. Given the malformed-XML fixture, when parsed, then an error is logged and no unhandled exception
+occurs.
+25. Requirement Traceability
+ Requirement            Objective          Component                    Tables               Interface              UI          Acceptance
+    family                                                                                                                        criteria
+
+FR-1.x TDL           Controlled          TDL, Agent          —                           Tally XML          —                  AC-01, AC-66
+exports              extraction
+
+SYNC-1.x             Efficient           Sync engine         sync_watermarks             Agent batch        Sync status        AC-07
+watermarks           incremental sync                                                    upload
+
+SYNC-3.x stale       No rollback of      Sync engine         masters, vouchers           Agent batch        Sync log           AC-06
+protection           data                                                                upload
+
+SYNC-4.x lease       No concurrent       Sync engine         sync_watermarks             Lease status API   Sync status        AC-09
+                     writers
+
+SYNC-5.x             Timely removal      Agent, sync         vouchers, masters           Key-only TDL       Data Quality       AC-04
+deletion             from analytics      engine                                          export
+detection
+
+SYNC-6.x             Integrity           Sync engine         sync_runs, sync_errors      Agent batch        Sync status        AC-05
+batching, partial                                                                        upload
+failure
+
+DR-4.x identity      No duplicates       Database            all synced tables           —                  —                  AC-01
+
+DR-VE-x child        Integrity on        Sync engine         voucher child tables        —                  Voucher detail     AC-02, AC-08
+replacement          modification
+
+DR-ML-x master       Keep history        Sync engine         masters                     Reconciliation     Missing masters    AC-10, AC-11
+lifecycle
+
+DR-UDF-x             Customisation       Sync engine         custom_field_mappings       Settings API       Settings, drill-   AC-61
+custom fields        support                                                                                down
+
+VAL-1.x gate         Verified Tally      Project process     —                           Live Tally         Sync mode          AC-12
+                     behaviour                                                                              indicator
+
+AGT registration,    Secure              Agent, backend      agents,                     Agent APIs         Agents view        AC-13–AC-16
+auth, rotation       onboarding                              agent_registration_tokens
+
+AGT-1.x              Manual sync,        Agent, backend      agent_commands              Heartbeat,         Sync status        AC-17, AC-20
+commands             recovery                                                            command APIs
+
+RTE-1.x routing      Correct Agent       Backend             agent_commands,             Sync API           Agent selector     AC-18, AC-19
+                                                             sync_schedules
+
+AGT-2.x queue        No data loss        Agent               local queue                 —                  Agents view        AC-21
+                     offline
+
+VER-1.x versions     Compatibility       Agent, backend      agents                      Heartbeat          Agents view        AC-22
+
+AGT-5.x              Correct company     Agent               agents                      Tally XML          Agents view        AC-14, AC-23
+targeting
+
+AGT-4.x batch        No stalled          Agent               agents                      Tally XML          Sync log           AC-24
+size                 exports
+
+AGT-6.x runtime      Operational         Agent               agents                      Heartbeat          Agents view        AC-25
+                     stability
+
+ACC-DATA-x           Sign-safe           Parser              voucher_entries             —                  —                  AC-34
+normalization        analytics
+
+ACC-7.x / ACC-       Correct metric      Sync engine,        groups, voucher_types       Masters API        Data Quality       AC-28, AC-29
+8.x classification   membership          analytics
+
+ACC-1.x              Correct figures     Analytics           voucher_entries, ledgers    Analytics API      Sales, Purchases   AC-26, AC-27
+revenue,
+purchases
+
+ACC-6.x              Honest              Analytics           voucher_entries             Analytics API      Customers          AC-30, AC-31
+customer             attribution
+attribution
+
+ACC-1.8–1.10         Honest              Analytics           voucher_items               Analytics API      Products           AC-32
+product              attribution
+attribution
+
+ACC-5.x returns      Correct net sales   Analytics           bill_allocations            Analytics API      Unclassified       AC-35, AC-36
+                                                                                                            Adjustments
+
+ACC-3.x cash         Correct cash        Analytics           voucher_entries             Analytics API      Cash Flow          AC-37
+flow                 view
+
+ACC-9.x              Correct balances    Analytics           ledger_opening_balances     Balances API       Balances           AC-38
+balances
+
+TOPN-1.x             Clear rankings      Analytics,          company_settings            Analytics API      Top views          AC-33
+                                         frontend
+
+ACC-4.x, EXP-1.x     Trustworthy         Analytics, export   —                           Export API         All views          AC-39
+ consistency      exports
+
+ REC-1.x          Proof of match     Reconciliation   reconciliation_results    TDL Totals       Reconciliation   AC-40–AC-44
+ reconciliation                      job
+
+ FR-AGE, AGE-     Correct aging      Analytics        bill_allocations          Analytics API    Aging            AC-45–AC-50
+ BILL
+
+ FR-PAY-x         Customer credit    Analytics        bill_allocations          Analytics API    Payment          AC-51
+                  insight                                                                        Behaviour
+
+ FR-STK-x         Stock insight      Analytics        stock_snapshots,          Analytics API    Stock            AC-52–AC-54
+                                                      voucher_items
+
+ FR-3.x anomaly   Optional insight   Rules engine,    anomaly_flags,            MCP tool         Anomalies        AC-55–AC-58
+                                     MCP              ai_tool_log
+
+ RBAC, SEC-1.x    Protection of      Backend          users, user_roles         All APIs         Settings         AC-59, AC-60
+                  financial data
+
+ TZ, Q            Correct dates      Analytics        companies                 Analytics API    All date views   AC-62, AC-63
+
+ PERF             Responsiveness     Whole system     —                         —                —                AC-64
+
+ NFR-UI           Mobile use         Frontend         —                         —                All views        AC-65
+
+
+A complete matrix mapping every individual requirement ID to its test case is a required project deliverable before final
+acceptance.
+
+
+
+26. Technical Reviewer Questions
+Architecture and connectivity
+
+ 1. How does a cloud website reach Tally on a customer’s LAN? It doesn’t. A local Agent makes outbound HTTPS calls to the
+    backend, so nothing needs to reach into the customer network.
+ 2. Why not open a firewall port to Tally? It depends on customer network setup and would expose an unauthenticated XML
+    server to the internet.
+ 3. How does an outbound-only Agent receive “Sync Now”? It polls every 30 seconds and collects any pending command
+    addressed to it.
+ 4. Can one company have several Agents? Yes, one per Tally installation. Each Agent serves exactly one Tally company.
+ 5. How is the Agent for “Sync Now” chosen? Automatically if there is one active Agent; otherwise the user must choose.
+ 6. What happens if the Agent is offline? The command waits as PENDING with a visible status, and is collected when the Agent
+    returns or expires.
+ 7. Does a standby Agent take over automatically? No. Failover is a manual action in this version.
+ 8. What if the Agent crashes mid-sync? The running command’s lease expires and it becomes FAILED_AGENT_LOST; a new
+    command must be issued.
+ 9. What if several companies are open in Tally? The Agent names its company in every request and confirms the result by
+    GUID.
+10. What stops an Agent from being moved to another company? The GUID check on every sync; a mismatch halts the Agent
+    and requires re-registration.
+11. Can the Agent keep Tally running? No. Tally must run in a logged-in Windows session; the Agent reports when it cannot
+    reach Tally.
+
+Tally, TDL and XML
+
+12. Why custom TDL instead of Tally’s default reports? To control exactly which fields are returned and keep the format
+    stable.
+13. What if the TDL isn’t loaded? The Agent reports TDL_NOT_LOADED and does not fall back to default reports.
+14. How do you know Tally behaves as assumed? A 29-item validation gate must pass on a live installation before dependent
+    features are declared complete.
+15. Why limit the Tally request size? Very large exports can stall Tally; requests default to 5,000 vouchers, maximum 10,000.
+16. How do you verify the XML contract? Fixed XML fixtures are parsed in CI and compared with expected database rows.
+
+Database and identity
+
+17. Why not use voucher number as the key? Numbers repeat across financial years and can be edited; Tally’s GUID is stable.
+18. How is a journal with several debits and credits stored? As several voucher_entries rows under one voucher header.
+19. Why is there company_id everywhere? So more companies can be added without changing the schema, and so every
+    query can be scoped to one company.
+20. Why no closing balance column? A balance depends on the date. Opening balances are stored and balances computed,
+    then checked against Tally.
+
+Synchronization
+
+21. How do you detect a modified voucher? Its ALTERID is higher than the stored value.
+22. Why are watermarks per collection? Collections change independently; one shared counter could skip changes.
+23. What if an older record arrives after a newer one? It is rejected as stale; the newer data is kept.
+24. Why both a lease and stale protection? The lease stops two Agents writing at once; stale protection stops out-of-order data
+    from any writer.
+25. How do you update a modified voucher’s lines without a line ID? Its lines are deleted and re-inserted in one transaction.
+26. How are deletions detected? A key-only list after each incremental sync, with the daily reconciliation as a backstop.
+27. What happens to a cancelled or deleted voucher? It is kept with status CANCELLED or MISSING_IN_TALLY and excluded
+    from standard analytics.
+28. How does a failed sync recover? Committed batches stay, the watermark marks progress, and the next run resumes
+    without duplicates.
+
+Accounting correctness
+
+29. Why not sum every entry of a Sales voucher? Debits and credits cancel out; only credits on sales ledgers count.
+30. What exactly counts as a sale? Credits on ledgers whose primary group is Sales Accounts, on active vouchers whose base
+    type is Sales, minus linked returns, excluding tax.
+31. Why use primary groups? Groups are nested; checking only the immediate parent would miss sub-groups.
+32. What about custom voucher types? Each is resolved to its base type, so a Sales-derived type counts as sales.
+33. Is every Credit Note a sales return? No. Only one linked to an original sales bill; others are shown separately.
+34. Why can’t product revenue equal total sales? Invoices can include non-stock lines, and product-line amounts may be
+    computed on a different basis; the gap is shown as Product Attribution Difference until proven.
+35. Why don’t the Top 10 customers add up to total sales? Top-N is a subset. The full customer list plus unattributed revenue
+    does.
+36. What happens to a cash sale? It is Unattributed Customer Revenue, never assigned to an invented customer.
+37. Why are Contra vouchers excluded from cash flow? They move money between the company’s own accounts.
+38. Are journal entries in cash flow? Excluded by default; a company can enable them.
+39. Is GST analysed? Not in v1 by default; revenue is at taxable value. Bringing GST in scope is a business decision.
+
+Reconciliation, aging and stock
+
+40. How do you prove the database matches Tally? Totals from a separate TDL Totals Collection are compared with local
+    figures under stated tolerances.
+41. When does reconciliation pass? When either the absolute or the percentage difference is within tolerance; it fails only
+    when both are exceeded.
+42. What if Tally’s value is zero? It passes only if the local value is also zero.
+43. How is aging computed? Per bill reference from due dates, with separate “Not yet due” and “Due date unavailable”
+    categories.
+44. How do Advance and On Account affect aging? They are not in buckets; they appear as separate lines, per customer or
+    supplier side.
+45. What is Never Sold stock? Stock above zero with no sale in the entire synced history.
+46. How do you know current stock without syncing delivery notes? From Tally’s own closing-quantity snapshot on each sync
+    date.
+
+Security, AI and operations
+
+47. How is data isolated between companies? Every query is filtered by the company from the authenticated session, enforced
+    on the server.
+48. How is the Agent authenticated without HMAC? A per-Agent bearer credential over TLS, stored hashed and rotatable.
+49. Could Claude report a wrong number? No. All numbers are computed first; Claude only explains them.
+50. Does the system work without Claude? Yes. Anomalies are still detected and shown; only the explanation is missing.
+51. What data does Claude see? Only the stored evidence for one anomaly.
+52. Can a fresh sync restore everything? Only records still in Tally; deleted history needs a database backup.
+53. What are the performance targets based on? A recorded benchmark environment and a fixed dataset, not a general
+    guarantee.
+54. Did you copy an existing product? Two existing tools were used as references. Reconciliation, lifecycle handling, stale
+    protection, RBAC, multi-Agent coordination and the validation gate are not in either.
+
+
+
+27. Open Decisions and Validation Gates
+       Item                   Type          What must be         Why it matters            Who              When                Default
+                                              decided
+
+GST scope              Business decision   In or out for v1     Changes the          Business owner   Before voucher      Out
+                                                                voucher TDL and                       TDL is finalized
+                                                                adds requirements
+
+Backup RPO/RTO         Business decision   Confirm ≤24 h /      Backup cost and      Business owner   Before production   Proposed values
+                                           ≤4 h                 design
+
+Journal entries in     Business decision   Include or exclude   Cash-flow            Business owner   Before cash-flow    Exclude
+cash flow                                                       completeness                          module
+
+Fast-moving            Business decision   Quantity or sales    Quantity             Business owner   Before stock        Quantity (value
+ranking basis                              value                compares unlike                       module              recommended)
+                                                                units
+
+Godown/batch           Business decision   Include in a later   Large additions      Business owner   After v1            Out
+stock, profitability                       release?
+
+Validation gate        Live Tally          Each item passed     Sync,                Development      During parser and   Affected features
+G1–G29                 verification        with evidence        classification,      team             sync design         disabled or
+                                                                balances, aging,                                          flagged until
+                                                                stock and                                                 passed
+                                                                attribution depend
+                                                                on them
+
+Agent packaging        Implementation      Windows Service      Installation and     Development      Agent build         NSSM/pywin32
+                       test                approach             updates              team                                 service
+
+
+Performance            Implementation      Confirm baseline     Valid performance    Development/QA   Before sign-off     Section 17.2
+ environment          test               is achievable       evidence
+
+ Extraction batch     Implementation     Confirm 5,000 /     Avoid stalled        Development/QA        Before sign-off       5,000 / 10,000
+ defaults             test               10,000              exports
+
+ Key-list check       Implementation     Every run or        Cost on large        Development/QA        Sync build            Every run
+ frequency            test               hourly              companies
+
+ Agent offline        Implementation     Confirm 5 minutes   Useful alerts        Development           Agent build           5 min / 7 days
+ threshold, Tally     test               / 7 days                                 team
+ uptime threshold
+
+ Anomaly              Implementation     Choose a default    Rule currently       Development           Anomaly build         Not set
+ maximum-             test                                   inactive             team
+ multiplier default
+
+ Separate Tally       Future             Independent         Only for             Architecture          Future release        Not supported
+ companies under                         watermark           consolidation
+ one account                             streams
+
+ Automatic Agent      Future             Design if needed    Currently manual     Architecture          Future release        Manual
+ failover
+
+
+
+
+28. Implementation Readiness and Final Status
+READY FOR DEVELOPMENT — Architecture and deployment; Agent registration, authentication, rotation, commands, routing,
+recovery, queue, targeting, batch limits and runtime handling; complete data model; synchronization (watermarks, lease, stale
+protection, batching, lifecycle, deletion detection, child replacement); accounting rules; reconciliation; aging and payment
+behaviour; stock classification; optional anomaly design; dashboard, drill-down and exports; RBAC and security; logging; failure
+modes; non-functional requirements; configuration; API; acceptance criteria AC-01 to AC-66.
+
+VALIDATION REQUIRED BEFORE SYNC IS DECLARED COMPLETE — Gate items G1–G29 (Section 7).
+
+IMPLEMENTATION TEST REQUIRED — Agent packaging, performance environment, extraction batch defaults, key-list
+frequency, Agent and Tally thresholds, anomaly multiplier default.
+
+BUSINESS DECISION REQUIRED — GST scope, backup RPO/RTO, journal entries in cash flow, fast-moving ranking basis.
+
+This document is implementation-ready for development, subject to the validation gates above. It is not claimed as
+production-ready.
+
+
+
+Appendix A. Version History
+                               Version                                                                 Summary
+
+ v1                                                                     Integration BRD/SRS: pushing and pulling data between an external
+                                                                        app and Tally
+
+ v2–v3                                                                  Added analytics and AI features; natural-language query moved to an
+                                                                        MCP-based design
+
+ v4                                                                     Review feedback applied: analytics made AI-free; TDL made the
+                                                                        primary extraction mechanism; anomaly detection made optional via
+                                                                        MCP + Claude
+
+ v5                                                                     Hard technical review: local Agent, GUID identity, voucher entries and
+                                                                        bill allocations, reconciliation, RBAC, security, backup, acceptance
+                                                                        criteria
+
+ v6                                                                     Accounting-direction rules, per-collection watermarks, stale protection,
+                                                                        voucher replacement, command polling, onboarding, Not Yet Due
+                                                                        aging, validation-gate approach
+
+ v7                                                                     Revenue attribution model, sign normalization, multiple Agents and
+                                                                        routing, credential rotation without HMAC, allocation and return rules,
+                                                                        master lifecycle, Never Sold, time zone and financial quarters
+
+ v7.1                                                                   Corrective addendum: reconciliation example corrected, customer and
+                                                                        product attribution tightened, sync lease, command recovery
+
+ v7.2                                                                   Consolidated v7 and v7.1 into one document; schema placement and
+                                                                        acceptance criteria completed
+
+ v7.3                                                                   Compared against tally-database-loader and Biz Analyst: group
+                                                                        hierarchy, base voucher types, opening balances, stock snapshots,
+                                                                        batch limits, company targeting, Tally runtime handling, faster deletion
+                                                                        detection, custom fields, payment behaviour, responsive UI, scope
+                                                                        decisions
+
+ v7.3 Complete Edition                                                  This document: all versions merged into one self-contained
+                                                                        specification, with no references to earlier versions for requirement
+                                                                        text
+

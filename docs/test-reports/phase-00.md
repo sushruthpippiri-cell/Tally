@@ -1,18 +1,18 @@
 # Phase 00 test report
 
-Generated 2026-09-23 14:46 UTC by `make phase-report PHASE=00`, on a freshly created and migrated `_test` database.
+Generated 2026-09-23 15:26 UTC by `make phase-report PHASE=00`, on a freshly created and migrated `_test` database.
 
 **Result: PASS**
 
 | | |
 |---|---|
-| Tests run | 74 |
-| Passed | 74 |
+| Tests run | 78 |
+| Passed | 78 |
 | Failed | 0 |
 | Skipped | 0 |
-| Coverage (lines) | 82.2% |
+| Coverage (lines) | 81.8% |
 | `make check` (lint, types, imports) | PASS |
-| Log | `logs/test-runs/p00-20260923T144645Z.log` |
+| Log | `logs/test-runs/p00-20260923T152638Z.log` |
 
 ## Skipped tests
 

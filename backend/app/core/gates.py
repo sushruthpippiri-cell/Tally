@@ -26,7 +26,7 @@ COLLECTION_GATES: dict[str, tuple[str, ...]] = {
 
 
 def load_gate_status(path: Path = GATE_STATUS_PATH) -> dict[str, str]:
-    data = yaml.safe_load(path.read_text())
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
     return {str(k): str(v) for k, v in data.items()}
 
 

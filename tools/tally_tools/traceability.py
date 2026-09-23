@@ -61,7 +61,7 @@ def markers_by_id(test_root: Path, dirs: tuple[str, ...] = TEST_DIRS) -> dict[st
     found: dict[str, list[str]] = defaultdict(list)
     for directory in dirs:
         for path in sorted((test_root / directory).rglob("test_*.py")):
-            tree = ast.parse(path.read_text())
+            tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                     continue
@@ -114,9 +114,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="fail if any requirement has no test")
     args = parser.parse_args()
-    ids = requirement_ids(SRS.read_text())
+    ids = requirement_ids(SRS.read_text(encoding="utf-8"))
     tests = markers_by_id(ROOT)
-    DEST.write_text(render(ids, tests))
+    DEST.write_text(render(ids, tests), encoding="utf-8")
     missing = [i for i in ids if i not in tests]
     if args.check and missing:
         return 1
