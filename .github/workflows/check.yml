@@ -25,8 +25,8 @@ jobs:
     env:
       PGPASSWORD: postgres_dev
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
       - name: Install poppler (SRS transcription tests)
@@ -44,7 +44,7 @@ jobs:
       - run: make migrate
       - run: make test PHASE=ci
       - run: make traceability
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-logs
@@ -55,8 +55,8 @@ jobs:
     # Agent tests are allowed to fail until Phase 7 builds the real Agent.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
       - run: uv sync --all-packages
