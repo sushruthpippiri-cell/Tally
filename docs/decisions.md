@@ -222,8 +222,11 @@ Approved with the Phase 1 plan. See `docs/schema.md` for the resulting schema.
 | 13 | **Allow-list defaults are not seeded by the migration** (departs from P1.8's wording). They live once in `app/models/defaults.py` as tagged `PREDEFINED` entries; `company_settings` holds overrides only, and the P2 settings registry falls back to the defaults | `company_settings` is keyed by `company_id` and no company exists at migration time. This matches P2's "effective value with `is_default`". |
 | 14 | The migration seeds `roles` only (OWNER=1, ACCOUNTANT=2, ADMIN=3) | 5.3. |
 
-### D-032 Smaller schema choices made while implementing Phase 1 — PROPOSED
-Not in the approved Phase 1 plan; each is the stated default until changed.
+### D-032 Smaller schema choices made while implementing Phase 1 — ACCEPTED (product owner, 2026-09-23)
+Not in the approved Phase 1 plan. Accepted after checking that none changes a business rule or
+drops an SRS requirement: #4 applies SRS 5.8 ("amount_absolute: always non-negative") to two
+more tables, and for #6 the SRS 5.4 "index company_id" on `agents` is served by the
+`UNIQUE(company_id, agent_name)` index, whose leading column is `company_id`.
 
 | # | Choice | Why |
 |---|---|---|
