@@ -12,7 +12,7 @@ Deterministic, single-sided, correctly classified metrics for sales, purchases, 
 
 ### P8.1 Analytics architecture — `app/analytics/`
 - `filters.py`: `AnalyticsFilter(company_id, date_from, date_to, customer_ids?, stock_item_ids?, cost_centre_ids?, include_cancelled=False, include_missing=False)` (FR-4.3, ACC-4.5).
-- `classification.py`: loads allow-lists from settings and returns sets of `predefined_group_id`s for Sales, Purchase, Expense, Cash/Bank, Tax, plus customer (Sundry Debtors) and supplier (Sundry Creditors) sets (ACC-7.3, 7.6, D-001). Ledgers under UNRESOLVED groups are never in any class (ACC-7.4).
+- `classification.py`: loads allow-lists from settings and returns sets of `classification_group_id`s for Sales, Purchase, Expense, Cash/Bank, Tax, plus customer (Sundry Debtors) and supplier (Sundry Creditors) sets (ACC-7.3, 7.6, D-001). Ledgers under UNRESOLVED groups are never in any class (ACC-7.4); a ledger whose anchor is in no allow-list is simply in no class, and is listed in Data Quality (D-001 case 3).
 - `metrics/<metric>.py`: each metric defines **one** `detail_query(filter) -> Select` returning one row per contributing entry (voucher_id, voucher_date, voucher_number, voucher_type_name, base_voucher_type, ledger_id, ledger_name, contribution amount with the metric's sign, plus dimensions). Shared helpers build `total`, `by_period(granularity)`, `by_dimension(dim)` and `drilldown(page)` from that subquery. This guarantees ACC-4.4 and FR-DD-5 by construction.
 - `periods` from `app/core/periods.py` for day / month / financial quarter (FR-2.1, Q-1.x).
 - Result DTOs serialize Decimal as strings.

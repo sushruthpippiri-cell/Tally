@@ -39,7 +39,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 | 3 | Repo location? | Setup | Moved to `/Users/sushruthp/code/tally-platform` (2026-09-23). |
 | 4 | Git author correct? | Setup | Yes: `sushruthpippiri-cell <sushruth.pippiri@gmail.com>`. |
 | 5 | D-001 (before P1), D-002 (before P4), D-021 (before P8)? | Setup | Noted. Owner will confirm D-001 before P1 and D-002 before P4, and answer D-021 before P8. Do not start those phases until confirmed. |
-| 6 | Confirm D-001 (classification anchor = nearest predefined group) with the accountant. | P0 end | **Open — blocks P1.** |
+| 6 | Confirm D-001 (classification anchor). | P0 end | **Open — blocks P1.** D-001 rewritten 2026-09-23 with five worked examples; it now also covers a user group created directly under Primary (RESOLVED, anchors to itself, surfaced in Data Quality) — only a broken chain is UNRESOLVED_GROUP. Awaiting the owner's read. |
 
 ## Owner rules added at P0 start (2026-09-23)
 Testing and logs rules (logs captured at DEBUG and saved per run, log-record assertions, per-phase full-suite report in `docs/test-reports/phase-NN.md`, no next phase on a red suite) are in `CLAUDE.md` -> "Testing and logs" and in `docs/plan/phase-00-foundation.md` (P0.12).

@@ -51,7 +51,7 @@ Dependency `require(Permission)` resolves the user's roles for the path's `compa
 `record(ctx_or_system, action, entity_type, entity_id, before=None, after=None, data_range=None, result="SUCCESS")` writing every LOG-1.2 field; `user_id = None` means "system". A `diff(before, after)` helper stores only changed fields. Later phases call this for every action listed in LOG-1.1.
 
 ### P2.8 Settings and feature flags (Section 18, D-016)
-- `app/core/settings_registry.py`: every key from SRS 18.2 with type, default and validator, plus `stock.fast_ranking_basis` (quantity|value), `sync.keylist_max_missing_ratio` (0.2), `agent.command_lease_seconds` (300). Validators: tolerances ≥ 0; bucket boundaries strictly ascending positive integers; percentile 1–99; windows and thresholds > 0; `top_n_default` 1–100; classification lists non-empty and each entry one of Tally's 28 predefined group names (D-001).
+- `app/core/settings_registry.py`: every key from SRS 18.2 with type, default and validator, plus `stock.fast_ranking_basis` (quantity|value), `sync.keylist_max_missing_ratio` (0.2), `agent.command_lease_seconds` (300). Validators: tolerances ≥ 0; bucket boundaries strictly ascending positive integers; percentile 1–99; windows and thresholds > 0; `top_n_default` 1–100; classification lists non-empty and each entry either one of Tally's 28 predefined group names or one of the company's own top-level groups (D-001).
 - `GET /companies/{id}/settings` returns effective values with an `is_default` flag; `PUT` validates, stores overrides, audits (before/after).
 - Feature flags: boolean only, `FEATURE_ANOMALY_DETECTION` default off; changes audited.
 - `get_setting(company_id, key)` service with a per-request cache.

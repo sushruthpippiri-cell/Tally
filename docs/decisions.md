@@ -5,10 +5,72 @@ Claude Code: add new entries at the bottom with the next number and status PROPO
 
 ---
 
-### D-001 Classification anchor is the nearest predefined Tally group — PROPOSED (confirm with the accountant)
-**Context.** ACC-7.1–7.6 classify ledgers by "primary group" and the default allow-lists contain Sundry Debtors, Sundry Creditors, Cash-in-Hand, Bank Accounts and Duties & Taxes. In TallyPrime these are predefined *sub-groups* (Sundry Debtors sits under the primary group Current Assets; Duties & Taxes under Current Liabilities; Bank OD A/c under Loans (Liability)). Resolving literally to the top-level group would classify every customer as "Current Assets".
-**Decision.** `groups` stores `predefined_group_id` (nearest predefined ancestor, including the group itself) and `primary_group_id` (top-level primary group). All classification, allow-lists and customer/supplier detection use `predefined_group_id`. Allow-list validation accepts any of Tally's 28 predefined groups. Group nature comes from the top-level primary group. ACC-7.1's intent (never the immediate parent; nested user groups roll up) is preserved. ACC-9.3's note that bank overdraft ledgers need to be added explicitly confirms this reading.
-**Verify with:** G13, G32.
+### D-001 Classification anchor is the nearest predefined group, or the ledger's own top-level group — PROPOSED (confirm before P1)
+
+**The problem.** ACC-7.1–7.6 say to classify a ledger by its "primary group", and the default
+allow-lists name Sundry Debtors, Sundry Creditors, Cash-in-Hand, Bank Accounts and Duties & Taxes.
+In TallyPrime those are predefined *sub-groups*, not primary groups: Sundry Debtors sits under
+Current Assets, Duties & Taxes under Current Liabilities, Bank OD A/c under Loans (Liability).
+Taken literally, every customer would classify as "Current Assets" and no rule would ever match.
+
+**The rule, in plain language.** Walk up the group chain from the ledger until you reach one of
+Tally's 28 predefined groups. That group is the ledger's **classification anchor**, and it is what
+every allow-list, metric and customer/supplier test uses. If the chain never meets a predefined
+group — because the user built their own top-level group under Primary — the anchor is that
+top-level group itself. The anchor is never the immediate parent unless the immediate parent
+happens to be the anchor, and nested user groups always roll up.
+
+A group is only `UNRESOLVED_GROUP` when the chain is *broken*: a parent that is not in the
+company's groups, or a loop. "I do not recognise this group" is not the same as "this group is
+broken", and only the second one hides a ledger from analytics.
+
+**Columns on `groups`** (cached onto `ledgers`):
+
+| Column | Meaning | Null when |
+|---|---|---|
+| `predefined_group_id` | nearest predefined ancestor, including the group itself | the chain has no predefined group |
+| `classification_group_id` | the anchor: `predefined_group_id`, else the top-level group of the chain | the chain is broken (case 4) |
+| `primary_group_id` | the top-level *predefined* primary group | the chain has no predefined group |
+| `nature` | ASSET / LIABILITY / INCOME / EXPENSE | never for a resolved group (see below) |
+
+A group is recognised as predefined by its **reserved name** (gate G32), never by its display name,
+so renaming one in Tally changes nothing. `nature` comes from the primary group when there is one,
+otherwise from the nature Tally itself stores on the group (gate G14) — TallyPrime requires a
+nature to be chosen when a group is created directly under Primary, so it is always available.
+
+**Allow-lists** (`company_settings`) may therefore contain any of the 28 predefined groups **or**
+any of the company's own top-level groups. An Owner or Admin adds one when a real classification is
+missing. Defaults are unchanged: Sales = Sales Accounts; Purchase = Purchase Accounts;
+Expense = Direct Expenses, Indirect Expenses; Cash/Bank = Cash-in-Hand, Bank Accounts;
+Tax = Duties & Taxes.
+
+**Worked examples**
+
+| # | Situation | Anchor | Nature | Status | What the user sees |
+|---|---|---|---|---|---|
+| 1 | Ledger `Amazon Sales` under `Sales - Online - Marketplace` under `Sales - Online` under **Sales Accounts** | Sales Accounts | Income | RESOLVED | Counts as sales revenue, because Sales Accounts is in the Sales allow-list. Two levels of user groups roll up (ACC-7.1). |
+| 2 | Ledger `Sharma Traders` under `Retail Customers` under **Sundry Debtors** (under Current Assets) | **Sundry Debtors**, not Current Assets | Asset | RESOLVED | A customer (ACC-7.6), and part of receivables. This is the case the literal SRS reading breaks. |
+| 3 | Ledger `Solar Subsidy Receivable` under `Government Schemes`, a group the user created **directly under Primary** with nature Assets | `Government Schemes` itself | Asset (from Tally's own field, G14) | **RESOLVED** | In no allow-list, so it is in no sales/purchase/expense/cash/tax metric and is not a customer or supplier. Its balance still appears. Data Quality lists it under **"Groups not in any classification list"**, and an Owner/Admin can add `Government Schemes` to an allow-list. |
+| 4 | Group `Project X` whose parent GUID is not among the company's groups, or a loop `A -> B -> A` | none | unknown | **UNRESOLVED_GROUP** | The group and every descendant are excluded from all classified metrics (ACC-7.4) and listed in Data Quality under "Unresolved groups". It re-resolves by itself on the next sync once the missing parent arrives (ACC-7.5). |
+| 5 | The user renamed the predefined group `Sundry Debtors` to `Customers` | Sundry Debtors | Asset | RESOLVED | Unchanged behaviour: the reserved name identifies it (G32), so its ledgers stay customers. The dashboard shows the user's name, `Customers`. |
+
+**Case 5 before G32 passes.** The fallback matches the 28 predefined groups by exact name, so a
+renamed one would not be recognised and its ledgers would silently anchor one level up
+(`Customers` under Current Assets would anchor to Current Assets, and those customers would
+disappear from receivables). To make that visible rather than silent, Data Quality gains a
+**"Predefined group possibly renamed"** check: any of the 28 names absent from the company's
+groups while an unrecognised group sits directly under the matching parent. This check retires
+when G32 passes.
+
+**Where this departs from the SRS** (all three were unworkable as written):
+- **ACC-7.1, 7.2, 7.6** say "primary group"; the anchor is the nearest *predefined* group instead.
+- **ACC-7.3** says allow-lists hold primary groups only; they also hold predefined sub-groups, and
+  now a company's own top-level groups.
+- **ACC-7.4** marks a chain that "does not reach a primary group" as UNRESOLVED; that is narrowed
+  to a *broken* chain (missing parent or loop), so case 3 stays usable instead of vanishing.
+
+**Verify with:** G13 (every chain reaches a predefined group), G14 (nature on a user top-level
+group), G32 (reserved name survives a rename).
 
 ### D-002 Voucher lines reference masters by GUID — PROPOSED (gate G30)
 The voucher TDL emits the referenced master's GUID for every ledger entry, inventory entry and cost-centre allocation (in addition to the name). Ingest resolves by GUID. If G30 fails: resolve by exact name among the company's masters and log `UNKNOWN_MASTER_REFERENCE` on a miss.

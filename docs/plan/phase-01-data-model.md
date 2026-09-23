@@ -28,8 +28,8 @@ SRS Section 5 (all subsections) and 6.6 · `docs/decisions.md` entries listed ab
 - `agent_registration_tokens`, `sync_schedules` as specified.
 
 ### P1.4 Masters (5.5 + D-001)
-- `groups`: SRS columns plus `predefined_group_id` (nearest predefined ancestor, including self), `is_predefined bool`, `reserved_name text null`, `resolution_status` (RESOLVED | UNRESOLVED_GROUP), `parent_tally_guid text null` (raw parent reference kept until resolved).
-- `ledgers`: SRS columns plus cached `predefined_group_id`, `is_bill_wise bool null`, `parent_group_tally_guid text`.
+- `groups`: SRS columns plus `predefined_group_id` (nearest predefined ancestor, including self; nullable), `classification_group_id` (the D-001 anchor: `predefined_group_id`, else the chain's top-level group; nullable only for a broken chain), `nature` (from the primary group, or from Tally's own field for a user top-level group, G14), `is_predefined bool`, `reserved_name text null`, `resolution_status` (RESOLVED | UNRESOLVED_GROUP), `parent_tally_guid text null` (raw parent reference kept until resolved).
+- `ledgers`: SRS columns plus cached `classification_group_id` and `predefined_group_id`, `is_bill_wise bool null`, `parent_group_tally_guid text`.
 - `voucher_types`: SRS columns plus `resolution_status`, `reserved_name`, `parent_tally_guid`; `base_voucher_type` CHECK (SALES, PURCHASE, RECEIPT, PAYMENT, CONTRA, JOURNAL, CREDIT_NOTE, DEBIT_NOTE, OTHER).
 - `stock_items`, `cost_centres` as specified.
 - Master status CHECK: ACTIVE, MISSING_IN_TALLY, INACTIVE.

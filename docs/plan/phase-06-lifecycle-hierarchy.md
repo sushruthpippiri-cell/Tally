@@ -27,11 +27,12 @@ A voucher with a higher ALTERID and the cancellation indicator (G9) → status C
 ### P6.4 Group hierarchy resolution — `app/sync/hierarchy.py` (ACC-7.2, 7.4, 7.5, D-001)
 - After any group batch commits, recompute the company's entire group forest in memory (groups are few):
   - `is_predefined` from `reserved_name` (G32; fallback: exact predefined name when G32 not passed).
-  - `predefined_group_id` = nearest predefined ancestor including self; `primary_group_id` = top-level primary.
-  - `nature` from the top-level primary group via the fixed table below (G14).
-  - Missing parent or a cycle → `resolution_status = UNRESOLVED_GROUP` for that group and every descendant (ACC-7.4).
+  - `predefined_group_id` = nearest predefined ancestor including self (NULL if none); `primary_group_id` = top-level predefined primary (NULL if none).
+  - `classification_group_id` (the anchor, D-001) = `predefined_group_id`, else the top-level group of the chain — a group the user created directly under Primary anchors to itself and is **RESOLVED**, not UNRESOLVED_GROUP.
+  - `nature` from the top-level primary group via the fixed table below; for a user top-level group, from the nature Tally stores on the group (G14).
+  - **Only a broken chain** — a parent GUID not among the company's groups, or a cycle → `resolution_status = UNRESOLVED_GROUP` for that group and every descendant (ACC-7.4 as narrowed by D-001).
 - Persist only changes; each changed group → audit (system) with old/new predefined and primary group (ACC-7.5).
-- Refresh the cached `predefined_group_id`/`primary_group_id` on ledgers under changed groups, and on every ledger upsert.
+- Refresh the cached `classification_group_id`/`predefined_group_id`/`primary_group_id` on ledgers under changed groups, and on every ledger upsert.
 
 Tally's 28 predefined groups (verify against a live export, G13/G32):
 
@@ -57,7 +58,7 @@ Tally's 28 predefined groups (verify against a live export, G13/G32):
 Walk parents to a predefined voucher type (G15, G32). Sales, Purchase, Receipt, Payment, Contra, Journal, Credit Note, Debit Note → the matching `base_voucher_type`. Any other predefined type (orders, notes, stock journal, memorandum, etc.) → OTHER with `resolution_status = RESOLVED`. Missing parent or cycle → OTHER with `resolution_status = UNRESOLVED` (listed in Data Quality). Re-resolve on every voucher-type batch; audit changes.
 
 ### P6.6 Data Quality service — `app/services/data_quality.py` (FR-4.5)
-A registry of checks, each returning `{check_id, title, severity, count, items[] (paginated), how_to_fix}`, so later phases can register more. Checks in this phase: unresolved groups; unresolved voucher types; ledgers without an opening balance for the current financial year; missing masters; MISSING_IN_TALLY vouchers; imbalanced vouchers (from `sync_errors`); suspicious key lists; unknown master references. Placeholders registered by later phases: unsupported bill allocations (P11), unlinked credit/debit notes (P8), multi-unit items (P12), over-settled bills (P11).
+A registry of checks, each returning `{check_id, title, severity, count, items[] (paginated), how_to_fix}`, so later phases can register more. Checks in this phase: unresolved groups (broken chains only); **groups not in any classification list** (D-001 case 3, with the groups an Owner/Admin could add to an allow-list); **predefined group possibly renamed** (D-001, retires when G32 passes); unresolved voucher types; ledgers without an opening balance for the current financial year; missing masters; MISSING_IN_TALLY vouchers; imbalanced vouchers (from `sync_errors`); suspicious key lists; unknown master references. Placeholders registered by later phases: unsupported bill allocations (P11), unlinked credit/debit notes (P8), multi-unit items (P12), over-settled bills (P11).
 `GET /companies/{id}/data-quality` (VIEW_RECON_AND_DQ) and `GET /companies/{id}/data-quality/{check_id}`.
 
 ### P6.7 Masters endpoints
@@ -69,7 +70,8 @@ A registry of checks, each returning `{check_id, title, severity, count, items[]
 - AC-10: ledger absent from full key list → MISSING_IN_TALLY, not deleted, vouchers still reference it.
 - AC-11: reappears with same GUID → ACTIVE, audited.
 - Safety guard: empty and heavily truncated key lists change nothing.
-- Hierarchy: three-level chain under Sales Accounts; custom group under Sundry Debtors resolves `predefined_group` = Sundry Debtors and `primary_group` = Current Assets; missing parent; cycle; reparenting recomputes descendants and audits.
+- Hierarchy, one test per D-001 worked example: (1) three-level chain under Sales Accounts anchors to Sales Accounts; (2) custom group under Sundry Debtors anchors to Sundry Debtors with `primary_group` = Current Assets; (3) user group directly under Primary anchors to itself, is RESOLVED, has nature from Tally, is in no allow-list and appears in the "not in any classification list" check; (4) missing parent and cycle → UNRESOLVED_GROUP for the group and its descendants, and recovery once the parent arrives; (5) renamed predefined group still anchors by reserved name (G32 forced PASSED), and with G32 NOT_TESTED the "possibly renamed" check fires.
+- Reparenting recomputes descendants and audits (ACC-7.5).
 - Voucher types: "POS Invoice" derived from Sales → SALES; two-level custom chain; unresolvable → OTHER + Data Quality.
 
 ## Definition of done
