@@ -26,7 +26,7 @@ A monorepo where every later phase has an obvious home, CI that enforces lint, t
 ### P0.3 Shared contract skeleton
 - `tally_contract/errors.py`: `ErrorCode` StrEnum with every SRS code and the proposed ones (comment `# proposed` on the latter):
   - SRS: `TALLY_SERVER_DISABLED`, `TDL_NOT_LOADED`, `COMPANY_NOT_LOADED`, `COMPANY_MISMATCH`, `TALLY_EXPORT_TIMEOUT`, `QUEUE_FULL`, `SYNC_LOCKED`, `STALE_ALTERID`, `CREDENTIAL_INVALID`, `AGENT_REVOKED`, `UDF_NOT_FOUND`, `UNRESOLVED_GROUP`, `UNSUPPORTED_ALLOCATION_TYPE`, `UNLINKED_CREDIT_NOTE`, `UNLINKED_DEBIT_NOTE`.
-  - Proposed: `TALLY_UNREACHABLE`, `DEBIT_CREDIT_IMBALANCE`, `UNKNOWN_MASTER_REFERENCE`, `PARSE_ERROR`, `AGENT_SELECTION_REQUIRED`, `AGENT_INCOMPATIBLE`, `INVALID_COMMAND_STATE`, `KEY_LIST_SUSPICIOUS`, `GATE_NOT_PASSED`, `VALIDATION_ERROR`, `NOT_AUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`.
+  - Proposed (**not in SRS v7.3**, listed in D-030; mark each `# not in SRS v7.3`): `TALLY_UNREACHABLE`, `DEBIT_CREDIT_IMBALANCE`, `UNKNOWN_MASTER_REFERENCE`, `PARSE_ERROR`, `AGENT_SELECTION_REQUIRED`, `AGENT_INCOMPATIBLE`, `INVALID_COMMAND_STATE`, `KEY_LIST_SUSPICIOUS`, `GATE_NOT_PASSED`, `VALIDATION_ERROR`, `NOT_AUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`.
 - `tally_contract/version.py`: `CONTRACT_VERSION = "1.0"`.
 
 ### P0.4 Agent skeleton
@@ -66,7 +66,7 @@ GitHub Actions: a `check` job on ubuntu with a Postgres 16 service container; an
 - pytest config: `log_level = DEBUG`, `log_format` with logger name, `-ra`, strict markers; a `conftest.py` hook records each test's `req` marker IDs as JUnit properties (used by the phase report and P0.9), and fails any `skip` that has no reason.
 - `tally_contract/testing.py`: `assert_logged(caplog, event, *, level=None, **fields)` and `assert_not_logged(...)`; unit-tested here so later phases can rely on it.
 - `make test PHASE=pNN` runs pytest with `--junitxml` and tees output to `logs/test-runs/<phase>-<UTC timestamp>.log|.xml`; `logs/` added to `.gitignore`. Default `PHASE=dev`.
-- `tools/phase_report.py` + `make phase-report PHASE=NN`: drop and recreate the test database, `alembic upgrade head` (empty skeleton in P0; real migration from P1), run the full suite via `make test`, run `make check`, then write `docs/test-reports/phase-NN.md` (tests run/passed/failed/skipped, each skip's reason, coverage from `coverage xml`, AC IDs covered from the JUnit properties, the log file name). Exits non-zero when anything failed, so a phase cannot be reported done on a red suite. Unit-tested against a small fake JUnit file.
+- `tools/phase_report.py` + `make phase-report PHASE=NN`: drop and recreate the test database, `alembic upgrade head` (empty skeleton in P0; real migration from P1), run the full suite via `make test`, run `make check`, then write `docs/test-reports/phase-NN.md` (tests run/passed/failed/skipped, each skip's reason, coverage from `coverage xml`, AC IDs covered from the JUnit properties, the log file name). **Safety:** the reset refuses to run unless the target database name (parsed from the URL actually used) ends in `_test`, and never reads `DATABASE_URL`/the dev database; unit-tested with a `_dev` name (must refuse) and a `_test` name. Exits non-zero when anything failed, so a phase cannot be reported done on a red suite. Unit-tested against a small fake JUnit file.
 - Playwright settings (trace and screenshot on failure) are recorded now and applied when P13.1 scaffolds the frontend.
 
 ### P0.11 Documentation

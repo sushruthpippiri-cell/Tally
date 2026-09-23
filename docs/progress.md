@@ -17,7 +17,7 @@ P0 — plan proposed 2026-09-23, awaiting owner approval; no application code ye
 ## Blocked
 | Item | Blocked by (gate / decision / question) | Since |
 |---|---|---|
-| Docker-based work (P0.6 `make up`, Postgres tests, `make phase-report`) | Owner says Docker Desktop is running, but from the Claude Code session the daemon is unreachable (`~/.docker/run/docker.sock` missing, no Docker process; checked twice, also outside the sandbox). Needs Docker Desktop actually started, then `docker info` re-checked | 2026-09-23 |
+| _(none)_ | Docker Desktop verified running 2026-09-23 (server 29.8.0). P0.6 unblocked. | |
 
 ## Questions for the product owner
 | # | Question | Raised in | Answer |
@@ -41,7 +41,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 | uv | 0.12.17 |
 | Python | 3.12.14 (`python3.12`, /opt/homebrew/bin) |
 | Node | v24.13.0 (npm 11.6.2) |
-| Docker | 29.8.0 (Compose v5.5.1). **Daemon not running when checked.** |
+| Docker | 29.8.0 (Compose v5.5.1). Daemon running (verified 2026-09-23). |
 | poppler / pdftotext | 26.09.0 |
 | make | /usr/bin/make |
 
