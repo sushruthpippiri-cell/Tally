@@ -6,7 +6,7 @@ Create Date: 2026-09-23
 """
 from alembic import op
 import sqlalchemy as sa
-
+from sqlalchemy.dialects import postgresql
 
 revision = '0001'
 down_revision = None
@@ -44,6 +44,49 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('user_id', name=op.f('pk_users'))
     )
     op.create_index('uq_users_email_lower', 'users', [sa.literal_column('lower(email)')], unique=True)
+    op.create_table('agent_registration_tokens',
+    sa.Column('token_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('token_hash', sa.Text(), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('used_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_by', sa.UUID(), nullable=False),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_agent_registration_tokens_company_id')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.user_id'], name=op.f('fk_agent_registration_tokens_created_by')),
+    sa.PrimaryKeyConstraint('token_id', name=op.f('pk_agent_registration_tokens')),
+    sa.UniqueConstraint('token_hash', name=op.f('uq_agent_registration_tokens_token_hash'))
+    )
+    op.create_index(op.f('ix_agent_registration_tokens_company_id'), 'agent_registration_tokens', ['company_id'], unique=False)
+    op.create_table('agents',
+    sa.Column('agent_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('agent_name', sa.Text(), nullable=False),
+    sa.Column('credential_hash', sa.Text(), nullable=True),
+    sa.Column('credential_salt', sa.LargeBinary(), nullable=True),
+    sa.Column('status', sa.Text(), nullable=False),
+    sa.Column('tally_guid', sa.Text(), nullable=True),
+    sa.Column('tally_company_name', sa.Text(), nullable=True),
+    sa.Column('tally_host', sa.Text(), nullable=True),
+    sa.Column('tally_port', sa.Integer(), nullable=True),
+    sa.Column('extraction_batch_size', sa.Integer(), nullable=True),
+    sa.Column('agent_version', sa.Text(), nullable=True),
+    sa.Column('tdl_version', sa.Text(), nullable=True),
+    sa.Column('tally_version', sa.Text(), nullable=True),
+    sa.Column('tally_uptime_seconds', sa.BigInteger(), nullable=True),
+    sa.Column('queue_status', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('last_heartbeat_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('registered_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('revoked_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('last_tally_status', sa.Text(), nullable=True),
+    sa.Column('tally_status_since', sa.DateTime(timezone=True), nullable=True),
+    sa.CheckConstraint("last_tally_status IN ('OK', 'TALLY_UNREACHABLE', 'TALLY_SERVER_DISABLED', 'TDL_NOT_LOADED', 'COMPANY_NOT_LOADED', 'COMPANY_MISMATCH')", name=op.f('ck_agents_last_tally_status')),
+    sa.CheckConstraint("status IN ('REGISTERING', 'ACTIVE', 'OFFLINE', 'INCOMPATIBLE', 'REVOKED')", name=op.f('ck_agents_status')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_agents_company_id')),
+    sa.PrimaryKeyConstraint('agent_id', name=op.f('pk_agents')),
+    sa.UniqueConstraint('company_id', 'agent_id', name=op.f('uq_agents_company_id_agent_id')),
+    sa.UniqueConstraint('company_id', 'agent_name', name=op.f('uq_agents_company_id_agent_name'))
+    )
+    op.create_index(op.f('ix_agents_company_id'), 'agents', ['company_id'], unique=False)
     op.create_table('user_roles',
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('company_id', sa.UUID(), nullable=False),
@@ -54,6 +97,48 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('user_id', 'company_id', 'role_id', name=op.f('pk_user_roles'))
     )
     op.create_index(op.f('ix_user_roles_company_id'), 'user_roles', ['company_id'], unique=False)
+    op.create_table('agent_commands',
+    sa.Column('command_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('agent_id', sa.UUID(), nullable=False),
+    sa.Column('command_type', sa.Text(), nullable=False),
+    sa.Column('sync_mode', sa.Text(), nullable=False),
+    sa.Column('date_from', sa.Date(), nullable=True),
+    sa.Column('date_to', sa.Date(), nullable=True),
+    sa.Column('status', sa.Text(), nullable=False),
+    sa.Column('lease_expires_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_by', sa.UUID(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('claimed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.CheckConstraint("command_type IN ('RUN_SYNC')", name=op.f('ck_agent_commands_command_type')),
+    sa.CheckConstraint("status IN ('PENDING', 'CLAIMED', 'RUNNING', 'COMPLETED', 'FAILED', 'EXPIRED', 'FAILED_AGENT_LOST')", name=op.f('ck_agent_commands_status')),
+    sa.CheckConstraint("sync_mode <> 'DATE_RANGE' OR (date_from IS NOT NULL AND date_to IS NOT NULL AND date_from <= date_to)", name=op.f('ck_agent_commands_date_range')),
+    sa.CheckConstraint("sync_mode IN ('FULL', 'INCREMENTAL', 'DATE_RANGE', 'RECONCILIATION')", name=op.f('ck_agent_commands_sync_mode')),
+    sa.ForeignKeyConstraint(['company_id', 'agent_id'], ['agents.company_id', 'agents.agent_id'], name=op.f('fk_agent_commands_company_id_agent_id')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_agent_commands_company_id')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.user_id'], name=op.f('fk_agent_commands_created_by')),
+    sa.PrimaryKeyConstraint('command_id', name=op.f('pk_agent_commands'))
+    )
+    op.create_index(op.f('ix_agent_commands_agent_id_status'), 'agent_commands', ['agent_id', 'status'], unique=False)
+    op.create_index(op.f('ix_agent_commands_company_id'), 'agent_commands', ['company_id'], unique=False)
+    op.create_index(op.f('ix_agent_commands_status_created_at'), 'agent_commands', ['status', 'created_at'], unique=False)
+    op.create_table('sync_schedules',
+    sa.Column('schedule_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('agent_id', sa.UUID(), nullable=False),
+    sa.Column('cron_expression', sa.Text(), nullable=False),
+    sa.Column('sync_mode', sa.Text(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('created_by', sa.UUID(), nullable=True),
+    sa.CheckConstraint("sync_mode IN ('FULL', 'INCREMENTAL', 'DATE_RANGE', 'RECONCILIATION')", name=op.f('ck_sync_schedules_sync_mode')),
+    sa.ForeignKeyConstraint(['company_id', 'agent_id'], ['agents.company_id', 'agents.agent_id'], name=op.f('fk_sync_schedules_company_id_agent_id')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_sync_schedules_company_id')),
+    sa.ForeignKeyConstraint(['created_by'], ['users.user_id'], name=op.f('fk_sync_schedules_created_by')),
+    sa.PrimaryKeyConstraint('schedule_id', name=op.f('pk_sync_schedules'))
+    )
+    op.create_index(op.f('ix_sync_schedules_company_id'), 'sync_schedules', ['company_id'], unique=False)
     # ### end Alembic commands ###
     _upgrade_extras()
 
@@ -61,8 +146,18 @@ def upgrade() -> None:
 def downgrade() -> None:
     _downgrade_extras()
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_sync_schedules_company_id'), table_name='sync_schedules')
+    op.drop_table('sync_schedules')
+    op.drop_index(op.f('ix_agent_commands_status_created_at'), table_name='agent_commands')
+    op.drop_index(op.f('ix_agent_commands_company_id'), table_name='agent_commands')
+    op.drop_index(op.f('ix_agent_commands_agent_id_status'), table_name='agent_commands')
+    op.drop_table('agent_commands')
     op.drop_index(op.f('ix_user_roles_company_id'), table_name='user_roles')
     op.drop_table('user_roles')
+    op.drop_index(op.f('ix_agents_company_id'), table_name='agents')
+    op.drop_table('agents')
+    op.drop_index(op.f('ix_agent_registration_tokens_company_id'), table_name='agent_registration_tokens')
+    op.drop_table('agent_registration_tokens')
     op.drop_index('uq_users_email_lower', table_name='users')
     op.drop_table('users')
     op.drop_table('roles')
@@ -73,7 +168,24 @@ def downgrade() -> None:
 # --- hand-written: seeds, triggers and grants (autogenerate cannot express them) ---
 
 
+# ERRCODE 23001 (restrict_violation) surfaces as IntegrityError in the application.
+AGENT_COMMAND_OWNER = """
+CREATE FUNCTION agent_commands_immutable_owner() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.agent_id IS DISTINCT FROM OLD.agent_id
+       OR NEW.company_id IS DISTINCT FROM OLD.company_id THEN
+        RAISE EXCEPTION 'agent_commands.agent_id and company_id cannot change (RTE-1.4)'
+            USING ERRCODE = '23001';
+    END IF;
+    RETURN NEW;
+END $$;
+CREATE TRIGGER agent_commands_immutable_owner BEFORE UPDATE ON agent_commands
+    FOR EACH ROW EXECUTE FUNCTION agent_commands_immutable_owner();
+"""
+
+
 def _upgrade_extras() -> None:
+    op.execute(AGENT_COMMAND_OWNER)
     roles = sa.table("roles", sa.column("role_id", sa.SmallInteger), sa.column("role_name"))
     op.bulk_insert(
         roles,
@@ -86,4 +198,5 @@ def _upgrade_extras() -> None:
 
 
 def _downgrade_extras() -> None:
-    pass
+    op.execute("DROP TRIGGER agent_commands_immutable_owner ON agent_commands")
+    op.execute("DROP FUNCTION agent_commands_immutable_owner()")

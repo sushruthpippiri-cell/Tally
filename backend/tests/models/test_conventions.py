@@ -1,7 +1,7 @@
 """P1.1: schema-wide conventions, checked on the model metadata so every new table obeys them."""
 
 import pytest
-from sqlalchemy import CheckConstraint, DateTime, Float, Numeric, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, Float, Numeric, Text, UniqueConstraint
 
 from app.models import Base
 from app.models.base import enum_check
@@ -50,5 +50,6 @@ def test_status_columns_have_a_check() -> None:
     for table in TABLES:
         checked = {c.name for c in table.constraints if isinstance(c, CheckConstraint)}
         for col in table.columns:
-            if col.name == "status" or col.name.endswith("_status"):
+            is_status = col.name == "status" or col.name.endswith("_status")
+            if is_status and isinstance(col.type, Text):  # skips e.g. agents.queue_status (jsonb)
                 assert f"ck_{table.name}_{col.name}" in checked, f"{table.name}.{col.name}"

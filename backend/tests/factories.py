@@ -9,7 +9,9 @@ import pytest
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.agents import Agent, AgentCommand
 from app.models.company import Company
+from app.models.enums import AgentStatus, CommandStatus, CommandType, SyncMode
 
 
 @asynccontextmanager
@@ -37,3 +39,25 @@ async def make_company(
     session.add(company)
     await session.flush()
     return company
+
+
+async def make_agent(session: AsyncSession, company: Company, name: str = "agent-1") -> Agent:
+    agent = Agent(company_id=company.company_id, agent_name=name, status=AgentStatus.ACTIVE)
+    session.add(agent)
+    await session.flush()
+    return agent
+
+
+async def make_command(
+    session: AsyncSession, agent: Agent, sync_mode: SyncMode = SyncMode.FULL
+) -> AgentCommand:
+    command = AgentCommand(
+        company_id=agent.company_id,
+        agent_id=agent.agent_id,
+        command_type=CommandType.RUN_SYNC,
+        sync_mode=sync_mode,
+        status=CommandStatus.PENDING,
+    )
+    session.add(command)
+    await session.flush()
+    return command
