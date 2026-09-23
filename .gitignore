@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# Node
+node_modules/
+frontend/dist/
+npm-debug.log*
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Agent local queue (SQLite WAL) and dead-letter
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+deadletter.jsonl
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
