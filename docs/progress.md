@@ -3,13 +3,24 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P0 — plan proposed 2026-09-23, awaiting owner approval; no application code yet
+P0 — **complete** 2026-09-23 (report: [phase-00](test-reports/phase-00.md), PASS, 74 tests). Next: P1 — blocked until D-001 is confirmed.
 
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
 | 2026-09-23 | Setup: repo, plan, SRS v7.3 PDF, .gitignore | 9b83697 | No application code. SRS PDF verified as "v7.3 Complete Edition", 34 pages. |
-| 2026-09-23 | Setup: origin added, answers and toolchain recorded | (this commit) | Pushed `main` to origin. |
+| 2026-09-23 | Setup: origin added, answers and toolchain recorded | e769a15 | Pushed `main` to origin. |
+| 2026-09-23 | P0.1 workspace and directory tree | ba0987a | uv workspace: shared, backend, agent, tools. |
+| 2026-09-23 | P0.5 quality tooling | (see log) | ruff (T20: no print), mypy strict on tally_contract + app.core, 3 import-linter contracts. |
+| 2026-09-23 | P0.12 logging and test-run infrastructure | 30db670 | structlog via stdlib logging, `assert_logged`, req-ID JUnit properties, skips must give a reason. |
+| 2026-09-23 | P0.3 error codes and contract version | (see log) | 15 SRS + 14 additions (D-030). |
+| 2026-09-23 | P0.6 docker environment | (see log) | postgres 16 + backend; `tally_owner` (DDL) / `tally_app` (DML only). |
+| 2026-09-23 | P0.2 backend skeleton | (see log) | config, db, AppError handlers, /health, /health/db, alembic skeleton. |
+| 2026-09-23 | P0.10 gate plumbing | (see log) | gate_status.yaml G1-G33 NOT_TESTED; `collection_sync_mode` per VAL-1.1/1.2. |
+| 2026-09-23 | P0.4 Agent CLI stubs | (see log) | register, run, status, set-credential, test-tally. |
+| 2026-09-23 | P0.11 SRS transcription | b926e89 | `docs/srs/SRS_v7_3.md`, proven word-for-word against the PDF. |
+| 2026-09-23 | P0.9 traceability | (see log) | 356 requirement IDs found; 6 covered so far. |
+| 2026-09-23 | P0.7/P0.8 Makefile and CI | (see log) | GitHub Actions: `check` (ubuntu + postgres 16) and `agent-windows` (may fail until P7). |
 
 ## In progress
 -
@@ -17,7 +28,7 @@ P0 — plan proposed 2026-09-23, awaiting owner approval; no application code ye
 ## Blocked
 | Item | Blocked by (gate / decision / question) | Since |
 |---|---|---|
-| _(none)_ | Docker Desktop verified running 2026-09-23 (server 29.8.0). P0.6 unblocked. | |
+| P1 (data model) | D-001 must be confirmed with the accountant first (`groups.predefined_group_id` shapes every masters table). | 2026-09-23 |
 
 ## Questions for the product owner
 | # | Question | Raised in | Answer |
@@ -27,13 +38,15 @@ P0 — plan proposed 2026-09-23, awaiting owner approval; no application code ye
 | 3 | Repo location? | Setup | Moved to `/Users/sushruthp/code/tally-platform` (2026-09-23). |
 | 4 | Git author correct? | Setup | Yes: `sushruthpippiri-cell <sushruth.pippiri@gmail.com>`. |
 | 5 | D-001 (before P1), D-002 (before P4), D-021 (before P8)? | Setup | Noted. Owner will confirm D-001 before P1 and D-002 before P4, and answer D-021 before P8. Do not start those phases until confirmed. |
+| 6 | Confirm D-001 (classification anchor = nearest predefined group) with the accountant. | P0 end | **Open — blocks P1.** |
 
 ## Owner rules added at P0 start (2026-09-23)
 Testing and logs rules (logs captured at DEBUG and saved per run, log-record assertions, per-phase full-suite report in `docs/test-reports/phase-NN.md`, no next phase on a red suite) are in `CLAUDE.md` -> "Testing and logs" and in `docs/plan/phase-00-foundation.md` (P0.12).
 
 ## Test reports
-| Phase | Report |
-|---|---|
+| Phase | Report | Result |
+|---|---|---|
+| 00 | [phase-00.md](test-reports/phase-00.md) | PASS - 74 tests, 0 failed, 0 skipped, 82% coverage |
 
 ## Environment (recorded 2026-09-23, macOS arm64)
 | Tool | Version |
