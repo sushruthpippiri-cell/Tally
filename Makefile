@@ -4,7 +4,10 @@ PHASE ?= dev
 TEST_DB_URL ?= postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally_test
 
 .PHONY: up down migrate test test-backend test-agent lint format typecheck importlint check \
-        traceability phase-report
+        traceability phase-report hooks
+
+hooks:  ## Install the git pre-commit hook (ruff + mypy); once per clone
+	git config core.hooksPath .githooks
 
 up:  ## Start Postgres + backend
 	$(COMPOSE) up -d --build

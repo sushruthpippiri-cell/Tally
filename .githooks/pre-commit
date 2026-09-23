@@ -1,0 +1,10 @@
+#!/bin/sh
+# Blocks the commit when ruff or mypy fails. Install once per clone: `make hooks`.
+# Skip only in an emergency: `git commit --no-verify` (CI still runs `make check`).
+# ponytail: checks the working tree, not just the staged snapshot; a partially staged file is
+# checked as it is on disk. Switch to the pre-commit framework if that ever bites.
+set -e
+echo "pre-commit: ruff check, ruff format --check, mypy"
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy

@@ -56,8 +56,12 @@ A read-only analytics platform that sits beside TallyPrime. A Windows **Tally Sy
 | `make test PHASE=pNN` | All Python tests (backend, shared, agent) against real Postgres; saves log + JUnit XML under `logs/test-runs/` |
 | `make phase-report PHASE=NN` | Fresh DB + migrate + full suite + `make check`, then writes `docs/test-reports/phase-NN.md` |
 | `make check` | lint + typecheck + import-linter + tests. Run before calling any task done |
+| `make hooks` | Install the git pre-commit hook (once per clone, see below) |
 | `make traceability` | Regenerate `docs/traceability.md` from `@pytest.mark.req` tags |
 | `cd frontend && npm run dev / test / e2e / gen:api` | Frontend dev server, unit tests, Playwright, regenerate API types |
+
+## Pre-commit hook
+`.githooks/pre-commit` runs `ruff check`, `ruff format --check` and `mypy`; any failure blocks the commit. Git does not install hooks from a clone, so after a fresh clone run `make hooks` once (on Windows without make: `git config core.hooksPath .githooks`). Check with `git config core.hooksPath` (prints `.githooks`). Fix the failure rather than committing with `--no-verify`; CI runs `make check` regardless. The hook is fast and skips tests and import-linter, so still run `make check` before calling a task done.
 
 ## Non-negotiable rules (breaking one is a bug, not a style issue)
 1. **No AI/ML/LLM in analytics.** `app.analytics`, `app.reconciliation`, `app.sync`, `app.exports` never import `app.anomaly`, `anthropic` or `mcp` (import-linter enforces). Every figure is a deterministic SQL query.
