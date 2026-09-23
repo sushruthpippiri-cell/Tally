@@ -1,0 +1,63 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      PGPASSWORD: postgres_dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install poppler (SRS transcription tests)
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - name: Create roles and databases
+        run: |
+          for f in deploy/postgres/init/*.sh; do
+            POSTGRES_USER=postgres TALLY_OWNER_PASSWORD=tally_owner_dev \
+            TALLY_APP_PASSWORD=tally_app_dev PGHOST=localhost bash "$f"
+          done
+      - run: uv sync --all-packages
+      - run: make lint
+      - run: make typecheck
+      - run: make importlint
+      - run: make migrate
+      - run: make test PHASE=ci
+      - run: make traceability
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-logs
+          path: logs/test-runs/
+
+  agent-windows:
+    runs-on: windows-latest
+    # Agent tests are allowed to fail until Phase 7 builds the real Agent.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages
+      - run: uv run pytest agent shared -q

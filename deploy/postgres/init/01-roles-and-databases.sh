@@ -5,7 +5,7 @@
 # Databases: `tally` (dev) and `tally_test` (tests; the only database the phase report may reset).
 set -euo pipefail
 
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<SQL
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" ${PGHOST:+--host "$PGHOST"} --dbname postgres <<SQL
 CREATE ROLE tally_owner LOGIN PASSWORD '${TALLY_OWNER_PASSWORD}';
 CREATE ROLE tally_app   LOGIN PASSWORD '${TALLY_APP_PASSWORD}';
 CREATE DATABASE tally      OWNER tally_owner;
@@ -13,7 +13,7 @@ CREATE DATABASE tally_test OWNER tally_owner;
 SQL
 
 for db in tally tally_test; do
-  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" <<SQL
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" ${PGHOST:+--host "$PGHOST"} --dbname "$db" <<SQL
 REVOKE ALL ON DATABASE ${db} FROM PUBLIC;
 GRANT CONNECT ON DATABASE ${db} TO tally_app;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;

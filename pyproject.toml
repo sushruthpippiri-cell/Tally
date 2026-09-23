@@ -65,7 +65,8 @@ testpaths = ["shared/tests", "backend/tests", "agent/tests", "tools/tests"]
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-junit_family = "xunit2"
+# xunit1: the only family that supports record_property, which carries req() IDs into the XML
+junit_family = "xunit1"
 # Capture DEBUG logs; pytest prints them for every failing test.
 log_level = "DEBUG"
 log_format = "%(asctime)s %(levelname)-8s %(name)s %(message)s"
