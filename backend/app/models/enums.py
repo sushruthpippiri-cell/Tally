@@ -151,7 +151,7 @@ class ExplanationStatus(StrEnum):
 
 
 class ToolCallStatus(StrEnum):
-    """ai_tool_log.status. Not in SRS 5.10, which names the column but no values (D-031)."""
+    """ai_tool_log.status. Not in SRS 5.10, which names the column but no values (D-032)."""
 
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"

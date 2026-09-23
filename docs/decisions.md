@@ -201,3 +201,36 @@ The SRS defines 15 error codes (`TALLY_SERVER_DISABLED`, `TDL_NOT_LOADED`, `COMP
 | `NOT_FOUND` | Resource does not exist (404) | P0 |
 | `CONFLICT` | Generic 409 | P0 |
 
+
+### D-031 Phase 1 schema choices not covered by the SRS — ACCEPTED (product owner, 2026-09-23)
+Approved with the Phase 1 plan. See `docs/schema.md` for the resulting schema.
+
+| # | Choice | Why |
+|---|---|---|
+| 1 | Every company-scoped reference is a composite FK `(company_id, x_id) → parent(company_id, x_id)`; referenced tables carry `UNIQUE(company_id, pk)` | A row can never point at another company's master, voucher, Agent or run (SEC-1.7 enforced by the database, not only by code). Child tables reach `companies` through these FKs. |
+| 2 | `users`: unique index on `lower(email)` | `Owner@x` and `owner@x` are one account. |
+| 3 | `agent_commands`: CHECK that a DATE_RANGE command has `date_from <= date_to`, both set | A malformed command cannot be queued. |
+| 4 | `groups`: CHECK that a RESOLVED group has `classification_group_id` and `nature` | Only a broken chain may lack an anchor (D-001). |
+| 5 | `ledgers.group_id` nullable (raw parent kept in `parent_group_tally_guid`); index `(company_id, classification_group_id)` | Mirrors groups for an unresolved parent; the anchor is what analytics filter on. |
+| 6 | `amount_absolute >= 0` on `ledger_opening_balances` and `bill_allocations` | Same normalization rule as voucher entries (5.8). |
+| 7 | `opening_bill_allocations`: `UNIQUE(company_id, ledger_id, financial_year_start, reference_name)` | Bill identity (D-004) per year; needed for idempotent upserts. |
+| 8 | `sync_watermarks.status` ∈ NEVER_SYNCED, OK, FAILED (default NEVER_SYNCED); `last_alter_id` defaults to 0 | SRS 5.9 names the column but no values. |
+| 9 | `sync_errors` and `sync_batches` carry `company_id` | SRS 5.1-1 (every company-scoped table). |
+| 10 | `custom_field_mappings`: `mapping_id uuid` PK and `UNIQUE(company_id, collection_type, field_key)`; `collection_type` uses the 7 collection types | SRS 5.10 names no key. |
+| 11 | `sync_errors.error_code` has no CHECK | `ErrorCode` grows by phase (D-030); a CHECK would need a migration each time. |
+| 12 | `voucher_entries.amount_raw` is `text` | "Exactly as received" (5.8); only audit/debug views read it. |
+| 13 | **Allow-list defaults are not seeded by the migration** (departs from P1.8's wording). They live once in `app/models/defaults.py` as tagged `PREDEFINED` entries; `company_settings` holds overrides only, and the P2 settings registry falls back to the defaults | `company_settings` is keyed by `company_id` and no company exists at migration time. This matches P2's "effective value with `is_default`". |
+| 14 | The migration seeds `roles` only (OWNER=1, ACCOUNTANT=2, ADMIN=3) | 5.3. |
+
+### D-032 Smaller schema choices made while implementing Phase 1 — PROPOSED
+Not in the approved Phase 1 plan; each is the stated default until changed.
+
+| # | Choice | Why |
+|---|---|---|
+| 1 | `ai_tool_log.status` ∈ SUCCESS, FAILED | SRS 5.10 names the column but no values; P1.1 requires a CHECK on status columns. Revisit in P15. |
+| 2 | `agent_registration_tokens.token_hash` UNIQUE | Lookup by hash must find one token. |
+| 3 | `agents.queue_status` is JSONB | The Agent reports several queue figures, not one value. |
+| 4 | `cost_centre_allocations.amount_absolute >= 0` and `opening_bill_allocations.amount_absolute >= 0` | Same rule as item 6 of D-031. |
+| 5 | `audit_logs` index `(company_id, created_at)` | The audit view lists a company's entries by time. |
+| 6 | A plain `company_id` index is omitted where a unique/composite index already leads with `company_id` (agents, agent_commands, custom_field_mappings, opening_bill_allocations, reconciliation_results) | Redundant index; the SRS "index company_id" is still satisfied. A convention test enforces it. |
+| 7 | The audit REVOKE in the migration names the role `tally_app` | Same role name as `deploy/postgres/grants.sql`; a different production role name would need both changed. |
