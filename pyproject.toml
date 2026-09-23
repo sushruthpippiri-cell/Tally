@@ -39,9 +39,13 @@ extend-exclude = ["backend/alembic/versions"]
 # T20: no print() anywhere, tests included (CLAUDE.md "Testing and logs")
 select = ["E", "F", "I", "UP", "B", "T20"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["tally_contract", "app", "tally_agent", "tally_tools"]
+
 [tool.mypy]
 python_version = "3.12"
 plugins = ["pydantic.mypy"]
+files = ["shared/tally_contract", "backend/app", "agent/tally_agent", "tools/tally_tools"]
 mypy_path = "shared:backend:agent:tools"
 explicit_package_bases = true
 check_untyped_defs = true
