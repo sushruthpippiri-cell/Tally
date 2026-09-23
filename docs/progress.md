@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P0 — not started (repo set up; pre-Phase-0 setup complete 2026-09-23)
+P0 — plan proposed 2026-09-23, awaiting owner approval; no application code yet
 
 ## Done
 | Date | Phase.Task | Commit | Notes |
@@ -17,7 +17,7 @@ P0 — not started (repo set up; pre-Phase-0 setup complete 2026-09-23)
 ## Blocked
 | Item | Blocked by (gate / decision / question) | Since |
 |---|---|---|
-| Docker-based work (P0.6 `make up`, Postgres tests) | Docker daemon not running on the dev machine; start Docker Desktop first | 2026-09-23 |
+| Docker-based work (P0.6 `make up`, Postgres tests, `make phase-report`) | Owner says Docker Desktop is running, but from the Claude Code session the daemon is unreachable (`~/.docker/run/docker.sock` missing, no Docker process; checked twice, also outside the sandbox). Needs Docker Desktop actually started, then `docker info` re-checked | 2026-09-23 |
 
 ## Questions for the product owner
 | # | Question | Raised in | Answer |
@@ -27,6 +27,13 @@ P0 — not started (repo set up; pre-Phase-0 setup complete 2026-09-23)
 | 3 | Repo location? | Setup | Moved to `/Users/sushruthp/code/tally-platform` (2026-09-23). |
 | 4 | Git author correct? | Setup | Yes: `sushruthpippiri-cell <sushruth.pippiri@gmail.com>`. |
 | 5 | D-001 (before P1), D-002 (before P4), D-021 (before P8)? | Setup | Noted. Owner will confirm D-001 before P1 and D-002 before P4, and answer D-021 before P8. Do not start those phases until confirmed. |
+
+## Owner rules added at P0 start (2026-09-23)
+Testing and logs rules (logs captured at DEBUG and saved per run, log-record assertions, per-phase full-suite report in `docs/test-reports/phase-NN.md`, no next phase on a red suite) are in `CLAUDE.md` -> "Testing and logs" and in `docs/plan/phase-00-foundation.md` (P0.12).
+
+## Test reports
+| Phase | Report |
+|---|---|
 
 ## Environment (recorded 2026-09-23, macOS arm64)
 | Tool | Version |

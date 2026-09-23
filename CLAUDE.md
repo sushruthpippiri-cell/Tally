@@ -53,7 +53,8 @@ A read-only analytics platform that sits beside TallyPrime. A Windows **Tally Sy
 |---|---|
 | `make up` / `make down` | Start / stop Postgres + backend (docker compose) |
 | `make migrate` | `alembic upgrade head` using the owner role |
-| `make test` | All Python tests (backend, shared, agent) against real Postgres |
+| `make test PHASE=pNN` | All Python tests (backend, shared, agent) against real Postgres; saves log + JUnit XML under `logs/test-runs/` |
+| `make phase-report PHASE=NN` | Fresh DB + migrate + full suite + `make check`, then writes `docs/test-reports/phase-NN.md` |
 | `make check` | lint + typecheck + import-linter + tests. Run before calling any task done |
 | `make traceability` | Regenerate `docs/traceability.md` from `@pytest.mark.req` tags |
 | `cd frontend && npm run dev / test / e2e / gen:api` | Frontend dev server, unit tests, Playwright, regenerate API types |
@@ -81,6 +82,20 @@ A read-only analytics platform that sits beside TallyPrime. A Windows **Tally Sy
 - Tests run against real PostgreSQL (docker), never SQLite, for anything that touches SQL. Use `backend/tests/factories.py`.
 - Tag each test with the requirement/acceptance IDs it proves: `@pytest.mark.req("SYNC-3.2", "AC-06")`.
 - Frontend: TypeScript strict; API types generated from OpenAPI (`npm run gen:api`), never hand-written.
+
+## Testing and logs (apply to every phase)
+**Logs in tests**
+- Use the app's structured logger (`tally_contract.log.get_logger`), never `print()` (ruff `T20` enforces it) in tests or app code.
+- pytest runs with `log_level = DEBUG`; captured logs are shown for every failing test.
+- Every test run saves its output to `logs/test-runs/<phase>-<timestamp>.log` plus a JUnit XML with the same stem. `logs/` is git-ignored. Run with `make test PHASE=p05`.
+- Where a requirement says something is logged (`STALE_ALTERID`, `UDF_NOT_FOUND`, `TALLY_EXPORT_TIMEOUT`, malformed XML, ...), the test asserts on the log record with `assert_logged(caplog, event, level=..., **fields)`, not only on the return value.
+- Frontend and end-to-end tests keep traces and screenshots on failure (Playwright `trace: 'retain-on-failure'`, `screenshot: 'only-on-failure'`, output under `logs/e2e/`).
+
+**Test after every phase**
+- At the end of each phase run the **full** suite (not only the new tests) plus `make check`, against a freshly migrated database: `make phase-report PHASE=NN`.
+- That writes `docs/test-reports/phase-NN.md`: tests run / passed / failed / skipped; the reason for every skip (e.g. "waiting on GATE-G23"; a skip without a reason fails the report); coverage; acceptance-criteria IDs covered; the log file name.
+- Anything failing is fixed before the phase is marked done. **Never start the next phase with a failing suite.**
+- Link the report from `docs/progress.md` and commit it.
 
 ## Session workflow
 1. Read this file, the phase file named in the prompt, `docs/decisions.md`, and the SRS sections the phase lists.

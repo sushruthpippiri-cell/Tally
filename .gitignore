@@ -40,3 +40,6 @@ deadletter.jsonl
 .DS_Store
 .idea/
 .vscode/
+
+# Test-run logs, JUnit XML, e2e traces
+logs/

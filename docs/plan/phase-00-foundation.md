@@ -60,6 +60,15 @@ GitHub Actions: a `check` job on ubuntu with a Postgres 16 service container; an
   - any FAILED → FULL_ONLY (VAL-1.2); all PASSED → INCREMENTAL; otherwise INCREMENTAL only if `ALLOW_UNVERIFIED_INCREMENTAL`.
 - Unit tests for all three branches.
 
+### P0.12 Logging and test-run infrastructure (rules in `CLAUDE.md` → "Testing and logs")
+- `tally_contract/log.py`: `get_logger(name)` (structlog on top of stdlib `logging`, so pytest `caplog` sees every record; JSON renderer in prod, console renderer in dev/test). Shared by backend, agent and contract code. `configure_logging(env)` called from `app/main.py` and the Agent CLI. Each record carries `event`, plus bound `request_id`, `company_id`, `agent_id` when known (SRS 15).
+- ruff rule `T20` (no `print`) enabled for every package including tests.
+- pytest config: `log_level = DEBUG`, `log_format` with logger name, `-ra`, strict markers; a `conftest.py` hook records each test's `req` marker IDs as JUnit properties (used by the phase report and P0.9), and fails any `skip` that has no reason.
+- `tally_contract/testing.py`: `assert_logged(caplog, event, *, level=None, **fields)` and `assert_not_logged(...)`; unit-tested here so later phases can rely on it.
+- `make test PHASE=pNN` runs pytest with `--junitxml` and tees output to `logs/test-runs/<phase>-<UTC timestamp>.log|.xml`; `logs/` added to `.gitignore`. Default `PHASE=dev`.
+- `tools/phase_report.py` + `make phase-report PHASE=NN`: drop and recreate the test database, `alembic upgrade head` (empty skeleton in P0; real migration from P1), run the full suite via `make test`, run `make check`, then write `docs/test-reports/phase-NN.md` (tests run/passed/failed/skipped, each skip's reason, coverage from `coverage xml`, AC IDs covered from the JUnit properties, the log file name). Exits non-zero when anything failed, so a phase cannot be reported done on a red suite. Unit-tested against a small fake JUnit file.
+- Playwright settings (trace and screenshot on failure) are recorded now and applied when P13.1 scaffolds the frontend.
+
 ### P0.11 Documentation
 - Confirm `docs/progress.md`, `docs/decisions.md`, `docs/validation-gate.md` exist.
 - Create `docs/srs/SRS_v7_3.md`: a faithful text copy of `docs/srs/Tally_SRS_v7_3_Complete.pdf` with section headings and requirement tables preserved (read the PDF and transcribe; do not summarize or reword requirement text). This file is what later sessions grep.
@@ -68,8 +77,12 @@ GitHub Actions: a `check` job on ubuntu with a Postgres 16 service container; an
 - `/health`, `/health/db` return 200; error handler shape for 401/403/422.
 - `gates.py` branches.
 - `tools/traceability.py` against a tiny sample SRS and sample tests.
+- Logging: `assert_logged` passes on a matching record and fails on a missing one; `get_logger` output reaches `caplog`; a `print()` in a sample file fails ruff.
+- `tools/phase_report.py` against a fake JUnit file: counts, skip reasons, missing-reason failure, non-zero exit on failure.
 
 ## Definition of done
+- `make test PHASE=p00` writes `logs/test-runs/p00-<timestamp>.log` and `.xml`; `logs/` is not tracked by git.
+- `make phase-report PHASE=00` runs on a freshly migrated database, is green, and writes `docs/test-reports/phase-00.md`, linked from `docs/progress.md` and committed.
 - `make up` starts Postgres and the backend; `/health` and `/health/db` return 200.
 - `make check` passes locally and in CI.
 - Adding `import anthropic` inside `app/analytics` makes import-linter fail (try it, then revert).
