@@ -236,6 +236,30 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_ledgers_company_id_classification_group_id'), 'ledgers', ['company_id', 'classification_group_id'], unique=False)
     op.create_index(op.f('ix_ledgers_company_id_primary_group_id'), 'ledgers', ['company_id', 'primary_group_id'], unique=False)
+    op.create_table('stock_opening_balances',
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('stock_item_id', sa.UUID(), nullable=False),
+    sa.Column('financial_year_start', sa.Date(), nullable=False),
+    sa.Column('quantity', sa.Numeric(precision=20, scale=6), nullable=False),
+    sa.Column('unit', sa.Text(), nullable=True),
+    sa.Column('value', sa.Numeric(precision=20, scale=4), nullable=True),
+    sa.ForeignKeyConstraint(['company_id', 'stock_item_id'], ['stock_items.company_id', 'stock_items.stock_item_id'], name=op.f('fk_stock_opening_balances_company_id_stock_item_id')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_stock_opening_balances_company_id')),
+    sa.PrimaryKeyConstraint('stock_item_id', 'financial_year_start', name=op.f('pk_stock_opening_balances'))
+    )
+    op.create_index(op.f('ix_stock_opening_balances_company_id'), 'stock_opening_balances', ['company_id'], unique=False)
+    op.create_table('stock_snapshots',
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('stock_item_id', sa.UUID(), nullable=False),
+    sa.Column('as_of_date', sa.Date(), nullable=False),
+    sa.Column('closing_quantity', sa.Numeric(precision=20, scale=6), nullable=False),
+    sa.Column('unit', sa.Text(), nullable=True),
+    sa.Column('sync_run_id', sa.UUID(), nullable=True),
+    sa.ForeignKeyConstraint(['company_id', 'stock_item_id'], ['stock_items.company_id', 'stock_items.stock_item_id'], name=op.f('fk_stock_snapshots_company_id_stock_item_id')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_stock_snapshots_company_id')),
+    sa.PrimaryKeyConstraint('stock_item_id', 'as_of_date', name=op.f('pk_stock_snapshots'))
+    )
+    op.create_index(op.f('ix_stock_snapshots_company_id'), 'stock_snapshots', ['company_id'], unique=False)
     op.create_table('sync_schedules',
     sa.Column('schedule_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('company_id', sa.UUID(), nullable=False),
@@ -251,6 +275,37 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('schedule_id', name=op.f('pk_sync_schedules'))
     )
     op.create_index(op.f('ix_sync_schedules_company_id'), 'sync_schedules', ['company_id'], unique=False)
+    op.create_table('ledger_opening_balances',
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('ledger_id', sa.UUID(), nullable=False),
+    sa.Column('financial_year_start', sa.Date(), nullable=False),
+    sa.Column('amount_absolute', sa.Numeric(precision=20, scale=4), nullable=False),
+    sa.Column('accounting_direction', sa.Text(), nullable=False),
+    sa.CheckConstraint("accounting_direction IN ('DEBIT', 'CREDIT')", name=op.f('ck_ledger_opening_balances_accounting_direction')),
+    sa.CheckConstraint('amount_absolute >= 0', name=op.f('ck_ledger_opening_balances_amount_absolute')),
+    sa.ForeignKeyConstraint(['company_id', 'ledger_id'], ['ledgers.company_id', 'ledgers.ledger_id'], name=op.f('fk_ledger_opening_balances_company_id_ledger_id')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_ledger_opening_balances_company_id')),
+    sa.PrimaryKeyConstraint('ledger_id', 'financial_year_start', name=op.f('pk_ledger_opening_balances'))
+    )
+    op.create_index(op.f('ix_ledger_opening_balances_company_id'), 'ledger_opening_balances', ['company_id'], unique=False)
+    op.create_table('opening_bill_allocations',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('ledger_id', sa.UUID(), nullable=False),
+    sa.Column('reference_name', sa.Text(), nullable=False),
+    sa.Column('bill_date', sa.Date(), nullable=True),
+    sa.Column('due_date', sa.Date(), nullable=True),
+    sa.Column('amount_absolute', sa.Numeric(precision=20, scale=4), nullable=False),
+    sa.Column('accounting_direction', sa.Text(), nullable=False),
+    sa.Column('financial_year_start', sa.Date(), nullable=False),
+    sa.CheckConstraint("accounting_direction IN ('DEBIT', 'CREDIT')", name=op.f('ck_opening_bill_allocations_accounting_direction')),
+    sa.CheckConstraint('amount_absolute >= 0', name=op.f('ck_opening_bill_allocations_amount_absolute')),
+    sa.ForeignKeyConstraint(['company_id', 'ledger_id'], ['ledgers.company_id', 'ledgers.ledger_id'], name=op.f('fk_opening_bill_allocations_company_id_ledger_id')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_opening_bill_allocations_company_id')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_opening_bill_allocations')),
+    sa.UniqueConstraint('company_id', 'ledger_id', 'financial_year_start', 'reference_name', name='uq_opening_bill_allocations_bill')
+    )
+    op.create_index(op.f('ix_opening_bill_allocations_company_id'), 'opening_bill_allocations', ['company_id'], unique=False)
     # ### end Alembic commands ###
     _upgrade_extras()
 
@@ -258,8 +313,16 @@ def upgrade() -> None:
 def downgrade() -> None:
     _downgrade_extras()
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_opening_bill_allocations_company_id'), table_name='opening_bill_allocations')
+    op.drop_table('opening_bill_allocations')
+    op.drop_index(op.f('ix_ledger_opening_balances_company_id'), table_name='ledger_opening_balances')
+    op.drop_table('ledger_opening_balances')
     op.drop_index(op.f('ix_sync_schedules_company_id'), table_name='sync_schedules')
     op.drop_table('sync_schedules')
+    op.drop_index(op.f('ix_stock_snapshots_company_id'), table_name='stock_snapshots')
+    op.drop_table('stock_snapshots')
+    op.drop_index(op.f('ix_stock_opening_balances_company_id'), table_name='stock_opening_balances')
+    op.drop_table('stock_opening_balances')
     op.drop_index(op.f('ix_ledgers_company_id_primary_group_id'), table_name='ledgers')
     op.drop_index(op.f('ix_ledgers_company_id_classification_group_id'), table_name='ledgers')
     op.drop_table('ledgers')

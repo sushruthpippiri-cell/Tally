@@ -5,14 +5,17 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agents import Agent, AgentCommand
+from app.models.balances import LedgerOpeningBalance
 from app.models.company import Company
 from app.models.enums import (
+    AccountingDirection,
     AgentStatus,
     BaseVoucherType,
     CommandStatus,
@@ -183,7 +186,9 @@ async def make_ledger(
     company: Company,
     name: str,
     group: Group,
+    opening: tuple[str, str] | None = None,
 ) -> Ledger:
+    """`opening` is (direction, amount), e.g. ("DEBIT", "5000"), at the company's FY start."""
     ledger = Ledger(
         **_synced(company),
         name=name,
@@ -195,7 +200,29 @@ async def make_ledger(
     )
     session.add(ledger)
     await session.flush()
+    if opening is not None:
+        await make_opening_balance(session, company, ledger, *opening)
     return ledger
+
+
+async def make_opening_balance(
+    session: AsyncSession,
+    company: Company,
+    ledger: Ledger,
+    direction: str,
+    amount: str,
+    fy_start: date | None = None,
+) -> LedgerOpeningBalance:
+    balance = LedgerOpeningBalance(
+        company_id=company.company_id,
+        ledger_id=ledger.ledger_id,
+        financial_year_start=fy_start or company.financial_year_start,
+        amount_absolute=Decimal(amount),
+        accounting_direction=AccountingDirection(direction),
+    )
+    session.add(balance)
+    await session.flush()
+    return balance
 
 
 async def make_voucher_type(
