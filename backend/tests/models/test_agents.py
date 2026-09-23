@@ -20,17 +20,27 @@ async def test_agent_name_unique_per_company(session: AsyncSession) -> None:
 
 
 @pytest.mark.req("RTE-1.4")
-@pytest.mark.parametrize("column", ["agent_id", "company_id"])
-async def test_command_owner_is_immutable(session: AsyncSession, column: str) -> None:
+@pytest.mark.parametrize("change", ["insert_without_agent", "agent_id", "company_id"])
+async def test_command_agent_is_mandatory_and_immutable(session: AsyncSession, change: str) -> None:
     company = await make_company(session)
     agent, other = await make_agent(session, company, "a"), await make_agent(session, company, "b")
     command = await make_command(session, agent)
-    new_value = other.agent_id if column == "agent_id" else (await make_company(session)).company_id
+    if change == "insert_without_agent":
+        async with db_error(session, "agent_id"):
+            await session.execute(
+                text(
+                    "INSERT INTO agent_commands (company_id, command_type, sync_mode, status) "
+                    "VALUES (:c, 'RUN_SYNC', 'FULL', 'PENDING')"
+                ),
+                {"c": company.company_id},
+            )
+        return
+    new_value = other.agent_id if change == "agent_id" else (await make_company(session)).company_id
     async with db_error(session, "RTE-1.4"):
         await session.execute(
             update(AgentCommand)
             .where(AgentCommand.command_id == command.command_id)
-            .values({column: new_value})
+            .values({change: new_value})
         )
 
 
@@ -41,19 +51,6 @@ async def test_command_other_columns_are_updatable(session: AsyncSession) -> Non
         .where(AgentCommand.command_id == command.command_id)
         .values(status="CLAIMED")
     )
-
-
-@pytest.mark.req("RTE-1.4")
-async def test_command_agent_is_mandatory(session: AsyncSession) -> None:
-    company = await make_company(session)
-    async with db_error(session, "agent_id"):
-        await session.execute(
-            text(
-                "INSERT INTO agent_commands (company_id, command_type, sync_mode, status) "
-                "VALUES (:c, 'RUN_SYNC', 'FULL', 'PENDING')"
-            ),
-            {"c": company.company_id},
-        )
 
 
 async def test_command_cannot_target_another_companys_agent(session: AsyncSession) -> None:

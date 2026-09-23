@@ -84,7 +84,7 @@ A read-only analytics platform that sits beside TallyPrime. A Windows **Tally Sy
 - Python 3.12, full type hints, ruff + mypy clean. SQLAlchemy 2.0 typed ORM with async engine (asyncpg); Alembic migrations are hand-reviewed and never edited once applied.
 - Routers stay thin; logic lives in services; SQL for metrics lives in `app/analytics/metrics/`.
 - Tests run against real PostgreSQL (docker), never SQLite, for anything that touches SQL. Use `backend/tests/factories.py`.
-- Tag each test with the requirement/acceptance IDs it proves: `@pytest.mark.req("SYNC-3.2", "AC-06")`.
+- Tag each test with the requirement/acceptance IDs it proves: `@pytest.mark.req("SYNC-3.2", "AC-06")`. **`req` means the test fully proves that requirement as the SRS words it** (every clause, the real behaviour, not just the schema or a helper that enables it). A test that proves only part uses `@pytest.mark.req_partial(...)` with a one-line comment naming what is missing and where it will be proven (e.g. `# sync upserts: P5`). Partial coverage is listed separately in `docs/traceability.md` and the phase reports and never counts as covered. A test that proves none of a requirement (a prerequisite, a neighbouring rule) gets no tag for it. Check the SRS text before tagging: `grep -n "SYNC-3.2" docs/srs/SRS_v7_3.md`.
 - Frontend: TypeScript strict; API types generated from OpenAPI (`npm run gen:api`), never hand-written.
 
 ## Testing and logs (apply to every phase)

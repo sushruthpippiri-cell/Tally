@@ -50,7 +50,8 @@ async def _books(session: AsyncSession, guid: str) -> str:
     return str(company.company_id)
 
 
-@pytest.mark.req("DR-4.1", "DR-4.2", "DR-4.4", "DR-4.6")
+@pytest.mark.req("DR-4.6")
+@pytest.mark.req_partial("DR-4.1", "DR-4.2")  # sync upserts matching on the GUID: P5
 @pytest.mark.parametrize("table", SYNCED)
 async def test_guid_unique_per_company_not_globally(session: AsyncSession, table: str) -> None:
     company_id = await _books(session, "shared-guid")
@@ -67,7 +68,7 @@ async def test_guid_unique_per_company_not_globally(session: AsyncSession, table
         )
 
 
-@pytest.mark.req("DR-4.1", "DR-4.4")
+@pytest.mark.req_partial("DR-4.1", "DR-4.4")  # storage only; sync upserts: P5
 async def test_voucher_number_is_not_an_identity(session: AsyncSession) -> None:
     """The same number twice in one company (reused across years) and in two companies."""
     company = await make_company(session)

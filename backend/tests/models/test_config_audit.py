@@ -53,7 +53,9 @@ def test_default_allow_lists_are_tagged_predefined_entries() -> None:
     assert len(PREDEFINED_GROUP_NAMES) == 28
 
 
-@pytest.mark.req("ACC-7.3")
+# Partial: ACC-7.3 as amended by D-001 (storage and resolution); validating which groups may
+# be listed is P2.
+@pytest.mark.req_partial("ACC-7.3")
 async def test_allow_list_entry_survives_group_rename(session: AsyncSession) -> None:
     """D-001 example 5: renaming Sundry Debtors to Customers changes nothing."""
     company = await make_company(session)
@@ -77,7 +79,7 @@ async def test_allow_list_entry_survives_group_rename(session: AsyncSession) -> 
     assert before == after == [debtors.classification_group_id]
 
 
-@pytest.mark.req("ACC-7.3")
+@pytest.mark.req_partial("ACC-7.3")
 async def test_company_group_entry_resolves_by_guid(session: AsyncSession) -> None:
     """D-001 example 3: a user top-level group is its own anchor and can be allow-listed."""
     company = await make_company(session)
@@ -126,10 +128,10 @@ async def test_setting_data_type_is_checked(session: AsyncSession) -> None:
         await session.flush()
 
 
-@pytest.mark.req("SEC-1.13")
-@pytest.mark.parametrize(
-    "statement", ["UPDATE audit_logs SET action = 'x'", "DELETE FROM audit_logs"]
-)
+# Partial: the database side of SEC-1.13; "the application has no update or delete path" is
+# completed by app/core/audit.py (P2), which exposes insert only.
+@pytest.mark.req_partial("SEC-1.13")
+@pytest.mark.parametrize("statement", CHANGES)
 async def test_app_role_cannot_change_audit_logs(session: AsyncSession, statement: str) -> None:
     session.add(AuditLog(action="LOGIN", entity_type="USER", result="SUCCESS"))
     await session.flush()
@@ -138,10 +140,8 @@ async def test_app_role_cannot_change_audit_logs(session: AsyncSession, statemen
         await session.execute(text(statement))
 
 
-@pytest.mark.req("SEC-1.13")
-@pytest.mark.parametrize(
-    "statement", ["UPDATE audit_logs SET action = 'x'", "DELETE FROM audit_logs"]
-)
+@pytest.mark.req_partial("SEC-1.13")
+@pytest.mark.parametrize("statement", CHANGES)
 def test_even_the_owner_cannot_change_audit_logs(statement: str) -> None:
     """The trigger holds even for a role with the privilege (defence in depth)."""
     url = make_url(get_settings().database_migration_url or "").set(drivername="postgresql")

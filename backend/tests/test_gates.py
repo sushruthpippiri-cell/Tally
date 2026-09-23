@@ -48,23 +48,33 @@ def test_status_and_passed() -> None:
         gate_status("G99", s)
 
 
-@pytest.mark.req("VAL-1.2")
+# Partial: the mode decision. Sync refusing incremental batches is P5 (GATE_NOT_PASSED);
+# AC-12's "Full sync only" dashboard indicator comes with the frontend.
+@pytest.mark.req_partial("VAL-1.2", "AC-12")
 def test_any_failed_forces_full_only_everywhere() -> None:
     s = _with(G7="FAILED")
     for allow in (True, False):
         assert collection_sync_mode("LEDGER", s, allow_unverified=allow) == "FULL_ONLY"
 
 
-@pytest.mark.req("VAL-1.1")
+# VAL-1.1 partial throughout: the mode decision; what a release claims is a process check.
+@pytest.mark.req_partial("VAL-1.1")
 def test_all_passed_is_incremental() -> None:
     s = {g: "PASSED" for g in ALL}
     assert collection_sync_mode("VOUCHER", s, allow_unverified=False) == "INCREMENTAL"
 
 
-@pytest.mark.req("VAL-1.1", "AC-12")
+@pytest.mark.req_partial("VAL-1.1")
 def test_untested_depends_on_allow_unverified_flag() -> None:
     assert collection_sync_mode("LEDGER", ALL, allow_unverified=True) == "INCREMENTAL"
     assert collection_sync_mode("LEDGER", ALL, allow_unverified=False) == "FULL_ONLY"
+
+
+@pytest.mark.req_partial("VAL-1.1")
+def test_some_passed_is_not_enough_without_the_unverified_flag() -> None:
+    """Incremental needs ALL of the collection's rows PASSED, not most of them."""
+    s = _with(G1="PASSED", G5="PASSED", G6="PASSED", G7="PASSED")  # G10 still NOT_TESTED
+    assert collection_sync_mode("LEDGER", s, allow_unverified=False) == "FULL_ONLY"
 
 
 def test_gates_of_other_collections_do_not_affect_this_one() -> None:

@@ -61,7 +61,6 @@ def test_markdown_is_word_for_word_the_reference_extraction() -> None:
 
 
 @needs_poppler
-@pytest.mark.req("TEST-1.3")
 def test_reference_extraction_carries_every_requirement_id_of_the_live_pdf() -> None:
     """Ties the committed files to the PDF itself. ID counts do not vary by poppler version."""
     pdf_ids = Counter(ID.findall(pdf_layout_text(PDF)))

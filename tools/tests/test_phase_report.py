@@ -21,7 +21,12 @@ JUNIT = """<?xml version="1.0"?>
   <testcase classname="backend.tests.test_a" name="test_bad"><failure message="boom"/></testcase>
   <testcase classname="backend.tests.test_a" name="test_skipped">
     <skipped message="waiting on GATE-G23"/></testcase>
-  <testcase classname="backend.tests.test_a" name="test_plain"/>
+  <testcase classname="backend.tests.test_a" name="test_part">
+    <properties>
+      <property name="req_partial" value="AC-12"/>
+      <property name="req_partial" value="SYNC-3.2"/>
+    </properties>
+  </testcase>
 </testsuite></testsuites>
 """
 NO_REASON = JUNIT.replace('message="waiting on GATE-G23"', 'message=""')
@@ -52,6 +57,7 @@ def test_parse_junit_counts_and_collects(tmp_path: Path) -> None:
     assert (suite.tests, suite.failures, suite.skipped, suite.passed) == (4, 1, 1, 2)
     assert suite.ok is False
     assert suite.req_ids == {"AC-06", "SYNC-3.2"}
+    assert suite.partial_ids == {"AC-12", "SYNC-3.2"}
     assert suite.skip_reasons == [("backend.tests.test_a::test_skipped", "waiting on GATE-G23")]
 
 
@@ -94,3 +100,13 @@ def test_coverage_percent(tmp_path: Path) -> None:
         '<?xml version="1.0"?><coverage line-rate="0.8342"></coverage>', encoding="utf-8"
     )
     assert coverage_percent(cov) == "83.4%"
+
+
+def test_render_never_counts_partial_coverage_as_covered(tmp_path: Path) -> None:
+    path = tmp_path / "r.xml"
+    path.write_text(JUNIT, encoding="utf-8")
+    out = render("05", parse_junit(path), check_ok=True, coverage="88.0%", log_name="l.log")
+    covered, partial = out.split("## Partially covered")
+    assert "AC-12" not in covered
+    # SYNC-3.2 has a full test too, so it is covered and not repeated as partial.
+    assert "AC-12" in partial and "SYNC-3.2" not in partial

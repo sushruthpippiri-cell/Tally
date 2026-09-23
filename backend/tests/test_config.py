@@ -8,13 +8,15 @@ def _s(**kw: object) -> Settings:
     return Settings(_env_file=None, **kw)  # type: ignore[call-arg]
 
 
-@pytest.mark.req("SEC-1.14")
+# Partial: prod secrets must come from the environment; "never in source code" needs a
+# secret scan (not yet in CI).
+@pytest.mark.req_partial("SEC-1.14")
 def test_prod_missing_secrets_fails_startup() -> None:
     with pytest.raises(ValidationError, match="JWT_SECRET"):
         _s(env="prod")
 
 
-@pytest.mark.req("SEC-1.14")
+@pytest.mark.req_partial("SEC-1.14")
 def test_prod_with_all_secrets_ok_and_incremental_off_by_default() -> None:
     s = _s(
         env="prod",

@@ -82,7 +82,6 @@ async def test_opening_bill_is_unique_per_ledger_year_and_reference(session: Asy
         await session.flush()
 
 
-@pytest.mark.req("SEC-1.7")
 async def test_opening_balance_cannot_cross_companies(session: AsyncSession) -> None:
     _, ledger = await _ledger(session)
     other = await make_company(session)

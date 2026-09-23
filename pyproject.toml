@@ -75,7 +75,10 @@ junit_family = "xunit1"
 # Capture DEBUG logs; pytest prints them for every failing test.
 log_level = "DEBUG"
 log_format = "%(asctime)s %(levelname)-8s %(name)s %(message)s"
-markers = ["req(*ids): requirement / acceptance-criteria IDs this test proves, e.g. req('SYNC-3.2', 'AC-06')"]
+markers = [
+  "req(*ids): requirement / acceptance-criteria IDs this test FULLY proves, e.g. req('SYNC-3.2', 'AC-06')",
+  "req_partial(*ids): IDs this test proves only part of; never counted as covered",
+]
 
 [tool.coverage.run]
 source = ["tally_contract", "app", "tally_agent", "tally_tools"]

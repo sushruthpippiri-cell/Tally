@@ -20,6 +20,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 | 2026-09-23 | P1.8 settings, audit, anomaly | 10154d0 | Allow-list defaults in `app/models/defaults.py` (D-031 #13); rename-survival test; audit append-only for every role. |
 | 2026-09-23 | P1.9 migration round-trip | 7cdae52 | Upgrade == models (no autogenerate diff), downgrade leaves nothing. Review fixed INTEGER→BIGINT FKs; convention tests for FK types and redundant indexes. |
 | 2026-09-23 | P1.10 factories | bb033b3 | `backend/tests/factories.py`. |
+| 2026-09-23 | Req-tag audit | (see log) | `req` now means the test fully proves the requirement; new `req_partial` marker, listed separately in traceability and phase reports. Every tag re-checked against the SRS: fully covered RTE-1.4, DR-ML-1, DR-4.6; 10 partial; removed TEST-1.3, ACC-DATA-1, DR-VE-3/4, SEC-1.7 (and DR-ML-1 on vouchers); AC-12 moved to the FAILED-gate test as partial. Phase 00/01 reports carry a correction note. |
 | 2026-09-23 | P1 docs | (see log) | `docs/schema.md` (Mermaid ER + invariants); D-031 and D-032 ACCEPTED. |
 | 2026-09-23 | Setup: repo, plan, SRS v7.3 PDF, .gitignore | 9b83697 | No application code. SRS PDF verified as "v7.3 Complete Edition", 34 pages. |
 | 2026-09-23 | Setup: origin added, answers and toolchain recorded | e769a15 | Pushed `main` to origin. |

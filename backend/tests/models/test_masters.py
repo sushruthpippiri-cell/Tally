@@ -34,12 +34,14 @@ async def _one_of_each(session: AsyncSession) -> dict[type, object]:
 @pytest.mark.req("DR-ML-1")
 @pytest.mark.parametrize("model", MASTERS, ids=lambda m: m.__tablename__)
 async def test_masters_cannot_be_deleted(session: AsyncSession, model: type) -> None:
+    """Sync runs as the app role: DELETE hits the trigger, TRUNCATE lacks the privilege."""
     await _one_of_each(session)
     async with db_error(session, "DR-ML-1"):
         await session.execute(delete(model))
+    async with db_error(session, "permission denied"):
+        await session.execute(text(f"TRUNCATE {model.__tablename__} CASCADE"))
 
 
-@pytest.mark.req("DR-ML-1")
 async def test_master_lifecycle_is_a_status_change(session: AsyncSession) -> None:
     ledger = (await _one_of_each(session))[Ledger]
     assert isinstance(ledger, Ledger)
@@ -116,7 +118,6 @@ async def test_unresolved_group_may_lack_anchor(session: AsyncSession) -> None:
     await session.flush()
 
 
-@pytest.mark.req("SEC-1.7")
 async def test_ledger_cannot_point_at_another_companys_group(session: AsyncSession) -> None:
     a, b = await make_company(session), await make_company(session)
     b_groups = await make_predefined_groups(session, b)

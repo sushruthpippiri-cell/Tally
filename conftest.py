@@ -11,10 +11,11 @@ configure_logging("test")
 
 @pytest.fixture(autouse=True)
 def _record_req_ids(request: pytest.FixtureRequest, record_property: object) -> None:
-    """Write each `req` marker ID into the JUnit XML so phase reports can list them."""
-    for marker in request.node.iter_markers("req"):
-        for req_id in marker.args:
-            record_property("req", req_id)  # type: ignore[operator]
+    """Write each `req` / `req_partial` marker ID into the JUnit XML for the phase report."""
+    for name in ("req", "req_partial"):
+        for marker in request.node.iter_markers(name):
+            for req_id in marker.args:
+                record_property(name, req_id)  # type: ignore[operator]
 
 
 @pytest.hookimpl(hookwrapper=True)

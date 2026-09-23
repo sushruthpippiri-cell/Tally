@@ -40,7 +40,6 @@ async def _entry_id(session: AsyncSession, voucher: Voucher) -> int:
     return entry_id
 
 
-@pytest.mark.req("ACC-DATA-1")
 async def test_factory_fills_normalized_fields(session: AsyncSession) -> None:
     company, sales = await _books(session)
     voucher = await make_voucher(session, company, sales, D)
@@ -121,17 +120,17 @@ async def test_unknown_allocation_type_rejected(session: AsyncSession) -> None:
     assert voucher.voucher_id
 
 
-@pytest.mark.req("DR-ML-1")
 async def test_vouchers_cannot_be_deleted(session: AsyncSession) -> None:
+    """SRS 5.1-5 (no requirement ID): vouchers are never hard-deleted."""
     company, sales = await _books(session)
     await make_voucher(session, company, sales, D, status="CANCELLED")
     async with db_error(session, "never deleted"):
         await session.execute(delete(Voucher))
 
 
-@pytest.mark.req("DR-VE-3", "DR-VE-4")
 async def test_child_rows_can_be_replaced(session: AsyncSession) -> None:
-    """SRS 6.9: a modified voucher's children are deleted and re-inserted; the header stays."""
+    """The schema allows SRS 6.9 child replacement (children delete and cascade, the header
+    stays). DR-VE-3/4 themselves are sync behaviour, proven in P5."""
     company, sales = await _books(session)
     voucher = await make_voucher(
         session,
@@ -147,7 +146,6 @@ async def test_child_rows_can_be_replaced(session: AsyncSession) -> None:
     assert await session.scalar(select(func.count()).select_from(Voucher)) == 1
 
 
-@pytest.mark.req("SEC-1.7")
 async def test_entry_cannot_use_another_companys_ledger(session: AsyncSession) -> None:
     company, sales = await _books(session)
     voucher = await make_voucher(session, company, sales, D)

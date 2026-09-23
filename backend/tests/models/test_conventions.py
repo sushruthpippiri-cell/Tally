@@ -41,7 +41,7 @@ def test_every_timestamp_is_timestamptz() -> None:
                 assert col.type.timezone, f"{table.name}.{col.name} is timestamp without tz"
 
 
-@pytest.mark.req("DR-4.6")
+@pytest.mark.req_partial("DR-4.6")  # model metadata; test_identity proves the database
 def test_synced_tables_are_unique_on_company_and_guid() -> None:
     """Every table with tally_guid + alter_id has UNIQUE(company_id, tally_guid)."""
     synced = [t for t in TABLES if "tally_guid" in t.c and "alter_id" in t.c]

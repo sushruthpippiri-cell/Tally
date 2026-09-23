@@ -65,7 +65,6 @@ async def test_watermark_starts_never_synced_at_zero(session: AsyncSession) -> N
     assert (mark.status, mark.last_alter_id) == ("NEVER_SYNCED", 0)
 
 
-@pytest.mark.req("SEC-1.7")
 async def test_watermark_lock_holder_must_be_same_company_agent(session: AsyncSession) -> None:
     agent = await make_agent(session, await make_company(session))
     other = await make_company(session)
@@ -107,7 +106,6 @@ async def test_replayed_batch_id_is_rejected(session: AsyncSession) -> None:
         await session.flush()
 
 
-@pytest.mark.req("SEC-1.7")
 async def test_sync_error_belongs_to_a_run_of_the_same_company(session: AsyncSession) -> None:
     run = await _run(session, await make_agent(session, await make_company(session)))
     other = await make_company(session)

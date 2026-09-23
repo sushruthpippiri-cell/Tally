@@ -73,6 +73,7 @@ class Suite:
     skipped: int = 0
     skip_reasons: list[tuple[str, str]] = field(default_factory=list)
     req_ids: set[str] = field(default_factory=set)
+    partial_ids: set[str] = field(default_factory=set)
 
     @property
     def passed(self) -> int:
@@ -98,8 +99,11 @@ def parse_junit(path: Path) -> Suite:
                 reason = (skipped.get("message") or "").strip()
                 result.skip_reasons.append((name, reason or "NO REASON GIVEN"))
             for prop in case.iter("property"):
-                if prop.get("name") == "req" and prop.get("value"):
-                    result.req_ids.add(str(prop.get("value")))
+                value = prop.get("value")
+                if value and prop.get("name") == "req":
+                    result.req_ids.add(value)
+                elif value and prop.get("name") == "req_partial":
+                    result.partial_ids.add(value)
     return result
 
 
@@ -113,6 +117,7 @@ def coverage_percent(path: Path) -> str:
 def render(phase: str, suite: Suite, check_ok: bool, coverage: str, log_name: str) -> str:
     acs = sorted(i for i in suite.req_ids if i.startswith("AC-"))
     reqs = sorted(i for i in suite.req_ids if not i.startswith("AC-"))
+    partial = sorted(suite.partial_ids - suite.req_ids)  # never counted as covered
     missing_reason = [n for n, r in suite.skip_reasons if r == "NO REASON GIVEN"]
     green = suite.ok and check_ok and not missing_reason
     lines = [
@@ -150,6 +155,10 @@ def render(phase: str, suite: Suite, check_ok: bool, coverage: str, log_name: st
         "## Other requirement IDs covered",
         "",
         (", ".join(reqs) if reqs else "_none_"),
+        "",
+        "## Partially covered (not counted as covered)",
+        "",
+        (", ".join(partial) if partial else "_none_"),
         "",
     ]
     return "\n".join(lines)
