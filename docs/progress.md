@@ -3,11 +3,24 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-00.md), 78 tests) and CI green (run 35881605525, both `check` and `agent-windows`). Next: P1 (data model) — unblocked, D-001 ACCEPTED 2026-09-23.
+P1 (data model) — implemented 2026-09-23; local phase report PASS ([phase-01](test-reports/phase-01.md), 183 tests, 0 skipped). **Done once CI is green on the final push** (see the P1 row below). Next: P2 (identity, RBAC, settings) — not started; waits for the owner.
+
+P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-00.md), 78 tests) and CI green (run 35881605525, both `check` and `agent-windows`).
 
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-23 | P1.1 model conventions, types, enums | 631d0e7 | Money/Quantity/Rate NUMERIC, timestamptz, StrEnum CHECKs, tenant composite-FK helper; metadata convention tests. |
+| 2026-09-23 | P1.2 companies, users, roles | 92e7776 | Single migration 0001 started; roles seeded. Rollback-per-test `session` fixture (cannot test commits; SYNC-6.1/6.2, TEST-3.3 need a committing fixture). |
+| 2026-09-23 | P1.3 agents, commands, schedules | 0eccccc | RTE-1.4 trigger: agent_id/company_id immutable. |
+| 2026-09-23 | P1.4 masters (D-001 columns) | a0c4db0 | Anchor columns, partial unique reserved_name, no-DELETE trigger (DR-ML-1). |
+| 2026-09-23 | P1.5 opening balances, snapshots | 6a09f02 | opening_bill_allocations per D-022. |
+| 2026-09-23 | P1.6 vouchers and children | 3ab7b56 | Normalized-amount CHECKs, cascading children for 6.9, identity tests on all 6 synced tables. |
+| 2026-09-23 | P1.7 sync control | 892714b | Watermarks/lease, runs, errors, batches (D-024), reconciliation results. |
+| 2026-09-23 | P1.8 settings, audit, anomaly | 10154d0 | Allow-list defaults in `app/models/defaults.py` (D-031 #13); rename-survival test; audit append-only for every role. |
+| 2026-09-23 | P1.9 migration round-trip | 7cdae52 | Upgrade == models (no autogenerate diff), downgrade leaves nothing. Review fixed INTEGER→BIGINT FKs; convention tests for FK types and redundant indexes. |
+| 2026-09-23 | P1.10 factories | bb033b3 | `backend/tests/factories.py`. |
+| 2026-09-23 | P1 docs | (see log) | `docs/schema.md` (Mermaid ER + invariants); D-031 ACCEPTED, D-032 PROPOSED. |
 | 2026-09-23 | Setup: repo, plan, SRS v7.3 PDF, .gitignore | 9b83697 | No application code. SRS PDF verified as "v7.3 Complete Edition", 34 pages. |
 | 2026-09-23 | Setup: origin added, answers and toolchain recorded | e769a15 | Pushed `main` to origin. |
 | 2026-09-23 | P0.1 workspace and directory tree | ba0987a | uv workspace: shared, backend, agent, tools. |
@@ -29,7 +42,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Blocked
 | Item | Blocked by (gate / decision / question) | Since |
 |---|---|---|
-| _(none)_ | D-001 accepted 2026-09-23; P1 is unblocked. D-002 is still needed before P4, D-021 before P8. | |
+| _(none)_ | D-002 is still needed before P4, D-021 before P8. | |
 
 ## Questions for the product owner
 | # | Question | Raised in | Answer |
@@ -40,6 +53,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 | 4 | Git author correct? | Setup | Yes: `sushruthpippiri-cell <sushruth.pippiri@gmail.com>`. |
 | 5 | D-001 (before P1), D-002 (before P4), D-021 (before P8)? | Setup | Noted. Owner will confirm D-001 before P1 and D-002 before P4, and answer D-021 before P8. Do not start those phases until confirmed. |
 | 6 | Confirm D-001 (classification anchor). | P0 end | **ACCEPTED 2026-09-23.** Anchor = nearest predefined group, else the chain's own top-level group; only a broken chain is UNRESOLVED_GROUP. Allow-list entries are stored by reserved name (predefined) or GUID (company groups), never by display name, and shown by current name. P1 is unblocked. |
+| 7 | Accept the P1 plan's new schema choices (D-031) and the allow-list seeding approach? | P1 plan | **ACCEPTED 2026-09-23**, with the note that the rollback-per-test fixture must say it cannot test commit behaviour. D-032 (smaller choices made during implementation) is PROPOSED. |
 
 ## Owner rules added at P0 start (2026-09-23)
 Testing and logs rules (logs captured at DEBUG and saved per run, log-record assertions, per-phase full-suite report in `docs/test-reports/phase-NN.md`, no next phase on a red suite) are in `CLAUDE.md` -> "Testing and logs" and in `docs/plan/phase-00-foundation.md` (P0.12).
@@ -47,6 +61,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
+| 01 | [phase-01.md](test-reports/phase-01.md) | PASS - 183 tests, 0 failed, 0 skipped, 91.4% coverage; CI: pending |
 | 00 | [phase-00.md](test-reports/phase-00.md) | PASS - 78 tests, 0 failed, 0 skipped, 83% coverage; CI run 35881605525 green |
 
 ## Environment (recorded 2026-09-23, macOS arm64)
