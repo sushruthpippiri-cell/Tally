@@ -133,6 +133,25 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_groups_primary_group_id'), 'groups', ['primary_group_id'], unique=False)
     op.create_index('uq_groups_company_id_reserved_name', 'groups', ['company_id', 'reserved_name'], unique=True, postgresql_where=sa.text('reserved_name IS NOT NULL'))
+    op.create_table('reconciliation_results',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('run_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('metric', sa.Text(), nullable=False),
+    sa.Column('entity_id', sa.UUID(), nullable=True),
+    sa.Column('period_start', sa.Date(), nullable=False),
+    sa.Column('period_end', sa.Date(), nullable=False),
+    sa.Column('tally_value', sa.Numeric(precision=20, scale=4), nullable=False),
+    sa.Column('local_value', sa.Numeric(precision=20, scale=4), nullable=False),
+    sa.Column('absolute_difference', sa.Numeric(precision=20, scale=4), nullable=False),
+    sa.Column('percentage_difference', sa.Numeric(precision=20, scale=6), nullable=True),
+    sa.Column('result', sa.Text(), nullable=False),
+    sa.CheckConstraint("result IN ('PASS', 'FAIL')", name=op.f('ck_reconciliation_results_result')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_reconciliation_results_company_id')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_reconciliation_results'))
+    )
+    op.create_index(op.f('ix_reconciliation_results_company_id'), 'reconciliation_results', ['company_id'], unique=False)
+    op.create_index(op.f('ix_reconciliation_results_company_id_run_at'), 'reconciliation_results', ['company_id', 'run_at'], unique=False)
     op.create_table('stock_items',
     sa.Column('stock_item_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('status', sa.Text(), nullable=False),
@@ -204,7 +223,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['company_id', 'agent_id'], ['agents.company_id', 'agents.agent_id'], name=op.f('fk_agent_commands_company_id_agent_id')),
     sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_agent_commands_company_id')),
     sa.ForeignKeyConstraint(['created_by'], ['users.user_id'], name=op.f('fk_agent_commands_created_by')),
-    sa.PrimaryKeyConstraint('command_id', name=op.f('pk_agent_commands'))
+    sa.PrimaryKeyConstraint('command_id', name=op.f('pk_agent_commands')),
+    sa.UniqueConstraint('company_id', 'command_id', name=op.f('uq_agent_commands_company_id_command_id'))
     )
     op.create_index(op.f('ix_agent_commands_agent_id_status'), 'agent_commands', ['agent_id', 'status'], unique=False)
     op.create_index(op.f('ix_agent_commands_company_id'), 'agent_commands', ['company_id'], unique=False)
@@ -248,18 +268,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('stock_item_id', 'financial_year_start', name=op.f('pk_stock_opening_balances'))
     )
     op.create_index(op.f('ix_stock_opening_balances_company_id'), 'stock_opening_balances', ['company_id'], unique=False)
-    op.create_table('stock_snapshots',
-    sa.Column('company_id', sa.UUID(), nullable=False),
-    sa.Column('stock_item_id', sa.UUID(), nullable=False),
-    sa.Column('as_of_date', sa.Date(), nullable=False),
-    sa.Column('closing_quantity', sa.Numeric(precision=20, scale=6), nullable=False),
-    sa.Column('unit', sa.Text(), nullable=True),
-    sa.Column('sync_run_id', sa.UUID(), nullable=True),
-    sa.ForeignKeyConstraint(['company_id', 'stock_item_id'], ['stock_items.company_id', 'stock_items.stock_item_id'], name=op.f('fk_stock_snapshots_company_id_stock_item_id')),
-    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_stock_snapshots_company_id')),
-    sa.PrimaryKeyConstraint('stock_item_id', 'as_of_date', name=op.f('pk_stock_snapshots'))
-    )
-    op.create_index(op.f('ix_stock_snapshots_company_id'), 'stock_snapshots', ['company_id'], unique=False)
     op.create_table('sync_schedules',
     sa.Column('schedule_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('company_id', sa.UUID(), nullable=False),
@@ -275,6 +283,20 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('schedule_id', name=op.f('pk_sync_schedules'))
     )
     op.create_index(op.f('ix_sync_schedules_company_id'), 'sync_schedules', ['company_id'], unique=False)
+    op.create_table('sync_watermarks',
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('collection_type', sa.Text(), nullable=False),
+    sa.Column('last_alter_id', sa.BigInteger(), server_default=sa.text('0'), nullable=False),
+    sa.Column('last_successful_sync_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('status', sa.Text(), server_default='NEVER_SYNCED', nullable=False),
+    sa.Column('locked_by_agent_id', sa.UUID(), nullable=True),
+    sa.Column('lock_acquired_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('lock_expires_at', sa.DateTime(timezone=True), nullable=True),
+    sa.CheckConstraint("collection_type IN ('COMPANY', 'GROUP', 'LEDGER', 'VOUCHER_TYPE', 'STOCK_ITEM', 'COST_CENTRE', 'VOUCHER')", name=op.f('ck_sync_watermarks_collection_type')),
+    sa.CheckConstraint("status IN ('NEVER_SYNCED', 'OK', 'FAILED')", name=op.f('ck_sync_watermarks_status')),
+    sa.ForeignKeyConstraint(['company_id', 'locked_by_agent_id'], ['agents.company_id', 'agents.agent_id'], name=op.f('fk_sync_watermarks_company_id_locked_by_agent_id')),
+    sa.PrimaryKeyConstraint('company_id', 'collection_type', name=op.f('pk_sync_watermarks'))
+    )
     op.create_table('vouchers',
     sa.Column('voucher_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('status', sa.Text(), nullable=False),
@@ -328,6 +350,25 @@ def upgrade() -> None:
     sa.UniqueConstraint('company_id', 'ledger_id', 'financial_year_start', 'reference_name', name='uq_opening_bill_allocations_bill')
     )
     op.create_index(op.f('ix_opening_bill_allocations_company_id'), 'opening_bill_allocations', ['company_id'], unique=False)
+    op.create_table('sync_runs',
+    sa.Column('sync_run_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('agent_id', sa.UUID(), nullable=False),
+    sa.Column('command_id', sa.UUID(), nullable=True),
+    sa.Column('sync_mode', sa.Text(), nullable=False),
+    sa.Column('started_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('ended_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('status', sa.Text(), nullable=False),
+    sa.Column('records_fetched', sa.Integer(), server_default=sa.text('0'), nullable=False),
+    sa.Column('records_failed', sa.Integer(), server_default=sa.text('0'), nullable=False),
+    sa.CheckConstraint("status IN ('IN_PROGRESS', 'COMPLETED', 'FAILED', 'PARTIAL')", name=op.f('ck_sync_runs_status')),
+    sa.CheckConstraint("sync_mode IN ('FULL', 'INCREMENTAL', 'DATE_RANGE', 'RECONCILIATION')", name=op.f('ck_sync_runs_sync_mode')),
+    sa.ForeignKeyConstraint(['company_id', 'agent_id'], ['agents.company_id', 'agents.agent_id'], name=op.f('fk_sync_runs_company_id_agent_id')),
+    sa.ForeignKeyConstraint(['company_id', 'command_id'], ['agent_commands.company_id', 'agent_commands.command_id'], name=op.f('fk_sync_runs_company_id_command_id')),
+    sa.PrimaryKeyConstraint('sync_run_id', name=op.f('pk_sync_runs')),
+    sa.UniqueConstraint('company_id', 'sync_run_id', name=op.f('uq_sync_runs_company_id_sync_run_id'))
+    )
+    op.create_index(op.f('ix_sync_runs_company_id_started_at'), 'sync_runs', ['company_id', 'started_at'], unique=False)
     op.create_table('voucher_entries',
     sa.Column('voucher_entry_id', sa.BigInteger(), autoincrement=True, nullable=False),
     sa.Column('company_id', sa.UUID(), nullable=False),
@@ -400,6 +441,46 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id', name=op.f('pk_cost_centre_allocations'))
     )
     op.create_index(op.f('ix_cost_centre_allocations_voucher_entry_id'), 'cost_centre_allocations', ['voucher_entry_id'], unique=False)
+    op.create_table('stock_snapshots',
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('stock_item_id', sa.UUID(), nullable=False),
+    sa.Column('as_of_date', sa.Date(), nullable=False),
+    sa.Column('closing_quantity', sa.Numeric(precision=20, scale=6), nullable=False),
+    sa.Column('unit', sa.Text(), nullable=True),
+    sa.Column('sync_run_id', sa.UUID(), nullable=True),
+    sa.ForeignKeyConstraint(['company_id', 'stock_item_id'], ['stock_items.company_id', 'stock_items.stock_item_id'], name=op.f('fk_stock_snapshots_company_id_stock_item_id')),
+    sa.ForeignKeyConstraint(['company_id', 'sync_run_id'], ['sync_runs.company_id', 'sync_runs.sync_run_id'], name=op.f('fk_stock_snapshots_company_id_sync_run_id')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_stock_snapshots_company_id')),
+    sa.PrimaryKeyConstraint('stock_item_id', 'as_of_date', name=op.f('pk_stock_snapshots'))
+    )
+    op.create_index(op.f('ix_stock_snapshots_company_id'), 'stock_snapshots', ['company_id'], unique=False)
+    op.create_table('sync_batches',
+    sa.Column('batch_id', sa.UUID(), nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('sync_run_id', sa.UUID(), nullable=False),
+    sa.Column('collection_type', sa.Text(), nullable=False),
+    sa.Column('batch_seq', sa.Integer(), nullable=False),
+    sa.Column('committed_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('accepted', sa.Integer(), nullable=False),
+    sa.Column('rejected_stale', sa.Integer(), nullable=False),
+    sa.Column('error_count', sa.Integer(), nullable=False),
+    sa.CheckConstraint("collection_type IN ('COMPANY', 'GROUP', 'LEDGER', 'VOUCHER_TYPE', 'STOCK_ITEM', 'COST_CENTRE', 'VOUCHER')", name=op.f('ck_sync_batches_collection_type')),
+    sa.ForeignKeyConstraint(['company_id', 'sync_run_id'], ['sync_runs.company_id', 'sync_runs.sync_run_id'], name=op.f('fk_sync_batches_company_id_sync_run_id')),
+    sa.PrimaryKeyConstraint('batch_id', name=op.f('pk_sync_batches'))
+    )
+    op.create_table('sync_errors',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('sync_run_id', sa.UUID(), nullable=False),
+    sa.Column('entity_type', sa.Text(), nullable=False),
+    sa.Column('tally_guid', sa.Text(), nullable=True),
+    sa.Column('error_code', sa.Text(), nullable=False),
+    sa.Column('message', sa.Text(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['company_id', 'sync_run_id'], ['sync_runs.company_id', 'sync_runs.sync_run_id'], name=op.f('fk_sync_errors_company_id_sync_run_id')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_sync_errors'))
+    )
+    op.create_index(op.f('ix_sync_errors_sync_run_id'), 'sync_errors', ['sync_run_id'], unique=False)
     # ### end Alembic commands ###
     _upgrade_extras()
 
@@ -407,6 +488,11 @@ def upgrade() -> None:
 def downgrade() -> None:
     _downgrade_extras()
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_sync_errors_sync_run_id'), table_name='sync_errors')
+    op.drop_table('sync_errors')
+    op.drop_table('sync_batches')
+    op.drop_index(op.f('ix_stock_snapshots_company_id'), table_name='stock_snapshots')
+    op.drop_table('stock_snapshots')
     op.drop_index(op.f('ix_cost_centre_allocations_voucher_entry_id'), table_name='cost_centre_allocations')
     op.drop_table('cost_centre_allocations')
     op.drop_index(op.f('ix_bill_allocations_voucher_entry_id'), table_name='bill_allocations')
@@ -419,6 +505,8 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_voucher_entries_voucher_id'), table_name='voucher_entries')
     op.drop_index(op.f('ix_voucher_entries_company_id_ledger_id'), table_name='voucher_entries')
     op.drop_table('voucher_entries')
+    op.drop_index(op.f('ix_sync_runs_company_id_started_at'), table_name='sync_runs')
+    op.drop_table('sync_runs')
     op.drop_index(op.f('ix_opening_bill_allocations_company_id'), table_name='opening_bill_allocations')
     op.drop_table('opening_bill_allocations')
     op.drop_index(op.f('ix_ledger_opening_balances_company_id'), table_name='ledger_opening_balances')
@@ -427,10 +515,9 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_vouchers_company_id_voucher_date'), table_name='vouchers')
     op.drop_index(op.f('ix_vouchers_company_id_alter_id'), table_name='vouchers')
     op.drop_table('vouchers')
+    op.drop_table('sync_watermarks')
     op.drop_index(op.f('ix_sync_schedules_company_id'), table_name='sync_schedules')
     op.drop_table('sync_schedules')
-    op.drop_index(op.f('ix_stock_snapshots_company_id'), table_name='stock_snapshots')
-    op.drop_table('stock_snapshots')
     op.drop_index(op.f('ix_stock_opening_balances_company_id'), table_name='stock_opening_balances')
     op.drop_table('stock_opening_balances')
     op.drop_index(op.f('ix_ledgers_company_id_primary_group_id'), table_name='ledgers')
@@ -444,6 +531,9 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_user_roles_company_id'), table_name='user_roles')
     op.drop_table('user_roles')
     op.drop_table('stock_items')
+    op.drop_index(op.f('ix_reconciliation_results_company_id_run_at'), table_name='reconciliation_results')
+    op.drop_index(op.f('ix_reconciliation_results_company_id'), table_name='reconciliation_results')
+    op.drop_table('reconciliation_results')
     op.drop_index('uq_groups_company_id_reserved_name', table_name='groups', postgresql_where=sa.text('reserved_name IS NOT NULL'))
     op.drop_index(op.f('ix_groups_primary_group_id'), table_name='groups')
     op.drop_table('groups')

@@ -67,6 +67,7 @@ class AgentCommand(Base):
 
     __tablename__ = "agent_commands"
     __table_args__ = (
+        UniqueConstraint("company_id", "command_id"),  # target of tenant FKs
         tenant_fk("agent_id", "agents.agent_id"),
         enum_check("command_type", CommandType),
         enum_check("sync_mode", SyncMode),

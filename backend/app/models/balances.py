@@ -48,7 +48,10 @@ class StockOpeningBalance(Base):
 
 class StockSnapshot(Base):
     __tablename__ = "stock_snapshots"
-    __table_args__ = (tenant_fk("stock_item_id", "stock_items.stock_item_id"),)
+    __table_args__ = (
+        tenant_fk("stock_item_id", "stock_items.stock_item_id"),
+        tenant_fk("sync_run_id", "sync_runs.sync_run_id"),
+    )
 
     company_id: Mapped[uuid.UUID] = company_id_col()
     stock_item_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
