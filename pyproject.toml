@@ -1,0 +1,28 @@
+[project]
+name = "tally-platform"
+version = "0.0.0"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[tool.uv.workspace]
+members = ["shared", "backend", "agent", "tools"]
+
+[tool.uv.sources]
+tally-contract = { workspace = true }
+tally-backend = { workspace = true }
+tally-agent = { workspace = true }
+tally-tools = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "ruff",
+  "mypy",
+  "pytest",
+  "pytest-asyncio",
+  "pytest-cov",
+  "coverage",
+  "time-machine",
+  "hypothesis",
+  "import-linter",
+  "httpx",
+]
