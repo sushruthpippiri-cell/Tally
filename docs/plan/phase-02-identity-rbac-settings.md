@@ -51,8 +51,9 @@ Dependency `require(Permission)` resolves the user's roles for the path's `compa
 `record(ctx_or_system, action, entity_type, entity_id, before=None, after=None, data_range=None, result="SUCCESS")` writing every LOG-1.2 field; `user_id = None` means "system". A `diff(before, after)` helper stores only changed fields. Later phases call this for every action listed in LOG-1.1.
 
 ### P2.8 Settings and feature flags (Section 18, D-016)
-- `app/core/settings_registry.py`: every key from SRS 18.2 with type, default and validator, plus `stock.fast_ranking_basis` (quantity|value), `sync.keylist_max_missing_ratio` (0.2), `agent.command_lease_seconds` (300). Validators: tolerances ≥ 0; bucket boundaries strictly ascending positive integers; percentile 1–99; windows and thresholds > 0; `top_n_default` 1–100; classification lists non-empty and each entry either one of Tally's 28 predefined group names or one of the company's own top-level groups (D-001).
+- `app/core/settings_registry.py`: every key from SRS 18.2 with type, default and validator, plus `stock.fast_ranking_basis` (quantity|value), `sync.keylist_max_missing_ratio` (0.2), `agent.command_lease_seconds` (300). Validators: tolerances ≥ 0; bucket boundaries strictly ascending positive integers; percentile 1–99; windows and thresholds > 0; `top_n_default` 1–100; classification lists non-empty, and each entry a tagged object rather than a display name (D-001): `PREDEFINED` with a `reserved_name` among Tally's 28, or `COMPANY_GROUP` with the `tally_guid` of one of **this company's own top-level groups** (a nested group is rejected with a message saying it can never be a classification anchor; an unknown GUID is rejected; a GUID from another company is rejected without revealing whether it exists, SEC-1.7).
 - `GET /companies/{id}/settings` returns effective values with an `is_default` flag; `PUT` validates, stores overrides, audits (before/after).
+- Allow-list entries are returned with their **current display name** resolved for the UI (`{type, reserved_name|tally_guid, display_name, is_missing}`), while only the identifier is stored. `is_missing` marks an entry whose group is no longer live, which Data Quality also reports (D-001).
 - Feature flags: boolean only, `FEATURE_ANOMALY_DETECTION` default off; changes audited.
 - `get_setting(company_id, key)` service with a per-request cache.
 
@@ -68,6 +69,7 @@ CORS limited to `CORS_ORIGINS` (SEC-1.4); slowapi rate limits 100/min per IP una
 - AC-62: `Asia/Kolkata`, event at 23:58 IST on day 1 (a UTC timestamp on day 1 18:28) groups to day 1 regardless of the server TZ (run the test with `TZ=UTC` and `TZ=America/New_York`).
 - AC-63: FY start 1 April, an August date → Q2; FY start 1 January → calendar quarters; boundary dates (31 Mar, 1 Apr, 29 Feb).
 - Token expiry and refresh rotation; inactive user cannot refresh; last-owner protection; every settings validator (valid and invalid); audit rows written for login, settings and user changes.
+- Allow-lists (D-001): a `PREDEFINED` entry with an unknown reserved name, a `COMPANY_GROUP` entry naming a nested group, an unknown GUID, and a GUID belonging to another company are each rejected; a plain display-name string is rejected; a stored entry still resolves after the group is renamed, and reads back with the new display name.
 
 ## Definition of done
 All tests pass; `app/core/permissions.py` matches SRS 14.1; every later phase can depend on `require()`, `CompanyContext`, `audit.record()`, `get_setting()` and `periods`.

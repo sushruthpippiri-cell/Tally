@@ -51,6 +51,7 @@ SRS Section 5 (all subsections) and 6.6 · `docs/decisions.md` entries listed ab
 
 ### P1.8 Configuration, audit, anomaly (5.10, 5.11)
 - `feature_config` (enabled boolean only), `company_settings` (`setting_value jsonb`, `data_type`), `custom_field_mappings`.
+- Classification allow-lists live in `company_settings.setting_value` as a JSON array of tagged entries, **never display names** (D-001): `{"type": "PREDEFINED", "reserved_name": "..."}` or `{"type": "COMPANY_GROUP", "tally_guid": "..."}`. Seed the defaults in the migration in `PREDEFINED` form. `groups.reserved_name` is indexed per company so an entry resolves to a `classification_group_id` in one join; `COMPANY_GROUP` resolves on `(company_id, tally_guid)`, which is already UNIQUE.
 - `audit_logs`: JSONB `before_value`/`after_value`; trigger raising on UPDATE/DELETE; `tally_app` granted INSERT and SELECT only (SEC-1.13).
 - `anomaly_flags` with `UNIQUE(voucher_id, rule_triggered)`; `ai_tool_log`.
 
@@ -69,6 +70,7 @@ Builders every later phase uses (amounts passed as strings, converted to Decimal
 - Upgrade/downgrade on an empty database.
 - For each synced table: duplicate `(company_id, tally_guid)` rejected; the same GUID or voucher number in two companies accepted (DR-4.4, DR-4.6).
 - CHECK constraints reject negative `amount_absolute`, inconsistent `amount_signed`/`is_debit`, unknown status values.
+- An allow-list entry survives a group rename: store a `PREDEFINED` entry, rename that group's display name, and the entry still resolves to the same `classification_group_id` (D-001).
 - DELETE on vouchers or masters raises; UPDATE/DELETE on `audit_logs` raises; changing `agent_commands.agent_id` raises.
 - Connected as `tally_app`, `CREATE TABLE` fails (SEC-1.15).
 

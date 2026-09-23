@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-00.md), 78 tests) and CI green (run 35881605525, both `check` and `agent-windows`). Next: P1 — blocked until D-001 is confirmed.
+P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-00.md), 78 tests) and CI green (run 35881605525, both `check` and `agent-windows`). Next: P1 (data model) — unblocked, D-001 ACCEPTED 2026-09-23.
 
 ## Done
 | Date | Phase.Task | Commit | Notes |
@@ -29,7 +29,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Blocked
 | Item | Blocked by (gate / decision / question) | Since |
 |---|---|---|
-| P1 (data model) | D-001 must be confirmed with the accountant first (`groups.predefined_group_id` shapes every masters table). | 2026-09-23 |
+| _(none)_ | D-001 accepted 2026-09-23; P1 is unblocked. D-002 is still needed before P4, D-021 before P8. | |
 
 ## Questions for the product owner
 | # | Question | Raised in | Answer |
@@ -39,7 +39,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 | 3 | Repo location? | Setup | Moved to `/Users/sushruthp/code/tally-platform` (2026-09-23). |
 | 4 | Git author correct? | Setup | Yes: `sushruthpippiri-cell <sushruth.pippiri@gmail.com>`. |
 | 5 | D-001 (before P1), D-002 (before P4), D-021 (before P8)? | Setup | Noted. Owner will confirm D-001 before P1 and D-002 before P4, and answer D-021 before P8. Do not start those phases until confirmed. |
-| 6 | Confirm D-001 (classification anchor). | P0 end | **Open — blocks P1.** D-001 rewritten 2026-09-23 with five worked examples; it now also covers a user group created directly under Primary (RESOLVED, anchors to itself, surfaced in Data Quality) — only a broken chain is UNRESOLVED_GROUP. Awaiting the owner's read. |
+| 6 | Confirm D-001 (classification anchor). | P0 end | **ACCEPTED 2026-09-23.** Anchor = nearest predefined group, else the chain's own top-level group; only a broken chain is UNRESOLVED_GROUP. Allow-list entries are stored by reserved name (predefined) or GUID (company groups), never by display name, and shown by current name. P1 is unblocked. |
 
 ## Owner rules added at P0 start (2026-09-23)
 Testing and logs rules (logs captured at DEBUG and saved per run, log-record assertions, per-phase full-suite report in `docs/test-reports/phase-NN.md`, no next phase on a red suite) are in `CLAUDE.md` -> "Testing and logs" and in `docs/plan/phase-00-foundation.md` (P0.12).

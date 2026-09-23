@@ -42,7 +42,7 @@ List: name, status badge, Agent/TDL/Tally versions, last heartbeat (relative + l
 - Schedules (Owner/Admin): list, create, edit, activate/deactivate; cron helper with human-readable preview in the company time zone.
 
 ### P13.8 Settings pages
-Company profile (time zone, FY start, with validation messages); accounting settings (allow-lists as multi-selects of predefined groups; taxable-value mode; journal-in-cash-flow toggle); thresholds (aging, payment, stock, reconciliation, Top-N); feature flags; custom field mappings with "Download UDF TDL" (P5.8); users and roles (Owner only).
+Company profile (time zone, FY start, with validation messages); accounting settings (allow-lists as multi-selects showing each group's current display name, sending the identifier the API expects - reserved name for predefined groups, GUID for the company's own top-level groups, D-001; stale entries flagged; taxable-value mode; journal-in-cash-flow toggle); thresholds (aging, payment, stock, reconciliation, Top-N); feature flags; custom field mappings with "Download UDF TDL" (P5.8); users and roles (Owner only).
 
 ### P13.9 Data Quality and Reconciliation pages
 - Data Quality (FR-4.5): list of checks with counts, severity, drill into items, "how to fix" text.

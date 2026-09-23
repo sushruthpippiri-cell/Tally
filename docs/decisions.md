@@ -5,7 +5,7 @@ Claude Code: add new entries at the bottom with the next number and status PROPO
 
 ---
 
-### D-001 Classification anchor is the nearest predefined group, or the ledger's own top-level group — PROPOSED (confirm before P1)
+### D-001 Classification anchor is the nearest predefined group, or the ledger's own top-level group — ACCEPTED (confirmed by the product owner, 2026-09-23)
 
 **The problem.** ACC-7.1–7.6 say to classify a ledger by its "primary group", and the default
 allow-lists name Sundry Debtors, Sundry Creditors, Cash-in-Hand, Bank Accounts and Duties & Taxes.
@@ -40,9 +40,31 @@ nature to be chosen when a group is created directly under Primary, so it is alw
 
 **Allow-lists** (`company_settings`) may therefore contain any of the 28 predefined groups **or**
 any of the company's own top-level groups. An Owner or Admin adds one when a real classification is
-missing. Defaults are unchanged: Sales = Sales Accounts; Purchase = Purchase Accounts;
-Expense = Direct Expenses, Indirect Expenses; Cash/Bank = Cash-in-Hand, Bank Accounts;
-Tax = Duties & Taxes.
+missing.
+
+**Allow-list entries are never stored by display name**, because renaming a group in TallyPrime
+would silently drop it from the list and the figures would change with no error. Each entry is one
+of two tagged forms in the `setting_value` JSONB:
+
+| Entry | Stored as | Why |
+|---|---|---|
+| A predefined group | `{"type": "PREDEFINED", "reserved_name": "Sundry Debtors"}` | The reserved name is Tally's own identifier and survives a rename (G32). |
+| One of the company's own top-level groups | `{"type": "COMPANY_GROUP", "tally_guid": "<guid>"}` | A user group has no reserved name, and identity is `(company_id, tally_guid)` (DR-4.2). |
+
+The UI and every export show the group's **current display name**, resolved at read time; only the
+identifier is persisted. Validation accepts a `COMPANY_GROUP` entry only for a group that can
+actually be an anchor — one of the company's top-level groups — because a nested user group can
+never be an anchor and adding one would silently do nothing. An entry whose GUID no longer matches
+a live group (the group was deleted in Tally) is reported in Data Quality as a stale allow-list
+entry rather than being dropped.
+
+The 28 reserved names equal the predefined groups' default display names, so the same stored string
+resolves correctly both after G32 passes (matched on the exported reserved name) and before it does
+(matched on the display name by the fallback).
+
+Defaults are unchanged, and are stored in the `PREDEFINED` form: Sales = Sales Accounts;
+Purchase = Purchase Accounts; Expense = Direct Expenses, Indirect Expenses;
+Cash/Bank = Cash-in-Hand, Bank Accounts; Tax = Duties & Taxes.
 
 **Worked examples**
 
