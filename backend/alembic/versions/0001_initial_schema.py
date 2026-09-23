@@ -87,6 +87,48 @@ def upgrade() -> None:
     sa.UniqueConstraint('company_id', 'agent_name', name=op.f('uq_agents_company_id_agent_name'))
     )
     op.create_index(op.f('ix_agents_company_id'), 'agents', ['company_id'], unique=False)
+    op.create_table('ai_tool_log',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('tool_name', sa.Text(), nullable=False),
+    sa.Column('parameters', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('result_summary', sa.Text(), nullable=True),
+    sa.Column('status', sa.Text(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.CheckConstraint("status IN ('SUCCESS', 'FAILED')", name=op.f('ck_ai_tool_log_status')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_ai_tool_log_company_id')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_ai_tool_log'))
+    )
+    op.create_index(op.f('ix_ai_tool_log_company_id'), 'ai_tool_log', ['company_id'], unique=False)
+    op.create_table('audit_logs',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=True),
+    sa.Column('user_id', sa.UUID(), nullable=True),
+    sa.Column('action', sa.Text(), nullable=False),
+    sa.Column('entity_type', sa.Text(), nullable=False),
+    sa.Column('entity_id', sa.Text(), nullable=True),
+    sa.Column('before_value', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('after_value', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('data_range', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('result', sa.Text(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_audit_logs_company_id')),
+    sa.ForeignKeyConstraint(['user_id'], ['users.user_id'], name=op.f('fk_audit_logs_user_id')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_audit_logs'))
+    )
+    op.create_index(op.f('ix_audit_logs_company_id_created_at'), 'audit_logs', ['company_id', 'created_at'], unique=False)
+    op.create_table('company_settings',
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('setting_key', sa.Text(), nullable=False),
+    sa.Column('setting_value', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+    sa.Column('data_type', sa.Text(), nullable=False),
+    sa.Column('updated_by', sa.UUID(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.CheckConstraint("data_type IN ('INTEGER', 'DECIMAL', 'BOOLEAN', 'JSON')", name=op.f('ck_company_settings_data_type')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_company_settings_company_id')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.user_id'], name=op.f('fk_company_settings_updated_by')),
+    sa.PrimaryKeyConstraint('company_id', 'setting_key', name=op.f('pk_company_settings'))
+    )
     op.create_table('cost_centres',
     sa.Column('cost_centre_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
     sa.Column('status', sa.Text(), nullable=False),
@@ -100,6 +142,33 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('cost_centre_id', name=op.f('pk_cost_centres')),
     sa.UniqueConstraint('company_id', 'cost_centre_id', name=op.f('uq_cost_centres_company_id_cost_centre_id')),
     sa.UniqueConstraint('company_id', 'tally_guid', name=op.f('uq_cost_centres_company_id_tally_guid'))
+    )
+    op.create_table('custom_field_mappings',
+    sa.Column('mapping_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('collection_type', sa.Text(), nullable=False),
+    sa.Column('tally_field', sa.Text(), nullable=False),
+    sa.Column('field_key', sa.Text(), nullable=False),
+    sa.Column('data_type', sa.Text(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('updated_by', sa.UUID(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.CheckConstraint("collection_type IN ('COMPANY', 'GROUP', 'LEDGER', 'VOUCHER_TYPE', 'STOCK_ITEM', 'COST_CENTRE', 'VOUCHER')", name=op.f('ck_custom_field_mappings_collection_type')),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_custom_field_mappings_company_id')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.user_id'], name=op.f('fk_custom_field_mappings_updated_by')),
+    sa.PrimaryKeyConstraint('mapping_id', name=op.f('pk_custom_field_mappings')),
+    sa.UniqueConstraint('company_id', 'collection_type', 'field_key', name=op.f('uq_custom_field_mappings_company_id_collection_type_field_key'))
+    )
+    op.create_index(op.f('ix_custom_field_mappings_company_id'), 'custom_field_mappings', ['company_id'], unique=False)
+    op.create_table('feature_config',
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('feature_name', sa.Text(), nullable=False),
+    sa.Column('enabled', sa.Boolean(), nullable=False),
+    sa.Column('updated_by', sa.UUID(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['company_id'], ['companies.company_id'], name=op.f('fk_feature_config_company_id')),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.user_id'], name=op.f('fk_feature_config_updated_by')),
+    sa.PrimaryKeyConstraint('company_id', 'feature_name', name=op.f('pk_feature_config'))
     )
     op.create_table('groups',
     sa.Column('group_id', sa.UUID(), server_default=sa.text('gen_random_uuid()'), nullable=False),
@@ -319,6 +388,30 @@ def upgrade() -> None:
     op.create_index(op.f('ix_vouchers_company_id_alter_id'), 'vouchers', ['company_id', 'alter_id'], unique=False)
     op.create_index(op.f('ix_vouchers_company_id_voucher_date'), 'vouchers', ['company_id', 'voucher_date'], unique=False)
     op.create_index(op.f('ix_vouchers_company_id_voucher_type_id_voucher_date'), 'vouchers', ['company_id', 'voucher_type_id', 'voucher_date'], unique=False)
+    op.create_table('anomaly_flags',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('company_id', sa.UUID(), nullable=False),
+    sa.Column('voucher_id', sa.UUID(), nullable=False),
+    sa.Column('rule_triggered', sa.Text(), nullable=False),
+    sa.Column('transaction_amount', sa.Numeric(precision=20, scale=4), nullable=True),
+    sa.Column('historical_average', sa.Numeric(precision=20, scale=4), nullable=True),
+    sa.Column('historical_max', sa.Numeric(precision=20, scale=4), nullable=True),
+    sa.Column('deviation_percent', sa.Numeric(precision=20, scale=6), nullable=True),
+    sa.Column('duplicate_of_voucher_id', sa.UUID(), nullable=True),
+    sa.Column('flagged_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('explanation_text', sa.Text(), nullable=True),
+    sa.Column('explanation_status', sa.Text(), nullable=False),
+    sa.Column('reviewed', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+    sa.Column('not_an_issue', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+    sa.Column('reviewed_by', sa.UUID(), nullable=True),
+    sa.Column('reviewed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.CheckConstraint("explanation_status IN ('AVAILABLE', 'UNAVAILABLE', 'PENDING')", name=op.f('ck_anomaly_flags_explanation_status')),
+    sa.ForeignKeyConstraint(['company_id', 'duplicate_of_voucher_id'], ['vouchers.company_id', 'vouchers.voucher_id'], name=op.f('fk_anomaly_flags_company_id_duplicate_of_voucher_id')),
+    sa.ForeignKeyConstraint(['company_id', 'voucher_id'], ['vouchers.company_id', 'vouchers.voucher_id'], name=op.f('fk_anomaly_flags_company_id_voucher_id')),
+    sa.ForeignKeyConstraint(['reviewed_by'], ['users.user_id'], name=op.f('fk_anomaly_flags_reviewed_by')),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_anomaly_flags')),
+    sa.UniqueConstraint('voucher_id', 'rule_triggered', name=op.f('uq_anomaly_flags_voucher_id_rule_triggered'))
+    )
     op.create_table('ledger_opening_balances',
     sa.Column('company_id', sa.UUID(), nullable=False),
     sa.Column('ledger_id', sa.UUID(), nullable=False),
@@ -511,6 +604,7 @@ def downgrade() -> None:
     op.drop_table('opening_bill_allocations')
     op.drop_index(op.f('ix_ledger_opening_balances_company_id'), table_name='ledger_opening_balances')
     op.drop_table('ledger_opening_balances')
+    op.drop_table('anomaly_flags')
     op.drop_index(op.f('ix_vouchers_company_id_voucher_type_id_voucher_date'), table_name='vouchers')
     op.drop_index(op.f('ix_vouchers_company_id_voucher_date'), table_name='vouchers')
     op.drop_index(op.f('ix_vouchers_company_id_alter_id'), table_name='vouchers')
@@ -537,7 +631,15 @@ def downgrade() -> None:
     op.drop_index('uq_groups_company_id_reserved_name', table_name='groups', postgresql_where=sa.text('reserved_name IS NOT NULL'))
     op.drop_index(op.f('ix_groups_primary_group_id'), table_name='groups')
     op.drop_table('groups')
+    op.drop_table('feature_config')
+    op.drop_index(op.f('ix_custom_field_mappings_company_id'), table_name='custom_field_mappings')
+    op.drop_table('custom_field_mappings')
     op.drop_table('cost_centres')
+    op.drop_table('company_settings')
+    op.drop_index(op.f('ix_audit_logs_company_id_created_at'), table_name='audit_logs')
+    op.drop_table('audit_logs')
+    op.drop_index(op.f('ix_ai_tool_log_company_id'), table_name='ai_tool_log')
+    op.drop_table('ai_tool_log')
     op.drop_index(op.f('ix_agents_company_id'), table_name='agents')
     op.drop_table('agents')
     op.drop_index(op.f('ix_agent_registration_tokens_company_id'), table_name='agent_registration_tokens')
@@ -585,8 +687,21 @@ BEGIN
 END $$;
 """
 
+# SEC-1.13: audit_logs is append-only. The app role loses UPDATE/DELETE (granted by the
+# default privileges in deploy/postgres/grants.sql) and the trigger stops everyone else.
+AUDIT_APPEND_ONLY = """
+CREATE FUNCTION audit_logs_append_only() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'audit_logs is append-only (SEC-1.13)' USING ERRCODE = '23001';
+END $$;
+CREATE TRIGGER audit_logs_append_only BEFORE UPDATE OR DELETE ON audit_logs
+    FOR EACH ROW EXECUTE FUNCTION audit_logs_append_only();
+REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM tally_app;
+"""
+
 
 def _upgrade_extras() -> None:
+    op.execute(AUDIT_APPEND_ONLY)
     op.execute(AGENT_COMMAND_OWNER)
     op.execute(FORBID_DELETE)
     for table in NO_DELETE_TABLES:
@@ -606,6 +721,8 @@ def _upgrade_extras() -> None:
 
 
 def _downgrade_extras() -> None:
+    op.execute("DROP TRIGGER audit_logs_append_only ON audit_logs")
+    op.execute("DROP FUNCTION audit_logs_append_only()")
     for table in NO_DELETE_TABLES:
         op.execute(f"DROP TRIGGER {table}_forbid_delete ON {table}")
     op.execute("DROP FUNCTION forbid_delete()")

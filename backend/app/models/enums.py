@@ -148,3 +148,10 @@ class ExplanationStatus(StrEnum):
     AVAILABLE = "AVAILABLE"
     UNAVAILABLE = "UNAVAILABLE"
     PENDING = "PENDING"
+
+
+class ToolCallStatus(StrEnum):
+    """ai_tool_log.status. Not in SRS 5.10, which names the column but no values (D-031)."""
+
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"

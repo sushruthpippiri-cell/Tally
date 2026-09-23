@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.agents import Agent, AgentCommand
 from app.models.balances import LedgerOpeningBalance
 from app.models.company import Company
+from app.models.defaults import PREDEFINED_GROUPS
 from app.models.enums import (
     AccountingDirection,
     AgentStatus,
@@ -88,37 +89,6 @@ async def make_command(
     session.add(command)
     await session.flush()
     return command
-
-
-# Tally's 28 predefined groups (docs/plan/phase-06-lifecycle-hierarchy.md; verify with G13/G32):
-# primary group -> (nature, predefined sub-groups under it).
-PREDEFINED_GROUPS: dict[str, tuple[Nature, tuple[str, ...]]] = {
-    "Capital Account": (Nature.LIABILITY, ("Reserves & Surplus",)),
-    "Loans (Liability)": (Nature.LIABILITY, ("Bank OD A/c", "Secured Loans", "Unsecured Loans")),
-    "Current Liabilities": (Nature.LIABILITY, ("Duties & Taxes", "Provisions", "Sundry Creditors")),
-    "Branch / Divisions": (Nature.LIABILITY, ()),
-    "Suspense A/c": (Nature.LIABILITY, ()),
-    "Fixed Assets": (Nature.ASSET, ()),
-    "Investments": (Nature.ASSET, ()),
-    "Current Assets": (
-        Nature.ASSET,
-        (
-            "Bank Accounts",
-            "Cash-in-Hand",
-            "Deposits (Asset)",
-            "Loans & Advances (Asset)",
-            "Stock-in-Hand",
-            "Sundry Debtors",
-        ),
-    ),
-    "Misc. Expenses (ASSET)": (Nature.ASSET, ()),
-    "Sales Accounts": (Nature.INCOME, ()),
-    "Direct Incomes": (Nature.INCOME, ()),
-    "Indirect Incomes": (Nature.INCOME, ()),
-    "Purchase Accounts": (Nature.EXPENSE, ()),
-    "Direct Expenses": (Nature.EXPENSE, ()),
-    "Indirect Expenses": (Nature.EXPENSE, ()),
-}
 
 
 async def make_predefined_groups(session: AsyncSession, company: Company) -> dict[str, Group]:

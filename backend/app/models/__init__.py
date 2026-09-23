@@ -9,6 +9,14 @@ from app.models.balances import (
 )
 from app.models.base import Base
 from app.models.company import Company, Role, User, UserRole
+from app.models.config import (
+    AiToolLog,
+    AnomalyFlag,
+    AuditLog,
+    CompanySetting,
+    CustomFieldMapping,
+    FeatureConfig,
+)
 from app.models.masters import CostCentre, Group, Ledger, StockItem, VoucherType
 from app.models.sync import (
     ReconciliationResult,
@@ -26,14 +34,20 @@ from app.models.vouchers import (
 )
 
 __all__ = [
+    "AiToolLog",
+    "AnomalyFlag",
+    "AuditLog",
     "Agent",
     "AgentCommand",
     "AgentRegistrationToken",
     "Base",
     "BillAllocation",
     "Company",
+    "CompanySetting",
     "CostCentre",
     "CostCentreAllocation",
+    "CustomFieldMapping",
+    "FeatureConfig",
     "Group",
     "Ledger",
     "LedgerOpeningBalance",
