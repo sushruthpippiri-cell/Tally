@@ -2,7 +2,7 @@
 #   docker build -f backend/Dockerfile .
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 WORKDIR /src
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/opt/venv
 COPY pyproject.toml uv.lock ./
 COPY shared ./shared
 COPY backend ./backend
@@ -14,7 +14,7 @@ RUN mkdir -p agent/tally_agent tools/tally_tools \
 
 FROM python:3.12-slim-bookworm AS runtime
 RUN useradd --system --create-home --uid 10001 tally
-COPY --from=builder /src/.venv /opt/venv
+COPY --from=builder /opt/venv /opt/venv
 COPY --chown=tally:tally backend/alembic /app/alembic
 COPY --chown=tally:tally backend/alembic.ini /app/alembic.ini
 ENV PATH="/opt/venv/bin:$PATH" PYTHONUNBUFFERED=1
