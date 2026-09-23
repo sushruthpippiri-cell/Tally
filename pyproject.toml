@@ -25,6 +25,7 @@ dev = [
   "hypothesis",
   "import-linter",
   "httpx",
+  "types-pyyaml",
   # only so import-linter can resolve the forbidden externals; runtime dep arrives with P15
   "anthropic",
   "mcp",
