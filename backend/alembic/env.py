@@ -4,12 +4,13 @@ from alembic import context
 from sqlalchemy import create_engine
 
 from app.core.config import get_settings
+from app.models import Base
 
 config = context.config
-url = get_settings().database_migration_url
+# An explicit sqlalchemy.url (set by tests on a throwaway database) wins over settings.
+url = config.get_main_option("sqlalchemy.url") or get_settings().database_migration_url
 assert url is not None
-# Models (and target_metadata) arrive in Phase 1.
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def run_migrations_online() -> None:

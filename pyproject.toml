@@ -47,7 +47,7 @@ select = ["E", "F", "I", "UP", "B", "T20", "PLW1514"]
 extend-immutable-calls = ["fastapi.Depends"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["tally_contract", "app", "tally_agent", "tally_tools"]
+known-first-party = ["tally_contract", "app", "tally_agent", "tally_tools", "tests"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -66,6 +66,8 @@ strict = true
 [tool.pytest.ini_options]
 testpaths = ["shared/tests", "backend/tests", "agent/tests", "tools/tests"]
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+# backend/ on the path so tests can `from tests.factories import ...` (CLAUDE.md).
+pythonpath = ["backend"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 # xunit1: the only family that supports record_property, which carries req() IDs into the XML
