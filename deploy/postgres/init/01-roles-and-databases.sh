@@ -6,8 +6,10 @@
 set -euo pipefail
 
 HOST_ARG=${PGHOST:+--host $PGHOST}
-GRANTS="$(dirname "$0")/../grants.sql"
-[ -f "$GRANTS" ] || GRANTS=/docker-entrypoint-initdb.d/../grants.sql
+# In the container grants.sql is mounted at /tally-grants.sql (NOT in initdb.d, where the
+# entrypoint would run it against the wrong database). In CI the script runs from the repo.
+GRANTS=/tally-grants.sql
+[ -f "$GRANTS" ] || GRANTS="$(dirname "$0")/../grants.sql"
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" $HOST_ARG --dbname postgres <<SQL
 CREATE ROLE tally_owner LOGIN CREATEDB PASSWORD '${TALLY_OWNER_PASSWORD}';
