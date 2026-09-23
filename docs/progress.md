@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P0 — **complete** 2026-09-23 (report: [phase-00](test-reports/phase-00.md), PASS, 74 tests). Next: P1 — blocked until D-001 is confirmed.
+P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-00.md), 78 tests) and CI green (run 35881605525, both `check` and `agent-windows`). Next: P1 — blocked until D-001 is confirmed.
 
 ## Done
 | Date | Phase.Task | Commit | Notes |
@@ -21,6 +21,7 @@ P0 — **complete** 2026-09-23 (report: [phase-00](test-reports/phase-00.md), PA
 | 2026-09-23 | P0.11 SRS transcription | b926e89 | `docs/srs/SRS_v7_3.md`, proven word-for-word against the PDF. |
 | 2026-09-23 | P0.9 traceability | (see log) | 356 requirement IDs found; 6 covered so far. |
 | 2026-09-23 | P0.7/P0.8 Makefile and CI | (see log) | GitHub Actions: `check` (ubuntu + postgres 16) and `agent-windows` (may fail until P7). |
+| 2026-09-23 | P0 CI fixes | 2f0c340 | First CI run failed in both jobs. (1) Windows: `read_text()` defaults to cp1252 -> UnicodeDecodeError; every text I/O call now names `encoding="utf-8"`, guarded by `tools/tests/test_text_io_encoding.py`. (2) Linux: the SRS tests re-ran `pdftotext` and demanded byte-equality, so Ubuntu's older poppler failed them; `docs/srs/SRS_v7_3.raw.txt` is now the committed reference extraction. Markdown unchanged; no test skipped or weakened. CI run 35881605525 green. |
 
 ## In progress
 -
@@ -46,7 +47,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
-| 00 | [phase-00.md](test-reports/phase-00.md) | PASS - 74 tests, 0 failed, 0 skipped, 82% coverage |
+| 00 | [phase-00.md](test-reports/phase-00.md) | PASS - 78 tests, 0 failed, 0 skipped, 83% coverage; CI run 35881605525 green |
 
 ## Environment (recorded 2026-09-23, macOS arm64)
 | Tool | Version |
