@@ -62,7 +62,7 @@ class CustomFieldMapping(Base):
     )
 
     mapping_id: Mapped[uuid.UUID] = uuid_pk()
-    company_id: Mapped[uuid.UUID] = company_id_col()
+    company_id: Mapped[uuid.UUID] = company_id_col(index=False)
     collection_type: Mapped[str]
     tally_field: Mapped[str]
     field_key: Mapped[str]

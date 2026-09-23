@@ -81,7 +81,7 @@ class OpeningBillAllocation(Base):
     )
 
     id: Mapped[int] = bigint_pk()
-    company_id: Mapped[uuid.UUID] = company_id_col()
+    company_id: Mapped[uuid.UUID] = company_id_col(index=False)
     ledger_id: Mapped[uuid.UUID]
     reference_name: Mapped[str]
     bill_date: Mapped[date | None]

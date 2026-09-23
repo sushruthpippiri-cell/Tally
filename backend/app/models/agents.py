@@ -29,7 +29,7 @@ class Agent(Base):
     )
 
     agent_id: Mapped[uuid.UUID] = uuid_pk()
-    company_id: Mapped[uuid.UUID] = company_id_col()
+    company_id: Mapped[uuid.UUID] = company_id_col(index=False)
     agent_name: Mapped[str]
     credential_hash: Mapped[str | None]  # set when registration completes (D-011)
     credential_salt: Mapped[bytes | None] = mapped_column(LargeBinary)  # D-011
@@ -82,7 +82,7 @@ class AgentCommand(Base):
     )
 
     command_id: Mapped[uuid.UUID] = uuid_pk()
-    company_id: Mapped[uuid.UUID] = company_id_col()
+    company_id: Mapped[uuid.UUID] = company_id_col(index=False)
     agent_id: Mapped[uuid.UUID]
     command_type: Mapped[str]
     sync_mode: Mapped[str]

@@ -1,7 +1,15 @@
 """P1.1: schema-wide conventions, checked on the model metadata so every new table obeys them."""
 
 import pytest
-from sqlalchemy import CheckConstraint, DateTime, Float, Numeric, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Float,
+    Numeric,
+    PrimaryKeyConstraint,
+    Text,
+    UniqueConstraint,
+)
 
 from app.models import Base
 from app.models.base import enum_check
@@ -53,3 +61,27 @@ def test_status_columns_have_a_check() -> None:
             is_status = col.name == "status" or col.name.endswith("_status")
             if is_status and isinstance(col.type, Text):  # skips e.g. agents.queue_status (jsonb)
                 assert f"ck_{table.name}_{col.name}" in checked, f"{table.name}.{col.name}"
+
+
+def test_foreign_key_columns_match_the_referenced_type() -> None:
+    """An INTEGER column pointing at a BIGINT key overflows long before the key does."""
+    for table in TABLES:
+        for fk in table.foreign_keys:
+            local, remote = fk.parent.type, fk.column.type
+            assert type(local) is type(remote), (
+                f"{table.name}.{fk.parent.name}: {local} -> {remote}"
+            )
+
+
+def test_no_index_is_a_prefix_of_another() -> None:
+    """A plain index on (a) is redundant next to a PK/unique/index on (a, b)."""
+    for table in TABLES:
+        keyed = [tuple(c.name for c in i.columns) for i in table.indexes if not i.unique]
+        covering = [tuple(c.name for c in i.columns) for i in table.indexes] + [
+            tuple(c.name for c in con.columns)
+            for con in table.constraints
+            if isinstance(con, UniqueConstraint | PrimaryKeyConstraint)
+        ]
+        for cols in keyed:
+            longer = [c for c in covering if len(c) > len(cols) and c[: len(cols)] == cols]
+            assert not longer, f"{table.name}: index {cols} is covered by {longer[0]}"

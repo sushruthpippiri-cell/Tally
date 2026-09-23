@@ -67,8 +67,9 @@ def created_at() -> Mapped[datetime]:
     return mapped_column(server_default=text("now()"))
 
 
-def company_id_col() -> Mapped[uuid.UUID]:
-    return mapped_column(ForeignKey("companies.company_id"), index=True)
+def company_id_col(index: bool = True) -> Mapped[uuid.UUID]:
+    """Pass index=False when a unique/composite index already leads with company_id."""
+    return mapped_column(ForeignKey("companies.company_id"), index=index)
 
 
 def enum_check(column: str, enum: type[StrEnum]) -> CheckConstraint:

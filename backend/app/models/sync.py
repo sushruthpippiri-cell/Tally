@@ -117,7 +117,7 @@ class ReconciliationResult(Base):
     )
 
     id: Mapped[int] = bigint_pk()
-    company_id: Mapped[uuid.UUID] = company_id_col()
+    company_id: Mapped[uuid.UUID] = company_id_col(index=False)
     run_at: Mapped[datetime]
     metric: Mapped[str]
     entity_id: Mapped[uuid.UUID | None]  # e.g. a ledger; the metric says which table

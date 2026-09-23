@@ -9,7 +9,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import CheckConstraint, Index, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import (
@@ -98,7 +98,7 @@ class BillAllocation(Base):
 
     id: Mapped[int] = bigint_pk()
     company_id: Mapped[uuid.UUID]  # D-003; checked through the composite FKs
-    voucher_entry_id: Mapped[int]
+    voucher_entry_id: Mapped[int] = mapped_column(BigInteger)
     ledger_id: Mapped[uuid.UUID]  # denormalized from the entry (D-004)
     allocation_type_raw: Mapped[str | None]
     allocation_type: Mapped[str]
@@ -119,7 +119,7 @@ class CostCentreAllocation(Base):
 
     id: Mapped[int] = bigint_pk()
     company_id: Mapped[uuid.UUID]  # D-003; checked through the composite FKs
-    voucher_entry_id: Mapped[int]
+    voucher_entry_id: Mapped[int] = mapped_column(BigInteger)
     cost_centre_id: Mapped[uuid.UUID]
     amount_absolute: Mapped[Decimal] = mapped_column(Money)
 
