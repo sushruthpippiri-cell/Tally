@@ -1,0 +1,40 @@
+# Local environment: `make up` / `make down`. Passwords here are dev-only defaults.
+name: tally
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_dev}
+      TALLY_OWNER_PASSWORD: ${TALLY_OWNER_PASSWORD:-tally_owner_dev}
+      TALLY_APP_PASSWORD: ${TALLY_APP_PASSWORD:-tally_app_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ENV: dev
+      DATABASE_URL: postgresql+asyncpg://tally_app:${TALLY_APP_PASSWORD:-tally_app_dev}@postgres:5432/tally
+      DATABASE_MIGRATION_URL: postgresql+psycopg://tally_owner:${TALLY_OWNER_PASSWORD:-tally_owner_dev}@postgres:5432/tally
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:
