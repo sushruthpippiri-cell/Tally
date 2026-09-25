@@ -8,18 +8,22 @@ conditions are the whole rule, so a late or duplicate call can never change a fi
 """
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, and_, case, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import audit
+from app.core.agent_credentials import AgentContext
 from app.core.errors import AppError
 from app.core.permissions import CompanyContext, scoped
 from app.models.agents import Agent, AgentCommand
 from app.models.company import Company
 from app.models.enums import AgentStatus, CommandStatus, CommandType
-from app.schemas.commands import CommandStatusOut, SyncRequest
+from app.schemas.commands import AgentCommandOut, CommandStatusOut, ResultRequest, SyncRequest
+from app.services.settings import get_setting
 from tally_contract.errors import ErrorCode
 
 CANNOT_RECEIVE = (AgentStatus.REVOKED, AgentStatus.INCOMPATIBLE)  # D-012
@@ -148,3 +152,157 @@ async def get_command(
         raise AppError(ErrorCode.NOT_FOUND, "Command not found", 404)
     command, agent, tz = row
     return to_out(command, agent, tz)
+
+
+# --- the Agent side (claim, progress, result) ---------------------------------------------
+
+
+def _agent_out(command: AgentCommand) -> AgentCommandOut:
+    return AgentCommandOut(
+        command_id=command.command_id,
+        sync_mode=command.sync_mode,
+        date_from=command.date_from,
+        date_to=command.date_to,
+        status=command.status,
+        lease_expires_at=command.lease_expires_at,
+    )
+
+
+def _mine(agent: AgentContext, command_id: uuid.UUID) -> ColumnElement[bool]:
+    return and_(
+        AgentCommand.command_id == command_id,
+        AgentCommand.agent_id == agent.agent_id,
+        AgentCommand.company_id == agent.company_id,
+    )
+
+
+async def _not_applicable(
+    session: AsyncSession, agent: AgentContext, command_id: uuid.UUID
+) -> AppError:
+    """No row matched: 404 if it is not this Agent's command (other companies' commands are
+    never revealed), else 409 and the row is left exactly as it was (AGT-1.9)."""
+    mine = await session.scalar(select(AgentCommand.command_id).where(_mine(agent, command_id)))
+    if mine is None:
+        return AppError(ErrorCode.NOT_FOUND, "Command not found", 404)
+    return AppError(
+        ErrorCode.INVALID_COMMAND_STATE, "The command is not in a state that allows this", 409
+    )
+
+
+async def _lease(session: AsyncSession, agent: AgentContext) -> timedelta:
+    seconds = await get_setting(session, agent.company_id, "agent.command_lease_seconds")
+    return timedelta(seconds=seconds)
+
+
+async def claim_uncommitted(
+    session: AsyncSession, agent: AgentContext, command_id: uuid.UUID, now: datetime
+) -> AgentCommand:
+    """AGT-1.3: one conditional UPDATE, so a command can be claimed only once. The partial
+    unique index allows one command in progress per Agent (D-035 #13). Does not commit."""
+    if agent.status == AgentStatus.INCOMPATIBLE:
+        raise AppError(ErrorCode.AGENT_INCOMPATIBLE, "This Agent is below the minimum version", 409)
+    if agent.status != AgentStatus.ACTIVE:
+        raise AppError(
+            ErrorCode.INVALID_COMMAND_STATE, "The Agent is not active; send a heartbeat", 409
+        )
+    timeout = await get_setting(session, agent.company_id, "agent.command_claim_timeout_minutes")
+    lease = await _lease(session, agent)
+    try:
+        async with session.begin_nested():
+            command = (
+                await session.execute(
+                    update(AgentCommand)
+                    .where(
+                        _mine(agent, command_id),
+                        AgentCommand.status == CommandStatus.PENDING,
+                        AgentCommand.created_at > now - timedelta(minutes=timeout),  # D-035 #3
+                    )
+                    .values(
+                        status=CommandStatus.CLAIMED, claimed_at=now, lease_expires_at=now + lease
+                    )
+                    .returning(AgentCommand)
+                )
+            ).scalar_one_or_none()
+    except IntegrityError:
+        raise AppError(
+            ErrorCode.INVALID_COMMAND_STATE, "Agent already has a command in progress", 409
+        ) from None
+    if command is None:
+        raise await _not_applicable(session, agent, command_id)
+    return command
+
+
+async def claim(
+    session: AsyncSession, agent: AgentContext, command_id: uuid.UUID
+) -> AgentCommandOut:
+    command = await claim_uncommitted(session, agent, command_id, datetime.now(UTC))
+    await session.commit()
+    return _agent_out(command)
+
+
+async def progress(
+    session: AsyncSession, agent: AgentContext, command_id: uuid.UUID
+) -> AgentCommandOut:
+    """AGT-1.7: CLAIMED/RUNNING -> RUNNING and the lease renewed, only while the lease is
+    unexpired (D-035 #2). Also a heartbeat (D-035 #12)."""
+    now = datetime.now(UTC)
+    lease = await _lease(session, agent)
+    command = (
+        await session.execute(
+            update(AgentCommand)
+            .where(
+                _mine(agent, command_id),
+                AgentCommand.status.in_([CommandStatus.CLAIMED, CommandStatus.RUNNING]),
+                AgentCommand.lease_expires_at > now,
+            )
+            .values(status=CommandStatus.RUNNING, lease_expires_at=now + lease)
+            .returning(AgentCommand)
+        )
+    ).scalar_one_or_none()
+    if command is None:
+        raise await _not_applicable(session, agent, command_id)
+    await session.execute(
+        update(Agent)
+        .where(Agent.agent_id == agent.agent_id)
+        .values(
+            last_heartbeat_at=now,
+            status=case(
+                (Agent.status == AgentStatus.OFFLINE, AgentStatus.ACTIVE), else_=Agent.status
+            ),
+        )
+    )
+    await session.commit()
+    return _agent_out(command)
+
+
+async def result(
+    session: AsyncSession, agent: AgentContext, command_id: uuid.UUID, body: ResultRequest
+) -> AgentCommandOut:
+    """COMPLETED only from RUNNING; FAILED from CLAIMED or RUNNING (D-035 #4); lease unexpired."""
+    now = datetime.now(UTC)
+    allowed = (
+        [CommandStatus.RUNNING]
+        if body.status == CommandStatus.COMPLETED
+        else [CommandStatus.CLAIMED, CommandStatus.RUNNING]
+    )
+    command = (
+        await session.execute(
+            update(AgentCommand)
+            .where(
+                _mine(agent, command_id),
+                AgentCommand.status.in_(allowed),
+                AgentCommand.lease_expires_at > now,
+            )
+            .values(
+                status=body.status,
+                completed_at=now,
+                error_code=body.error_code,
+                error_message=body.error_message,
+            )
+            .returning(AgentCommand)
+        )
+    ).scalar_one_or_none()
+    if command is None:
+        raise await _not_applicable(session, agent, command_id)
+    await session.commit()
+    return _agent_out(command)

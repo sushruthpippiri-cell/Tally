@@ -1,5 +1,7 @@
 """Endpoints the Agent calls. The backend never calls the Agent (CLAUDE.md rule 12)."""
 
+import uuid
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +13,8 @@ from app.schemas.agents import (
     RegisterRequest,
     RegisterResponse,
 )
-from app.services import agents
+from app.schemas.commands import AgentCommandOut, ResultRequest
+from app.services import agents, commands
 
 router = APIRouter(prefix="/agent", tags=["agent protocol"])
 
@@ -30,3 +33,34 @@ async def heartbeat(
     session: AsyncSession = Depends(get_session),
 ) -> HeartbeatResponse:
     return await agents.heartbeat(session, agent, body)
+
+
+@router.post("/commands/{command_id}/claim", summary="Claim a PENDING command (AGT-1.3)")
+async def claim(
+    command_id: uuid.UUID,
+    agent: AgentContext = Depends(current_agent),
+    session: AsyncSession = Depends(get_session),
+) -> AgentCommandOut:
+    return await commands.claim(session, agent, command_id)
+
+
+@router.post(
+    "/commands/{command_id}/progress",
+    summary="Renew the lease (AGT-1.7); send on a timer, independent of Tally",
+)
+async def progress(
+    command_id: uuid.UUID,
+    agent: AgentContext = Depends(current_agent),
+    session: AsyncSession = Depends(get_session),
+) -> AgentCommandOut:
+    return await commands.progress(session, agent, command_id)
+
+
+@router.post("/commands/{command_id}/result", summary="Finish: COMPLETED or FAILED")
+async def result(
+    command_id: uuid.UUID,
+    body: ResultRequest,
+    agent: AgentContext = Depends(current_agent),
+    session: AsyncSession = Depends(get_session),
+) -> AgentCommandOut:
+    return await commands.result(session, agent, command_id, body)

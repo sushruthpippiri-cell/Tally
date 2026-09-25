@@ -91,7 +91,7 @@ async def current_agent(
     if parsed is None:
         raise _invalid()
     agent_id, secret = parsed
-    agent = await session.get(Agent, agent_id)
+    agent = await session.get(Agent, agent_id, populate_existing=True)  # always fresh
     if (
         agent is None
         or agent.credential_salt is None

@@ -51,6 +51,9 @@ NON_COMPANY_ROUTES: dict[tuple[str, str], Access] = {
     ("GET", "/redoc"): "public",
     ("POST", "/agent/register"): "public",  # authenticated by the one-time registration token
     ("POST", "/agent/heartbeat"): "agent",  # SRS 19.2: Agent credential
+    ("POST", "/agent/commands/{command_id}/claim"): "agent",
+    ("POST", "/agent/commands/{command_id}/progress"): "agent",
+    ("POST", "/agent/commands/{command_id}/result"): "agent",
     ("POST", "/auth/change-password"): "user",  # acts on the caller only
     ("GET", "/companies"): "user",  # lists only the caller's companies
     ("POST", "/companies"): "user",  # D-006: the caller becomes OWNER of the new company

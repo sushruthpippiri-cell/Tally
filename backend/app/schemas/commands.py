@@ -65,3 +65,14 @@ class ResultRequest(BaseModel):
         else:
             raise ValueError("status must be COMPLETED or FAILED")
         return self
+
+
+class AgentCommandOut(BaseModel):
+    """What the Agent sees after claim/progress/result."""
+
+    command_id: uuid.UUID
+    sync_mode: SyncMode
+    date_from: date | None
+    date_to: date | None
+    status: CommandStatus
+    lease_expires_at: datetime | None
