@@ -62,7 +62,7 @@ class RateLimiter:
     """Fixed one-minute windows per key.
 
     ponytail: per-process memory, so N replicas allow N x the limit; move the counters to
-    Postgres or Redis before running more than one replica (D-033 #3).
+    Postgres or Redis before running more than one replica: required task P16.11 (D-033 #3).
     """
 
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:

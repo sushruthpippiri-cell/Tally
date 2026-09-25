@@ -247,7 +247,7 @@ Approved with the Phase 2 plan, including the owner's additions (items 4–9).
 |---|---|---|
 | 1 | Passwords hashed with the `bcrypt` package directly, not passlib | passlib is unmaintained and breaks with current bcrypt releases. Same algorithm (SEC-1.1). |
 | 2 | Table `refresh_tokens(jti, user_id, expires_at, used_at)` (migration 0002). A refresh marks its token used and issues a new pair; `change-password` closes all of the user's open tokens | A stateless JWT cannot be rotated: without a record of used tokens an old refresh token keeps working. |
-| 3 | Rate limits (SEC-1.9) are an in-process fixed-window counter, not slowapi. Key = user id for a valid access token (1,000/min), else client IP (100/min); 429 with `Retry-After` | About 30 lines; no new dependency. Ceiling: per process, so N replicas allow N× the limit; move the counters to Postgres or Redis before running more than one replica. |
+| 3 | Rate limits (SEC-1.9) are an in-process fixed-window counter, not slowapi. Key = user id for a valid access token (1,000/min), else client IP (100/min); 429 with `Retry-After` | About 30 lines; no new dependency. Ceiling: per process, so N replicas allow N× the limit; move the counters to Postgres or Redis before running more than one replica — required task P16.11. |
 | 4 | **Refresh-token reuse** revokes every open refresh token of that user, is audited (`REFRESH_TOKEN_REUSE`, FAILURE) and returns 401 | A reused token was probably stolen, so both copies must stop working. |
 | 5 | **Client IP**: `X-Forwarded-For` is honoured only when the direct peer is in `TRUSTED_PROXIES` (env, CIDR list, empty by default); the client is the rightmost address that is not itself a trusted proxy. Otherwise the peer address is used | Anyone can send `X-Forwarded-For`; trusting it blindly lets a client pick its own rate-limit bucket, and ignoring it puts every user behind a load balancer in one bucket. |
 | 6 | **HTTPS** (SEC-1.3): the effective scheme is `X-Forwarded-Proto` only from a trusted proxy, else the connection's own scheme. In prod a non-https effective scheme gets 400; HSTS is sent in prod | Same reasoning as item 5: a spoofed header from an untrusted peer must not pass as https. |
@@ -258,7 +258,7 @@ Approved with the Phase 2 plan, including the owner's additions (items 4–9).
 | 11 | `GET /companies/{id}/settings` returns `{settings: {key: {value, is_default}}, feature_flags: {name: {enabled, is_default}}}`; `PUT` takes a partial `{settings?, feature_flags?}`, validates everything before writing anything, and rejects unknown keys (422). Cross-key rules: `stock.dead_stock_days > stock.slow_threshold_days` | SRS 19.2 has one "Settings and flags" endpoint. D-009 needs slow < dead. |
 | 12 | A `COMPANY_GROUP` allow-list entry that names a predefined group is rejected (use the `PREDEFINED` form) | One stored form per group, so a rename or G32 fallback never gives two answers. |
 
-### D-034 Financial year starts on day 1–28 of a month — PROPOSED
+### D-034 Financial year starts on day 1–28 of a month — ACCEPTED (product owner, 2026-09-25)
 `financial_year_start` must fall on day 1–28 of a month; other days get 422. Every month has those
 days, so financial-year and quarter boundaries (`app/core/periods.py`) always exist; a start of
 31 January would otherwise give quarters starting "31 April". Indian companies use 1 April, so

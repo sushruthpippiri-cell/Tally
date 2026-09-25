@@ -1,6 +1,6 @@
 # Phase 16 — Hardening, performance, backup, end-to-end & acceptance
 
-**Size:** L (split into three sessions: P16.1–P16.4, P16.5–P16.7, P16.8–P16.10) · **Depends on:** all earlier phases
+**Size:** L (split into three sessions: P16.1–P16.4 + P16.11, P16.5–P16.7, P16.8–P16.10) · **Depends on:** all earlier phases
 **SRS:** 14.2, 15, 16, 17, 20, 22, 23, 24, 25, 28
 **Requirements:** SEC-1.1–1.15, LOG-1.1–1.2, PERF-1.1–1.4, PERF-VAL-1–2, NFR-REL-1–2, NFR-SCALE-1, NFR-UI-1–3, BKP-1.1–1.6, TEST-5.1–5.2
 **Acceptance:** AC-59, AC-60 (exhaustive), AC-64, AC-65, and the full AC-01 to AC-66 run · **Decisions:** D-028
@@ -48,10 +48,13 @@ Finalize `tools/traceability.py`: every requirement ID in the SRS maps to at lea
 ### P16.10 Acceptance run (SRS 24, 28)
 Script that runs the AC-tagged tests and writes `docs/acceptance-report.md`: AC-01 to AC-66 with PASS/FAIL, and "blocked by Gxx" where live-Tally evidence is still missing. Update the readiness summary in the SRS Section 28 format (ready / validation required / implementation test required / business decision required).
 
+### P16.11 Rate limits shared across replicas — REQUIRED before production (SEC-1.9, D-033 #3)
+The SEC-1.9 limits (100/min per IP unauthenticated, 1,000/min per user) are counted in each backend process's memory (`RateLimiter` in `app/core/middleware.py`), so N replicas allow N× the limit. Move the counters to shared storage (a Postgres table with an atomic `INSERT … ON CONFLICT … DO UPDATE … RETURNING count`, or Redis if one is deployed by then), keeping the key rules (user id for a valid access token, else the client IP resolved through `TRUSTED_PROXIES`) and the 429 + `Retry-After` response. Test: two app instances sharing the store together allow no more than the limit. Close the ceiling in `docs/security-review.md`. **Production must not run more than one backend replica until this is done.** (The per-email login throttle already counts from `audit_logs` and is unaffected.)
+
 ## Definition of done
-Security sweep, failure-mode tests, E2E suite and traceability all blocking and green in CI; benchmark template filled for the synthetic run; restore drill executed once; acceptance report generated.
+Rate limits enforced across replicas (P16.11); security sweep, failure-mode tests, E2E suite and traceability all blocking and green in CI; benchmark template filled for the synthetic run; restore drill executed once; acceptance report generated.
 
 ## Kickoff prompt
 ~~~text
-Read CLAUDE.md, docs/plan/phase-16-hardening-acceptance.md, docs/progress.md and SRS Sections 14.2, 15, 16, 17, 22–25, 28. In plan mode, propose the three sessions' scope. Implement P16.1–P16.4 this session; P16.5–P16.7 next; P16.8–P16.10 last. Commit per task and update docs/progress.md each session.
+Read CLAUDE.md, docs/plan/phase-16-hardening-acceptance.md, docs/progress.md and SRS Sections 14.2, 15, 16, 17, 22–25, 28. In plan mode, propose the three sessions' scope. Implement P16.1–P16.4 and P16.11 this session; P16.5–P16.7 next; P16.8–P16.10 last. Commit per task and update docs/progress.md each session.
 ~~~

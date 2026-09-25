@@ -12,6 +12,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-25 | P2 follow-up | (see log) | D-034 ACCEPTED. Per-replica rate-limit ceiling added to the Phase 16 plan as required task P16.11 (before production). |
 | 2026-09-25 | P2.7 audit service | 330c906 | `audit.record()` writes every LOG-1.2 field; `diff()`. D-033 ACCEPTED with the plan. |
 | 2026-09-25 | P2.9 periods | 922b481 | TZ-safe day bounds, FY/quarter labels; AC-62 run under 3 server time zones. AC-62/AC-63 partial until analytics group by them (P8). |
 | 2026-09-25 | P2.2 auth | ba670d2 | Migration 0002 (`refresh_tokens`, login index). Rotation; reuse revokes all sessions; per-email throttle from audit rows (D-033 #7). `RATE_LIMITED` code. |
