@@ -46,6 +46,9 @@ async def test_login_issues_tokens_that_expire_within_24h(
     assert float(str(access["exp"])) - now <= 30 * 60 + 5
     assert float(str(refresh["exp"])) - now <= 24 * 3600 + 5
     assert body["expires_in"] == 1800
+    assert user.password_hash.startswith("$2b$")  # bcrypt
+    rotated = await api.post("/auth/refresh", json={"refresh_token": body["refresh_token"]})
+    assert rotated.status_code == 200  # the refresh flow
     me = await api.post(
         "/auth/change-password",
         json={"current_password": "wrong-password", "new_password": "x" * 10},
@@ -83,7 +86,6 @@ async def test_wrong_password_unknown_email_and_inactive_user_look_the_same(
     assert answers[0].json()["message"] == "Invalid email or password"
 
 
-@pytest.mark.req_partial("SEC-1.1")  # token expiry; the refresh flow is the next tests
 async def test_expired_access_token_is_rejected(
     api: httpx.AsyncClient, session: AsyncSession
 ) -> None:

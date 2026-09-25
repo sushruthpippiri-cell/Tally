@@ -3,6 +3,8 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
+P2 (identity, RBAC, settings) — local suite PASS 2026-09-25 ([phase-02](test-reports/phase-02.md)); waiting on CI. Next: P3 (Agent control plane) — not started; waits for the owner.
+
 P1 (data model) — **complete** 2026-09-23. Local suite PASS ([phase-01](test-reports/phase-01.md), 183 tests, 0 skipped) and CI green (run 35887137380, both `check` and `agent-windows`). Next: P2 (identity, RBAC, settings) — not started; waits for the owner.
 
 P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-00.md), 78 tests) and CI green (run 35881605525, both `check` and `agent-windows`).
@@ -10,6 +12,16 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-25 | P2.7 audit service | 330c906 | `audit.record()` writes every LOG-1.2 field; `diff()`. D-033 ACCEPTED with the plan. |
+| 2026-09-25 | P2.9 periods | 922b481 | TZ-safe day bounds, FY/quarter labels; AC-62 run under 3 server time zones. AC-62/AC-63 partial until analytics group by them (P8). |
+| 2026-09-25 | P2.2 auth | ba670d2 | Migration 0002 (`refresh_tokens`, login index). Rotation; reuse revokes all sessions; per-email throttle from audit rows (D-033 #7). `RATE_LIMITED` code. |
+| 2026-09-25 | P2.3/P2.4 permissions | e9bfb8c | SRS 14.1 matrix, `require()` (a `Require` object the route test can read), `CompanyContext`, `scoped()`. |
+| 2026-09-25 | P2.5 companies + route access test | c5266d9 | `tests/api/test_route_access.py` enumerates every route (`fastapi.routing.iter_route_contexts`); verified it fails for a route without `require()`, a view permission on a write route, and an unlisted route. D-034 PROPOSED (FY start day 1-28). |
+| 2026-09-25 | P2.6 users and roles | 580c28d | Attach existing accounts; per-company removal; last-Owner 409 (company row locked); all audited. |
+| 2026-09-25 | P2.8 settings and flags | 0227a9d | Registry of all SRS 18.2 keys + 3 additions; allow-lists by identifier, shown by current name; AC-59. |
+| 2026-09-25 | P2.10 middleware | 4514eb0 | CORS, 100/1000 rate limits, trusted-proxy IP and scheme, HTTPS in prod, request IDs, headers; `HTTPS_REQUIRED` code; `docs/security-review.md`. |
+| 2026-09-25 | P2.1 create-owner CLI | 5b4f1cb | Manual smoke test on the dev DB: owner login, company, Accountant PUT settings → 403, Owner → 200. |
+| 2026-09-25 | Env | — | The repo moved to `~/Desktop/tally-platform`; `.venv` scripts still pointed at the old path, so `uv sync --all-packages --reinstall` was needed once. |
 | 2026-09-23 | P1.1 model conventions, types, enums | 631d0e7 | Money/Quantity/Rate NUMERIC, timestamptz, StrEnum CHECKs, tenant composite-FK helper; metadata convention tests. |
 | 2026-09-23 | P1.2 companies, users, roles | 92e7776 | Single migration 0001 started; roles seeded. Rollback-per-test `session` fixture (cannot test commits; SYNC-6.1/6.2, TEST-3.3 need a committing fixture). |
 | 2026-09-23 | P1.3 agents, commands, schedules | 0eccccc | RTE-1.4 trigger: agent_id/company_id immutable. |
@@ -62,6 +74,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
+| 02 | [phase-02.md](test-reports/phase-02.md) | PASS - 416 tests, 0 failed, 1 skipped (no Agent routes until P3), 90.2% coverage; CI pending |
 | 01 | [phase-01.md](test-reports/phase-01.md) | PASS - 183 tests, 0 failed, 0 skipped, 91.4% coverage; CI run 35887137380 green |
 | 00 | [phase-00.md](test-reports/phase-00.md) | PASS - 78 tests, 0 failed, 0 skipped, 83% coverage; CI run 35881605525 green |
 
