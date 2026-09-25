@@ -8,7 +8,10 @@ from typing import Any
 import httpx
 import pytest
 from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from tally_tools.phase_report import assert_test_database
 
 # Must be set before app.core.config is first imported.
 os.environ.setdefault("ENV", "test")
@@ -83,3 +86,34 @@ async def client_for(
         transport=httpx.ASGITransport(app=app, **transport), base_url=base
     ) as client:
         yield client
+
+
+@pytest.fixture
+async def committed() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """Sessions that REALLY commit, each on its own connection - for testing locks,
+    compare-and-set updates and races, which the rollback `session` fixture cannot prove.
+
+    Race two operations by giving each its own session. Afterwards every company- and
+    user-scoped row is removed with TRUNCATE ... CASCADE (as the owner role; `roles` survives),
+    and only ever on a database whose name ends in `_test` (D-035 #14).
+    """
+    from app.core.config import get_settings
+
+    app_url, owner_url = committed_database_urls(get_settings())
+    engine = create_async_engine(app_url, pool_size=12)
+    try:
+        yield async_sessionmaker(engine, expire_on_commit=False)
+    finally:
+        await engine.dispose()
+        owner = create_async_engine(owner_url.replace("+psycopg", "+asyncpg"))
+        async with owner.begin() as conn:
+            await conn.execute(text("TRUNCATE companies, users CASCADE"))
+        await owner.dispose()
+
+
+def committed_database_urls(settings: Any) -> tuple[str, str]:
+    """(app url, owner url); raises unless both name a `_test` database (D-035 #14)."""
+    app_url, owner_url = settings.database_url or "", settings.database_migration_url or ""
+    assert_test_database(app_url)
+    assert_test_database(owner_url)
+    return app_url, owner_url

@@ -263,3 +263,23 @@ Approved with the Phase 2 plan, including the owner's additions (items 4–9).
 days, so financial-year and quarter boundaries (`app/core/periods.py`) always exist; a start of
 31 January would otherwise give quarters starting "31 April". Indian companies use 1 April, so
 this should never bite. Revisit if a real Tally company uses a later start day.
+
+### D-035 Phase 3 choices: command lifecycle, registration, lease timing — ACCEPTED (product owner, 2026-09-25)
+Approved with the Phase 3 plan, including the owner's additions (items 11–14).
+
+| # | Choice | Why |
+|---|---|---|
+| 1 | `agent_commands.error_code` (migration 0003) | The result call carries an error code (P3.8); FAILED_AGENT_LOST and EXPIRED record theirs. |
+| 2 | Every Agent-side transition (progress, result) needs an unexpired lease; a lapsed lease is final even before the lost-Agent job runs | AGT-1.8 says the command becomes FAILED_AGENT_LOST once the deadline passes; the job and a late call can never both win. |
+| 3 | Claim rejects a PENDING command already past the claim timeout | AGT-1.10, even before the expiry job has run. |
+| 4 | COMPLETED only from RUNNING; FAILED from CLAIMED or RUNNING | An Agent can fail right after claiming (e.g. COMPANY_MISMATCH) but cannot complete work it never started. |
+| 5 | A Tally GUID already bound to another platform company → 409 `COMPANY_MISMATCH` | `companies.tally_guid` is unique; one Tally company belongs to one account. |
+| 6 | Commands are delivered only to ACTIVE Agents | REGISTERING has not confirmed its GUID; INCOMPATIBLE receives none (VER-1.2). |
+| 7 | D-023 default schedules: `0 * * * *` INCREMENTAL and `0 2 * * *` RECONCILIATION, in `company_timezone`, inactive until the first FULL sync | Concrete values for D-023. |
+| 8 | APScheduler 3.x runs the jobs and parses cron | One dependency for interval jobs and cron evaluation (P3.10). |
+| 9 | Registration and heartbeat return one `config` object (poll interval, progress interval, command lease, batch size, Tally host/port/company, expected TDL version, per-collection sync mode) | SRS 4.2 step 8; settings changes reach the Agent on its next heartbeat. |
+| 10 | `GET /companies/{id}/commands/{command_id}` | AGT-1.6: command status visible as it changes. |
+| 11 | **Lease vs long Tally exports**: default command lease `agent.command_lease_seconds` = 300 s; the Agent sends progress every 60 s (`progress_interval_seconds`); the lease setting must be ≥ 180 s. The Agent (P7) sends progress **on its own timer, independent of any Tally request in flight** (`docs/agent-protocol.md`) | One Tally request can take 10 minutes and is retried once (AGT-4.3); progress tied to request completion would turn a healthy sync into FAILED_AGENT_LOST. |
+| 12 | A progress call also updates `last_heartbeat_at` | An Agent busy with a long sync is never marked OFFLINE. |
+| 13 | **One command per Agent at a time**: a heartbeat never hands out a command while that Agent has one CLAIMED or RUNNING, and the database enforces it with a partial unique index `agent_commands(agent_id) WHERE status IN ('CLAIMED','RUNNING')`; a claim that hits it → 409 `INVALID_COMMAND_STATE` | A `NOT EXISTS` check in the claim is not race-proof: two claims of different rows can both pass under READ COMMITTED. |
+| 14 | The committing test fixture refuses to TRUNCATE unless the database name ends in `_test` (same guard as the phase report) | Concurrency tests really commit; the cleanup must never reach the dev database. |
