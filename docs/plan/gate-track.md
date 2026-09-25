@@ -4,20 +4,24 @@
 **SRS:** 7, TEST-2.2, TEST-4.1, VAL-1.1–1.3, VER-1.3
 **Why it matters:** Claude Code cannot reach TallyPrime. Everything it writes about Tally's XML is a draft until real output is captured. This track captures that output, turns it into fixtures and tests, and flips the gate switches that unlock features.
 
-## Step G-A — Build the probe tool (Claude Code, after P4.3 exists)
-`tools/tally_probe/` — a small Python CLI that runs on Windows (no backend needed), reusing `tally_contract` request builders:
-- `probe list` — every gate test G1–G33 with the requests it sends.
-- `probe run G7 --company "Test Co"` — sends the requests and saves request + raw response under `fixtures/xml/live/G7/<timestamp>/` with a `meta.json` (TallyPrime version/build if obtainable, Windows version, date).
-- `probe run-all --company "Test Co"`.
-- `probe scenario G8` — guided, interactive tests that need you to change something in Tally between captures: capture → "edit voucher 1001 in Tally, then press Enter" → capture → diff ALTERIDs and print the observed result. Scenarios for G8 (edit), G9 (cancel), G11 (delete), G29 (make a master inactive), AGT-5.4 (rename company), ACC-7.5 (move a group).
-- `probe summarize` — prints a proposed Status/Evidence line per gate for `docs/validation-gate.md`, which a human confirms.
-
-Kickoff prompt:
-~~~text
-Read CLAUDE.md, docs/plan/gate-track.md, docs/validation-gate.md and shared/tally_contract. Build tools/tally_probe as specified in Step G-A, runnable on Windows with only the shared package and its dependencies, with unit tests using the mock Tally server. Also write docs/gate-track-howto.md: install steps for the Windows machine and the exact commands I will run. Commit per task.
-~~~
+## Step G-A — The capture kit (Claude Code) — DONE in P4 (D-038)
+The Python `tally_probe` planned here was replaced by a **PowerShell-only capture kit**, because
+the capture machine (a Windows 11 ARM VM running TallyPrime) must need nothing installed.
+- Sources: `tools/capture_kit/` (`Capture-Tally.ps1`, `README.md`, `CHECKLIST.md`); requests are
+  generated from `tally_contract.requests` by `make capture-kit` into `dist/tally-capture-kit/`
+  (+ a zip), together with `tdl/TA_Minimal.tdl` and `tdl/TallyAnalytics.tdl`.
+- Steps: `check` (server reachable, company open, TDL loaded — changes nothing), `capture` (every
+  export request), `reference` (TallyPrime's built-in reports, TEST-4.1), `all`, and
+  `scenario -Name G8|G9|G11|G29|G32|ACC-7.5|AGT-5.4` (capture, change something in Tally,
+  capture again).
+- Every response is saved as raw bytes with a `.meta.json`; a failing request is saved and the
+  run continues; each run is zipped.
+- Proven on real Windows PowerShell 5.1 against `tools/tally_tools/mock_tally.py` in the
+  path-filtered `capture-kit` CI workflow.
 
 ## Step G-B — Create the test company in TallyPrime (you)
+Follow `tools/capture_kit/CHECKLIST.md` (the list below, turned into a per-gate checklist with Educational-mode dates). **Test company only — never a real business's books.**
+
 Use a dedicated test company, never a client's real books. Financial year from 1 April. Load a second company at the same time (needed for G20 / AC-23). Enter:
 
 **Groups:** Sales Accounts → "Sales – Online" → "Sales – Online – Marketplace" (three-level chain); a custom group under Sundry Debtors ("Retail Customers"); a custom group under Bank Accounts.
@@ -36,13 +40,15 @@ Use a dedicated test company, never a client's real books. Financial year from 1
 - Receipts settling a bill in two parts (Against Reference); a receipt as Advance; a payment On Account.
 - Credit note against a specific sales bill (G26); a credit note with no bill reference; a debit note.
 - A voucher using a user-defined field (G22, if you have a TDL customisation for one).
-- Then, via the probe scenarios: edit a voucher (G8), cancel one (G9), delete one (G11), make a master inactive (G29), rename the company (AGT-5.4), move a group to a new parent (ACC-7.5).
+- Then, via the capture kit scenarios: edit a voucher (G8), cancel one (G9), delete one (G11), make a master inactive (G29), rename the company (AGT-5.4), move a group to a new parent (ACC-7.5).
 
 ## Step G-C — Reference capture with tally-database-loader (you, TEST-4.1)
-Run tally-database-loader (github.com/dhananjay1405/tally-database-loader) against the test company and keep its output (database dump or CSVs) under `fixtures/reference/tdl-loader/<date>/`. This is comparison evidence, not truth.
+`Capture-Tally.ps1 -Step reference` saves TallyPrime's own reports with nothing to install. Optionally (needs Node.js only, `"technology": "csv"`; kit README, last section) run tally-database-loader (github.com/dhananjay1405/tally-database-loader) against the test company and keep its output (database dump or CSVs) under `fixtures/reference/tdl-loader/<date>/`. This is comparison evidence, not truth.
 
 ## Step G-D — Load the project TDL and capture (you)
-Load the files from `tdl/` into TallyPrime, confirm `tally-agent test-tally` works, then run `probe run-all` and the scenarios. Commit `fixtures/xml/live/` (test-company data only).
+Follow the capture kit README: load `TA_Minimal.tdl`, run `-Step check`, swap in
+`TallyAnalytics.tdl`, run `-Step all` and each scenario. Copy the run folders into
+`fixtures/xml/live/` (test-company data only) with your filled-in `CHECKLIST.md`.
 
 ## Step G-E — Analyse and update (Claude Code)
 Kickoff prompt:
@@ -51,7 +57,7 @@ Read CLAUDE.md, docs/plan/gate-track.md, docs/validation-gate.md and every captu
 ~~~
 
 ## Step G-F — Keep it current (VER-1.3)
-Re-run `probe run-all` on each new TallyPrime release you intend to support; record certified releases in a compatibility table in `docs/validation-gate.md`. Never assume version numbers in advance.
+Re-run the capture kit (`-Step all` and the scenarios) on each new TallyPrime release you intend to support; record certified releases in a compatibility table in `docs/validation-gate.md`. Never assume version numbers in advance.
 
 ## What flips when a gate passes
 

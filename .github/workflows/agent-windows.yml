@@ -1,0 +1,40 @@
+name: agent-windows
+
+# Windows minutes cost twice the Linux rate on this private repo (D-038 #7): run only when the
+# Agent or the shared contract it ships with changes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agent/**"
+      - "shared/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".gitattributes"
+      - ".github/workflows/agent-windows.yml"
+  pull_request:
+    paths:
+      - "agent/**"
+      - "shared/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".gitattributes"
+      - ".github/workflows/agent-windows.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  agent-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv publishes no floating major tag past v7, so pin the exact release.
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages
+      - run: uv run pytest agent shared -q

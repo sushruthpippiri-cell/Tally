@@ -1,5 +1,7 @@
 name: check
 
+# Linux, on every push. The Windows jobs live in their own workflows (agent-windows.yml,
+# capture-kit.yml) with path filters: Windows minutes cost twice as much (D-038 #7).
 on:
   push:
     branches: [main]
@@ -52,16 +54,3 @@ jobs:
         with:
           name: test-logs
           path: logs/test-runs/
-
-  agent-windows:
-    runs-on: windows-latest
-    # Agent tests are allowed to fail until Phase 7 builds the real Agent.
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v7
-      # setup-uv publishes no floating major tag past v7, so pin the exact release.
-      - uses: astral-sh/setup-uv@v10.2.0
-        with:
-          enable-cache: true
-      - run: uv sync --all-packages
-      - run: uv run pytest agent shared -q

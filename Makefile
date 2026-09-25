@@ -4,7 +4,7 @@ PHASE ?= dev
 TEST_DB_URL ?= postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally_test
 
 .PHONY: up down migrate test test-backend test-agent lint format typecheck importlint check \
-        traceability phase-report hooks
+        traceability phase-report hooks capture-kit
 
 hooks:  ## Install the git pre-commit hook (ruff + mypy); once per clone
 	git config core.hooksPath .githooks
@@ -49,3 +49,6 @@ traceability:
 phase-report:  ## Fresh DB + full suite + check, then docs/test-reports/phase-NN.md
 	@test -n "$(PHASE)" || (echo "usage: make phase-report PHASE=00" && exit 1)
 	uv run python -m tally_tools.phase_report --phase $(PHASE)
+
+capture-kit:  ## Build the PowerShell capture kit into dist/tally-capture-kit/ (+ .zip), D-038
+	uv run python -m tally_tools.capture_kit build --out dist

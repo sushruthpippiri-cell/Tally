@@ -1,0 +1,88 @@
+name: capture-kit
+
+# Runs the PowerShell capture kit on real Windows PowerShell 5.1 against the mock Tally
+# (D-038). Path-filtered: Windows minutes cost twice the Linux rate (D-038 #7).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/capture_kit/**"
+      - "tools/tally_tools/capture_kit.py"
+      - "tools/tally_tools/mock_tally.py"
+      - "shared/tally_contract/requests.py"
+      - "shared/tally_contract/tally_constants.py"
+      - "tdl/**"
+      - ".github/workflows/capture-kit.yml"
+  pull_request:
+    paths:
+      - "tools/capture_kit/**"
+      - "tools/tally_tools/capture_kit.py"
+      - "tools/tally_tools/mock_tally.py"
+      - "shared/tally_contract/requests.py"
+      - "shared/tally_contract/tally_constants.py"
+      - "tdl/**"
+      - ".github/workflows/capture-kit.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture-kit-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: powershell  # Windows PowerShell 5.1, what the capture VM has
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --package tally-tools --no-dev
+      - name: Build the kit
+        run: uv run --no-sync python -m tally_tools.capture_kit build --out dist
+      - name: Start three mock Tally servers
+        run: |
+          $mock = 'run --no-sync python -m tally_tools.mock_tally'
+          Start-Process -FilePath uv -WindowStyle Hidden -ArgumentList "$mock --port 9000 --company ""Test Co"" --company ""Other Co"" --fail-report TA_CostCentres"
+          Start-Process -FilePath uv -WindowStyle Hidden -ArgumentList "$mock --port 9001 --company ""Test Co"" --no-tdl"
+          Start-Process -FilePath uv -WindowStyle Hidden -ArgumentList "$mock --port 9002 --company ""Test Co"" --utf16"
+          foreach ($port in 9000, 9001, 9002) {
+            $up = $false
+            for ($i = 0; $i -lt 60 -and -not $up; $i++) {
+              try { (New-Object Net.Sockets.TcpClient('127.0.0.1', $port)).Close(); $up = $true }
+              catch { Start-Sleep -Seconds 1 }
+            }
+            if (-not $up) { throw "mock Tally on port $port did not start" }
+          }
+      - name: All steps and a scenario; one report fails and the run continues
+        run: |
+          $kit = 'dist\tally-capture-kit\Capture-Tally.ps1'
+          $out = "$env:RUNNER_TEMP\captures\ok"
+          powershell -ExecutionPolicy Bypass -File $kit -Step all -Company "Test Co" -OtherCompany "Other Co" -TallyHost 127.0.0.1 -Port 9000 -OutDir $out -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw "-Step all exited $LASTEXITCODE" }
+          powershell -ExecutionPolicy Bypass -File $kit -Step scenario -Name G8 -Company "Test Co" -TallyHost 127.0.0.1 -Port 9000 -OutDir $out -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw "-Step scenario exited $LASTEXITCODE" }
+          uv run --no-sync python -m tally_tools.capture_kit verify --captures $out --company "Test Co" --company "Other Co" --fail-report TA_CostCentres
+          if ($LASTEXITCODE -ne 0) { throw 'verify failed' }
+      - name: Check reports a TDL that is not loaded
+        run: |
+          $out = "$env:RUNNER_TEMP\captures\notdl"
+          powershell -ExecutionPolicy Bypass -File dist\tally-capture-kit\Capture-Tally.ps1 -Step check -Company "Test Co" -TallyHost 127.0.0.1 -Port 9001 -OutDir $out -NonInteractive
+          if ($LASTEXITCODE -ne 1) { throw "check should exit 1, got $LASTEXITCODE" }
+          uv run --no-sync python -m tally_tools.capture_kit verify --captures $out --company "Test Co" --no-tdl --expect-check-failed
+          if ($LASTEXITCODE -ne 0) { throw 'verify failed' }
+      - name: UTF-16 answers are saved byte for byte
+        run: |
+          $out = "$env:RUNNER_TEMP\captures\utf16"
+          powershell -ExecutionPolicy Bypass -File dist\tally-capture-kit\Capture-Tally.ps1 -Step capture -Company "Test Co" -TallyHost 127.0.0.1 -Port 9002 -OutDir $out -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw "-Step capture exited $LASTEXITCODE" }
+          uv run --no-sync python -m tally_tools.capture_kit verify --captures $out --company "Test Co" --utf16
+          if ($LASTEXITCODE -ne 0) { throw 'verify failed' }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: capture-kit-output
+          path: ${{ runner.temp }}/captures/
