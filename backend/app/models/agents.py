@@ -79,6 +79,14 @@ class AgentCommand(Base):
         ),
         Index(None, "agent_id", "status"),
         Index(None, "status", "created_at"),  # expiry job
+        # D-035 #13: at most one command in progress per Agent, enforced by the database
+        # (a NOT EXISTS check in the claim would not be race-proof).
+        Index(
+            "uq_agent_commands_one_active",
+            "agent_id",
+            unique=True,
+            postgresql_where=text("status IN ('CLAIMED', 'RUNNING')"),
+        ),
     )
 
     command_id: Mapped[uuid.UUID] = uuid_pk()
@@ -96,6 +104,7 @@ class AgentCommand(Base):
     created_at: Mapped[datetime] = created_at()
     claimed_at: Mapped[datetime | None]
     completed_at: Mapped[datetime | None]
+    error_code: Mapped[str | None]  # D-035 #1; ErrorCode value, no CHECK (the list grows)
     error_message: Mapped[str | None]
 
 

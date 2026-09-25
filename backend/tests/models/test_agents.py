@@ -7,7 +7,7 @@ from sqlalchemy import text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agents import AgentCommand, SyncSchedule
-from app.models.enums import SyncMode
+from app.models.enums import CommandStatus, SyncMode
 from tests.factories import db_error, make_agent, make_command, make_company
 
 
@@ -122,3 +122,20 @@ async def test_unknown_enum_values_rejected(session: AsyncSession, table: str, c
             text(f"UPDATE {table} SET {column} = 'BOGUS' WHERE {key[table]} = :k"),
             {"k": key_value},
         )
+
+
+async def test_an_agent_can_have_only_one_command_in_progress(session: AsyncSession) -> None:
+    """D-035 #13: the database, not a NOT EXISTS check, enforces one active command."""
+    company = await make_company(session)
+    agent = await make_agent(session, company)
+    first, second = await make_command(session, agent), await make_command(session, agent)
+    first.status = CommandStatus.CLAIMED
+    await session.flush()
+    async with db_error(session, "uq_agent_commands_one_active"):
+        second.status = CommandStatus.RUNNING
+        await session.flush()
+    other_agent = await make_agent(session, company, name="agent-2")
+    third = await make_command(session, other_agent)
+    third.status = CommandStatus.RUNNING  # another Agent is unaffected
+    first.status = CommandStatus.COMPLETED
+    await session.flush()

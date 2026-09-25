@@ -3,12 +3,14 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from packaging.version import Version
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import audit
 from app.core.agent_credentials import (
+    AgentContext,
     hash_registration_token,
     new_credential,
     new_registration_token,
@@ -17,11 +19,14 @@ from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.gates import collection_sync_mode
 from app.core.permissions import CompanyContext
-from app.models.agents import Agent, AgentRegistrationToken, SyncSchedule
+from app.models.agents import Agent, AgentCommand, AgentRegistrationToken, SyncSchedule
 from app.models.company import Company
-from app.models.enums import AgentStatus, CollectionType, SyncMode
+from app.models.enums import AgentStatus, CollectionType, CommandStatus, SyncMode, TallyStatus
 from app.schemas.agents import (
     AgentConfig,
+    CommandOut,
+    HeartbeatRequest,
+    HeartbeatResponse,
     RegisterRequest,
     RegisterResponse,
     RegistrationTokenOut,
@@ -225,3 +230,102 @@ async def _register(
         },
     )
     return agent, credential
+
+
+def _compatible(agent_version: str, tdl_version: str) -> bool:
+    settings = get_settings()
+    return Version(agent_version) >= Version(settings.min_agent_version) and Version(
+        tdl_version
+    ) >= Version(settings.min_tdl_version)
+
+
+async def _next_command(session: AsyncSession, agent: Agent, now: datetime) -> CommandOut | None:
+    """The oldest unexpired PENDING command, unless one is already in progress (D-035 #13)."""
+    busy = await session.scalar(
+        select(AgentCommand.command_id).where(
+            AgentCommand.agent_id == agent.agent_id,
+            AgentCommand.status.in_([CommandStatus.CLAIMED, CommandStatus.RUNNING]),
+        )
+    )
+    if busy is not None:
+        return None
+    timeout = await get_setting(session, agent.company_id, "agent.command_claim_timeout_minutes")
+    command = await session.scalar(
+        select(AgentCommand)
+        .where(
+            AgentCommand.agent_id == agent.agent_id,
+            AgentCommand.company_id == agent.company_id,
+            AgentCommand.status == CommandStatus.PENDING,
+            AgentCommand.created_at > now - timedelta(minutes=timeout),
+        )
+        .order_by(AgentCommand.created_at, AgentCommand.command_id)
+        .limit(1)
+    )
+    if command is None:
+        return None
+    return CommandOut(
+        command_id=command.command_id,
+        sync_mode=SyncMode(command.sync_mode),
+        date_from=command.date_from,
+        date_to=command.date_to,
+        created_at=command.created_at,
+    )
+
+
+async def heartbeat(
+    session: AsyncSession, ctx: AgentContext, body: HeartbeatRequest
+) -> HeartbeatResponse:
+    """AGT-1.1, VER-1.x, D-025. The row is locked so a heartbeat and the offline job
+    serialise instead of overwriting each other."""
+    now = datetime.now(UTC)
+    agent = (
+        await session.execute(
+            select(Agent)
+            .where(Agent.agent_id == ctx.agent_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one()
+    agent.agent_version = body.agent_version
+    agent.tdl_version = body.tdl_version
+    agent.tally_version = body.tally_version
+    agent.tally_uptime_seconds = body.tally_uptime_seconds
+    agent.queue_status = body.queue_status.model_dump()
+    agent.last_heartbeat_at = now
+    if agent.last_tally_status != body.tally_status:
+        agent.last_tally_status = body.tally_status
+        agent.tally_status_since = now
+
+    warnings: list[str] = []
+    guid_confirmed = body.confirmed_tally_guid == agent.tally_guid
+    mismatch = body.tally_status == TallyStatus.COMPANY_MISMATCH or (
+        body.confirmed_tally_guid is not None and not guid_confirmed
+    )
+    if mismatch:  # AGT-3.4: a warning; never re-bound, status unchanged
+        warnings.append(
+            "COMPANY_MISMATCH: Tally reports a different company than this Agent is registered "
+            "for; the Agent must be re-registered"
+        )
+    if not _compatible(body.agent_version, body.tdl_version):
+        agent.status = AgentStatus.INCOMPATIBLE  # VER-1.2
+        warnings.append(
+            f"INCOMPATIBLE: Agent {body.agent_version} / TDL {body.tdl_version} is below the "
+            f"minimum {get_settings().min_agent_version} / {get_settings().min_tdl_version}"
+        )
+    elif agent.status == AgentStatus.OFFLINE or (
+        agent.status in (AgentStatus.REGISTERING, AgentStatus.INCOMPATIBLE)
+        and guid_confirmed
+        and not mismatch
+    ):
+        agent.status = AgentStatus.ACTIVE
+    if body.queue_status.full:
+        warnings.append("QUEUE_FULL: the Agent's local queue is full")
+
+    command = (
+        await _next_command(session, agent, now) if agent.status == AgentStatus.ACTIVE else None
+    )
+    config = await agent_config(session, agent)
+    await session.commit()
+    return HeartbeatResponse(
+        status=AgentStatus(agent.status), config=config, command=command, warnings=warnings
+    )

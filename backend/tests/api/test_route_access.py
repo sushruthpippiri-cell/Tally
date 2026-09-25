@@ -27,8 +27,15 @@ from starlette.routing import Route
 from app.core.permissions import ROLE_PERMISSIONS, Permission, Require
 from app.main import create_app
 from app.models.company import Company, User
-from app.models.enums import RoleName
-from tests.factories import auth_header, grant, make_company, make_user
+from app.models.enums import AgentStatus, RoleName
+from tests.factories import (
+    agent_header,
+    auth_header,
+    grant,
+    make_company,
+    make_registered_agent,
+    make_user,
+)
 
 Access = Literal["public", "user", "agent"]
 
@@ -43,6 +50,7 @@ NON_COMPANY_ROUTES: dict[tuple[str, str], Access] = {
     ("GET", "/docs/oauth2-redirect"): "public",
     ("GET", "/redoc"): "public",
     ("POST", "/agent/register"): "public",  # authenticated by the one-time registration token
+    ("POST", "/agent/heartbeat"): "agent",  # SRS 19.2: Agent credential
     ("POST", "/auth/change-password"): "user",  # acts on the caller only
     ("GET", "/companies"): "user",  # lists only the caller's companies
     ("POST", "/companies"): "user",  # D-006: the caller becomes OWNER of the new company
@@ -80,8 +88,16 @@ COMPANY_ROUTES = [(m, p, r) for m, p, r in ENDPOINTS if "{company_id}" in p]
 OTHER_ROUTES = [(m, p, r) for m, p, r in ENDPOINTS if "{company_id}" not in p]
 
 
-def _id(endpoint: tuple[str, str, RouteContext] | None) -> str:
-    return "none" if endpoint is None else f"{endpoint[0]} {endpoint[1]}"
+def _access(endpoint: tuple[str, str, RouteContext]) -> Access | None:
+    return NON_COMPANY_ROUTES.get((endpoint[0], endpoint[1]))
+
+
+AGENT_ROUTES = [e for e in OTHER_ROUTES if _access(e) == "agent"]
+USER_ROUTES = [e for e in OTHER_ROUTES if _access(e) == "user"]
+
+
+def _id(endpoint: tuple[str, str, RouteContext]) -> str:
+    return f"{endpoint[0]} {endpoint[1]}"
 
 
 def _url(path: str, company_id: uuid.UUID) -> str:
@@ -115,6 +131,7 @@ def _is_forbidden(r: httpx.Response) -> bool:
 def test_enumeration_found_the_routes() -> None:
     assert len(COMPANY_ROUTES) >= 2, "no company-scoped routes found: enumeration is broken"
     assert ("POST", "/auth/login") in {(m, p) for m, p, _ in ENDPOINTS}
+    assert AGENT_ROUTES, "no Agent-credential routes found: enumeration is broken"
 
 
 @pytest.mark.parametrize("endpoint", COMPANY_ROUTES, ids=_id)
@@ -205,15 +222,16 @@ async def test_every_non_public_route_needs_a_token(
     api: httpx.AsyncClient, endpoint: tuple[str, str, RouteContext]
 ) -> None:
     method, path, _ = endpoint
+    expected = "CREDENTIAL_INVALID" if _access(endpoint) == "agent" else "NOT_AUTHENTICATED"
     for headers in ({}, {"Authorization": "Bearer not-a-jwt"}):
         r = await _call(api, method, _url(path, uuid.uuid4()), headers)
         assert r.status_code == 401, f"{method} {path}: {r.status_code}"
-        assert r.json()["code"] == "NOT_AUTHENTICATED"
+        assert r.json()["code"] == expected
 
 
 @pytest.mark.parametrize(
     "endpoint",
-    [e for e in OTHER_ROUTES if NON_COMPANY_ROUTES.get((e[0], e[1])) == "user"],
+    USER_ROUTES,
     ids=_id,
 )
 async def test_user_routes_accept_any_signed_in_user(
@@ -224,21 +242,36 @@ async def test_user_routes_accept_any_signed_in_user(
     assert r.status_code not in (401, 403), r.text
 
 
-AGENT_ROUTES = [e for e in OTHER_ROUTES if NON_COMPANY_ROUTES.get((e[0], e[1])) == "agent"]
-
-
-@pytest.mark.parametrize(
-    "endpoint",
-    AGENT_ROUTES
-    or [pytest.param(None, marks=pytest.mark.skip(reason="no Agent-credential routes until P3"))],
-    ids=_id,
-)
-async def test_agent_routes_reject_user_tokens(
+@pytest.mark.req_partial("SEC-2.0a")  # every Agent route needs the bearer; long random: P3.1
+@pytest.mark.parametrize("endpoint", AGENT_ROUTES, ids=_id)
+async def test_agent_routes_take_only_a_valid_agent_credential(
     api: httpx.AsyncClient, session: AsyncSession, endpoint: tuple[str, str, RouteContext]
 ) -> None:
     method, path, _ = endpoint
-    r = await _call(api, method, _url(path, uuid.uuid4()), auth_header(await make_user(session)))
-    assert r.status_code == 401, f"{method} {path} accepted a user token"
+    company = await make_company(session)
+    user_token = auth_header(await make_user(session, company, RoleName.OWNER))
+    _, credential = await make_registered_agent(session, company)
+    _, revoked = await make_registered_agent(
+        session, company, name="revoked", status=AgentStatus.REVOKED
+    )
+    url = _url(path, uuid.uuid4())
+    r = await _call(api, method, url, user_token)
+    assert (r.status_code, r.json()["code"]) == (401, "CREDENTIAL_INVALID"), "user JWT accepted"
+    r = await _call(api, method, url, agent_header(revoked))
+    assert (r.status_code, r.json()["code"]) == (401, "AGENT_REVOKED")
+    r = await _call(api, method, url, agent_header(credential))
+    assert r.status_code not in (401, 403), f"{method} {path} rejected a valid Agent: {r.text}"
+
+
+@pytest.mark.parametrize("endpoint", USER_ROUTES + COMPANY_ROUTES, ids=_id)
+async def test_user_and_company_routes_reject_agent_credentials(
+    api: httpx.AsyncClient, session: AsyncSession, endpoint: tuple[str, str, RouteContext]
+) -> None:
+    method, path, _ = endpoint
+    company = await make_company(session)
+    _, credential = await make_registered_agent(session, company)
+    r = await _call(api, method, _url(path, company.company_id), agent_header(credential))
+    assert (r.status_code, r.json()["code"]) == (401, "NOT_AUTHENTICATED"), r.text
 
 
 async def test_deactivated_user_is_rejected_on_company_routes(

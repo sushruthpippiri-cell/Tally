@@ -1,7 +1,18 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from packaging.version import InvalidVersion, Version
+from pydantic import BaseModel, Field, field_validator
+
+from app.models.enums import AgentStatus, SyncMode, TallyStatus
+
+
+def check_version(value: str) -> str:
+    try:
+        Version(value)
+    except InvalidVersion as exc:
+        raise ValueError(f"not a version number: {value!r}") from exc
+    return value
 
 
 class RegistrationTokenOut(BaseModel):
@@ -32,6 +43,8 @@ class RegisterRequest(BaseModel):
     tdl_version: str = Field(max_length=50)
     tally_version: str | None = Field(default=None, max_length=50)
     tally_host: str = Field(default="localhost", max_length=255)
+
+    _versions = field_validator("agent_version", "tdl_version")(check_version)
     tally_port: int = Field(default=9000, ge=1, le=65535)
 
 
@@ -39,3 +52,39 @@ class RegisterResponse(BaseModel):
     agent_id: uuid.UUID
     credential: str  # shown once; only a salted hash is stored (SEC-2.0b)
     config: AgentConfig
+
+
+class QueueStatus(BaseModel):
+    records: int = Field(ge=0)
+    oldest_age_seconds: int | None = Field(default=None, ge=0)
+    dead_letter_count: int = Field(ge=0)
+    full: bool
+
+
+class HeartbeatRequest(BaseModel):
+    """AGT-1.1, VER-1.1. Send `confirmed_tally_guid` whenever Tally can be read."""
+
+    agent_version: str = Field(max_length=50)
+    tdl_version: str = Field(max_length=50)
+    tally_version: str | None = Field(default=None, max_length=50)
+    tally_uptime_seconds: int | None = Field(default=None, ge=0)
+    queue_status: QueueStatus
+    tally_status: TallyStatus
+    confirmed_tally_guid: str | None = Field(default=None, max_length=200)
+
+    _versions = field_validator("agent_version", "tdl_version")(check_version)
+
+
+class CommandOut(BaseModel):
+    command_id: uuid.UUID
+    sync_mode: SyncMode
+    date_from: date | None
+    date_to: date | None
+    created_at: datetime
+
+
+class HeartbeatResponse(BaseModel):
+    status: AgentStatus
+    config: AgentConfig
+    command: CommandOut | None  # only for an ACTIVE Agent with nothing in progress
+    warnings: list[str]
