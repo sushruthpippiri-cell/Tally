@@ -139,7 +139,7 @@ function Invoke-Tally([byte[]]$Body, [string]$Method) {
     return $result
 }
 
-function Save-Capture([string]$Dir, [string]$Id, [object[]]$Gates, [byte[]]$RequestBytes, $Result) {
+function Save-Capture([string]$Dir, [string]$Id, [object[]]$Gates, [byte[]]$RequestBytes, $Result, [bool]$ExpectError) {
     New-Item -ItemType Directory -Force -Path $Dir | Out-Null
     if ($RequestBytes.Length -gt 0) {
         [IO.File]::WriteAllBytes((Join-Path $Dir "$Id.request.xml"), $RequestBytes)
@@ -154,7 +154,8 @@ function Save-Capture([string]$Dir, [string]$Id, [object[]]$Gates, [byte[]]$Requ
         gates           = $Gates
         url             = $BaseUrl
         http_status     = $Result.http_status
-        ok              = ($Result.ok -and ($null -eq $tallyError))
+        ok              = if ($ExpectError) { $null -ne $tallyError } else { $Result.ok -and ($null -eq $tallyError) }
+        expected_error  = $ExpectError
         elapsed_ms      = $Result.elapsed_ms
         bytes           = $Result.bytes
         headers         = $Result.headers
@@ -171,7 +172,7 @@ function Invoke-Entry($Entry, [string]$Dir, [string]$CompanyName, [int]$Index, [
     try {
         $bytes = Expand-Template $Entry.file $CompanyName
         $result = Invoke-Tally $bytes 'POST'
-        $meta = Save-Capture $Dir $Entry.id $Entry.gates $bytes $result
+        $meta = Save-Capture $Dir $Entry.id $Entry.gates $bytes $result ([bool]$Entry.expect_error)
     }
     catch {
         $meta = [ordered]@{ id = $Entry.id; gates = $Entry.gates; ok = $false; tally_error = $null
@@ -179,7 +180,10 @@ function Invoke-Entry($Entry, [string]$Dir, [string]$CompanyName, [int]$Index, [
         New-Item -ItemType Directory -Force -Path $Dir | Out-Null
         [IO.File]::WriteAllText((Join-Path $Dir "$($Entry.id).meta.json"), ($meta | ConvertTo-Json -Depth 6), $Utf8)
     }
-    if ($meta.ok) {
+    if ($meta.ok -and $Entry.expect_error) {
+        Write-Host ('{0,-40} OK      Tally answered with the expected error: {1}' -f $label, $meta.tally_error)
+    }
+    elseif ($meta.ok) {
         Write-Host ('{0,-40} OK      {1,10:N0} bytes  {2,6:N1} s' -f $label, $meta.bytes, ($meta.elapsed_ms / 1000))
     }
     else {
@@ -223,7 +227,7 @@ function Invoke-Check {
     else {
         Write-Host "1. XML server port $Port ... reachable" -ForegroundColor Green
         $root = Invoke-Tally ([byte[]]@()) 'GET'
-        $rootMeta = Save-Capture $dir 'server_root' @('G35') ([byte[]]@()) $root
+        $rootMeta = Save-Capture $dir 'server_root' @('G35') ([byte[]]@()) $root $false
         $check.server_running = (ConvertTo-Text $root.body).Contains($Manifest.server_running_text)
         if ($check.server_running) { Write-Host '2. TallyPrime XML server answers ... yes' -ForegroundColor Green }
         else { Write-Host "2. TallyPrime XML server answers ... unexpected answer (saved in check\server_root.*)" -ForegroundColor Red }
@@ -231,7 +235,7 @@ function Invoke-Check {
         foreach ($entry in $Manifest.check) {
             $bytes = Expand-Template $entry.file $Company
             $result = Invoke-Tally $bytes 'POST'
-            $meta = Save-Capture $dir $entry.id $entry.gates $bytes $result
+            $meta = Save-Capture $dir $entry.id $entry.gates $bytes $result $false
             $text = ConvertTo-Text $result.body
             if ($entry.id -eq 'company_list') {
                 $check.company_listed = $text.Contains((Get-XmlEscaped $Company)) -or $text.Contains($Company)

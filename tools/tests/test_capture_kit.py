@@ -24,7 +24,9 @@ def test_every_entry_has_the_fields_the_script_reads_under_strict_mode() -> None
     m = kit.manifest()
     for section in ("check", "capture", "reference"):
         for entry in m[section]:
-            assert set(entry) == {"id", "file", "gates", "needs_other_company"}, entry
+            assert set(entry) == {"id", "file", "gates", "needs_other_company", "expect_error"}, (
+                entry
+            )
     capture_ids = {e["id"] for e in m["capture"]}
     for scenario in m["scenarios"]:
         assert set(scenario) == {"name", "gates", "requests", "instructions", "undo"}

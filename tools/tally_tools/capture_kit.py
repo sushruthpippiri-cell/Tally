@@ -186,6 +186,8 @@ def manifest() -> dict[str, Any]:
                     "file": f"requests/{folder}/{key}.xml",
                     "gates": gates,
                     "needs_other_company": needs_other,
+                    # G35 evidence: Tally is meant to answer these with an error.
+                    "expect_error": key.startswith("error_"),
                 }
             )
         return out
@@ -246,7 +248,7 @@ def verify(captures: Path, config: MockConfig, expect_check_ok: bool = True) -> 
     for run in [
         *_runs(captures, "all"),
         *_runs(captures, "capture"),
-        *captures.glob("*-scenario-*"),
+        *(p for p in captures.glob("*-scenario-*") if p.is_dir()),
     ]:
         for required in ("run.json", "summary.json"):
             if not (run / required).is_file():
@@ -265,6 +267,8 @@ def verify(captures: Path, config: MockConfig, expect_check_ok: bool = True) -> 
                 problems.append(f"{meta_file}: response bytes differ from what Tally sent")
             if meta["http_status"] != status:
                 problems.append(f"{meta_file}: status {meta['http_status']} != {status}")
+            if meta.get("expected_error") and not meta["ok"]:
+                problems.append(f"{meta_file}: the expected Tally error was not recognised")
     for run in _runs(captures, "all") + _runs(captures, "check"):
         check = json.loads((run / "check.json").read_text(encoding="utf-8"))
         if bool(check["ok"]) != expect_check_ok:
