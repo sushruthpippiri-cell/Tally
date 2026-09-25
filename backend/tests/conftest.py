@@ -15,6 +15,7 @@ from tally_tools.phase_report import assert_test_database
 
 # Must be set before app.core.config is first imported.
 os.environ.setdefault("ENV", "test")
+os.environ["SCHEDULER_ENABLED"] = "false"  # tests call job functions directly
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://tally_app:tally_app_dev@localhost:5432/tally_test"
 )

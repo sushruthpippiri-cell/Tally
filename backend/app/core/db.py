@@ -22,18 +22,18 @@ def get_engine() -> AsyncEngine:
 
 
 @lru_cache
-def _sessionmaker() -> async_sessionmaker[AsyncSession]:
+def session_factory() -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(get_engine(), expire_on_commit=False)
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
     """FastAPI dependency. The caller owns commit/rollback (use `transaction()` for writes)."""
-    async with _sessionmaker()() as session:
+    async with session_factory()() as session:
         yield session
 
 
 @asynccontextmanager
 async def transaction() -> AsyncIterator[AsyncSession]:
     """One session, one transaction: commits on success, rolls back on any exception."""
-    async with _sessionmaker()() as session, session.begin():
+    async with session_factory()() as session, session.begin():
         yield session

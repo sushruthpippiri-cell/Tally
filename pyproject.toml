@@ -59,6 +59,10 @@ check_untyped_defs = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
+module = ["apscheduler.*"]  # APScheduler 3.x ships no type information
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 # strict for the contract package and backend core (P0.5)
 module = ["tally_contract.*", "app.core.*"]
 strict = true

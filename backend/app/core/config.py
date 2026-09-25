@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     min_agent_version: str = "0.0.0"
     min_tdl_version: str = "0.0.0"
     allow_unverified_incremental: bool | None = None  # D-029: true in dev/test, false in prod
+    scheduler_enabled: bool = True  # background jobs (app/jobs); off in tests
     anthropic_api_key: SecretStr | None = None
     anomaly_explainer_model: str | None = None
 

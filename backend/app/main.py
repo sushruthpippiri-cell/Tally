@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from app.api import agent_protocol, agents, auth, companies, health, users
@@ -11,7 +14,20 @@ from tally_contract.log import configure_logging, get_logger
 def create_app(config: Settings | None = None) -> FastAPI:
     config = config or get_settings()
     configure_logging(config.env)
-    app = FastAPI(title="Tally Analytics Platform")
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        scheduler = None
+        if config.scheduler_enabled:
+            from app.jobs.runner import build_scheduler
+
+            scheduler = build_scheduler()
+            scheduler.start()
+        yield
+        if scheduler is not None:
+            scheduler.shutdown(wait=False)
+
+    app = FastAPI(title="Tally Analytics Platform", lifespan=lifespan)
     install_error_handlers(app)
     install_middleware(app, config)
     for module in (health, auth, companies, users, settings_api, agents, agent_protocol):
