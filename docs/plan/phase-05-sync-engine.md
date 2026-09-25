@@ -58,6 +58,7 @@ Upsert `stock_snapshots` by `(stock_item_id, as_of_date)` with `sync_run_id` (FR
 - Finish → COMPLETED, PARTIAL (any chunk failed, any segment timed out, any collection skipped with SYNC_LOCKED) or FAILED (SYNC-6.4).
 - Implement P3's `on_command_lost` hook: run → FAILED, leases held by that Agent released.
 - Tally unreachable reported by the Agent → run FAILED, no data changed (SYNC-6.6).
+- **REQUIRED (D-036 #6): activate a new Agent's default schedules after its first FULL sync.** When a FULL run completes (COMPLETED) for an Agent that has no earlier COMPLETED FULL run, call `app.services.schedules.activate()` on that Agent's **inactive, system-created** schedules (`created_by IS NULL`), in the same transaction, and audit each as `SCHEDULE_ACTIVATED` (system actor, reason "first full sync"). Only on the first FULL run, so a schedule an Owner deactivated on purpose is never switched back on. P3 already creates the defaults for a company's first Agent and for a replacement after a revoke, deactivates a revoked Agent's schedules, and warns `NO_ACTIVE_SCHEDULE` in the Agents view; without this item a new company or a replaced Agent never syncs on a timer.
 
 ### P5.8 Sync status APIs
 - `GET /companies/{id}/sync/status`: per collection watermark, last success, mode (`INCREMENTAL` or `FULL_ONLY`, shown as "Full sync only", AC-12), lease holder.
@@ -79,11 +80,12 @@ Plans for FULL_ONLY collections always request a full pull; batches claiming an 
 - TEST-3.3: exception injected between entry insert and bill-allocation insert → voucher entirely absent (new) or entirely previous version (modified).
 - SYNC-6.3: same batch posted twice → identical database state.
 - DR-4.4: same voucher number in two companies and across two financial years → no collision.
+- D-036 #6 replacement path: Agent A scheduled → revoke A → register B → B's first FULL sync completes → B's default schedules are active and `fire_schedules` creates B's command; a second FULL run does not re-activate a schedule the Owner turned off.
 
 ## Definition of done
 All listed tests pass; `docs/sync-engine.md` explains chunking, stale protection, watermarks, leases and child replacement in a page, for P6/P7 sessions.
 
 ## Kickoff prompt
 ~~~text
-Read CLAUDE.md, docs/plan/phase-05-sync-engine.md, docs/agent-protocol.md, docs/decisions.md (D-006, D-014, D-024, D-026, D-027, D-029) and SRS Sections 5.9, 6.1–6.6, 6.9. In plan mode, propose the ingest pipeline, the exact SQL for lease CAS, stale-protected upserts and watermark updates, and the tests for AC-01, 02, 05–09, 12. Implement P5.1–P5.5, stop and update docs/progress.md; P5.6–P5.10 in the next session. Tests first, commit per task.
+Read CLAUDE.md, docs/plan/phase-05-sync-engine.md, docs/agent-protocol.md, docs/decisions.md (D-006, D-014, D-024, D-026, D-027, D-029, D-036) and SRS Sections 5.9, 6.1–6.6, 6.9. In plan mode, propose the ingest pipeline, the exact SQL for lease CAS, stale-protected upserts and watermark updates, and the tests for AC-01, 02, 05–09, 12. Implement P5.1–P5.5, stop and update docs/progress.md; P5.6–P5.10 in the next session. Tests first, commit per task.
 ~~~

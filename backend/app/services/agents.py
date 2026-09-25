@@ -40,7 +40,7 @@ log = get_logger(__name__)
 REGISTRATION_TOKEN_TTL = timedelta(hours=24)
 PROGRESS_INTERVAL_SECONDS = 60  # D-035 #11: the Agent sends progress on its own timer
 DEFAULT_EXTRACTION_BATCH_SIZE = 5000  # AGT-4.1
-# D-023 / D-035 #7: created inactive with a company's first Agent; P5 activates them.
+# D-023 / D-035 #7 / D-036 #6: created inactive; P5 activates them after the first FULL sync.
 DEFAULT_SCHEDULES = (("0 * * * *", SyncMode.INCREMENTAL), ("0 2 * * *", SyncMode.RECONCILIATION))
 
 
@@ -174,8 +174,14 @@ async def _register(
     if bound is None:
         raise _Rejected(_mismatch(), company_id)
 
-    existing = await session.scalar(
-        select(func.count()).select_from(Agent).where(Agent.company_id == company_id)
+    # D-036 #6: default schedules whenever no non-revoked Agent has a schedule, so a
+    # replacement gets them and a standby beside a working Agent does not. The company row
+    # is locked by the GUID update above, so concurrent registrations serialise here.
+    has_live_schedule = await session.scalar(
+        select(func.count())
+        .select_from(SyncSchedule)
+        .join(Agent, Agent.agent_id == SyncSchedule.agent_id)
+        .where(SyncSchedule.company_id == company_id, Agent.status != AgentStatus.REVOKED)
     )
     agent_id = uuid.uuid4()
     credential, salt, credential_hash = new_credential(agent_id)
@@ -205,7 +211,7 @@ async def _register(
             AppError(ErrorCode.CONFLICT, "An Agent with this name already exists", 409),
             company_id,
         ) from None
-    if existing == 0:
+    if not has_live_schedule:
         for cron, mode in DEFAULT_SCHEDULES:
             session.add(
                 SyncSchedule(

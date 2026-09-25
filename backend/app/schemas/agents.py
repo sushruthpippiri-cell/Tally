@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 
 from packaging.version import InvalidVersion, Version
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import AgentStatus, SyncMode, TallyStatus
 
@@ -88,3 +88,46 @@ class HeartbeatResponse(BaseModel):
     config: AgentConfig
     command: CommandOut | None  # only for an ACTIVE Agent with nothing in progress
     warnings: list[str]
+
+
+class AgentOut(BaseModel):
+    """FR-4.4: one row of the Agents view."""
+
+    agent_id: uuid.UUID
+    agent_name: str
+    status: AgentStatus
+    agent_version: str | None
+    tdl_version: str | None
+    tally_version: str | None
+    tally_company_name: str | None
+    tally_host: str | None
+    tally_port: int | None
+    extraction_batch_size: int | None
+    last_heartbeat_at: datetime | None
+    offline_since: datetime | None
+    tally_uptime_seconds: int | None
+    uptime_advisory: bool  # AGT-6.4: uptime above agent.tally_uptime_advisory_days
+    queue_status: dict[str, object] | None
+    last_tally_status: TallyStatus | None
+    tally_status_since: datetime | None
+    registered_at: datetime | None
+    revoked_at: datetime | None
+    warnings: list[str]
+
+
+class AgentsView(BaseModel):
+    agents: list[AgentOut]
+    warnings: list[str]  # company-level, e.g. NO_ACTIVE_SCHEDULE (D-036 #6)
+
+
+class RotatedCredential(BaseModel):
+    agent_id: uuid.UUID
+    credential: str  # shown once (SRS 4.4 step 3); never pushed to the Agent
+
+
+class TallySettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tally_host: str | None = Field(default=None, min_length=1, max_length=255)
+    tally_port: int | None = Field(default=None, ge=1, le=65535)
+    tally_company_name: str | None = Field(default=None, min_length=1, max_length=500)
+    extraction_batch_size: int | None = Field(default=None, ge=1, le=10_000)  # AGT-4.2
