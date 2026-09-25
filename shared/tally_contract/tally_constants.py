@@ -78,6 +78,12 @@ BUILTIN_REFERENCE_REPORTS: Final = (  # GATE-G35
 RESPONSE_DATE_FORMAT: Final = "%Y%m%d"  # GATE-G35: our date fields use UniversalDate
 YES: Final = "Yes"  # GATE-G35: Tally logical values
 NO: Final = "No"
+# GATE-G12: a top-level group's parent is exported as "Primary" (often preceded by the invalid
+# character reference &#4;, which sanitising removes) or left empty.
+TOP_LEVEL_PARENT_NAMES: Final = ("", "Primary")
+# GATE-G23 GATE-G35: amounts may carry a trailing Dr/Cr instead of a sign in some fields.
+DEBIT_SUFFIX: Final = "Dr"
+CREDIT_SUFFIX: Final = "Cr"
 
 # --- recognising Tally's own answers (GATE-G35) ---------------------------------------------
 SERVER_RUNNING_TEXT: Final = "TallyPrime Server is Running"  # GET / on the XML port
