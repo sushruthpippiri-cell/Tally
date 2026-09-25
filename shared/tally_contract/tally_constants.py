@@ -56,6 +56,23 @@ VAR_TO_DATE: Final = "SVTODATE"  # GATE-G18 GATE-G19: "as of" = SVTODATE
 VAR_FROM_ALTER_ID: Final = "TAFromAlterId"  # GATE-G7 GATE-G33: declared in our TDL
 VAR_TO_ALTER_ID: Final = "TAToAlterId"
 REQUEST_DATE_FORMAT: Final = "%Y%m%d"  # GATE-G35: SVFROMDATE/SVTODATE accept YYYYMMDD
+# GATE-G35: requests go out as UTF-8 without an XML declaration.
+REQUEST_CONTENT_TYPE: Final = "text/xml;charset=utf-8"
+# GATE-G33: a full voucher pull still sends a date window, or Tally limits a Voucher
+# collection to the current period. The Agent sends books-from .. this far-future date.
+FULL_PULL_DATE_TO: Final = "20991231"
+
+# --- TallyPrime's built-in collection and reports: CAPTURE KIT ONLY --------------------------
+# The Agent never uses built-in reports (FR-1.4); the capture kit uses these to check the
+# server and company without our TDL, and to save reference evidence (TEST-4.1, D-038 #4).
+REQUEST_TYPE_COLLECTION: Final = "Collection"
+BUILTIN_COMPANY_LIST: Final = "List of Companies"  # GATE-G35
+BUILTIN_REFERENCE_REPORTS: Final = (  # GATE-G35
+    "Trial Balance",
+    "Day Book",
+    "Stock Summary",
+    "List of Accounts",
+)
 
 # --- values in responses (GATE-G35 formats) -----------------------------------------------
 RESPONSE_DATE_FORMAT: Final = "%Y%m%d"  # GATE-G35: our date fields use UniversalDate

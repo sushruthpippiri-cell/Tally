@@ -1,0 +1,6 @@
+# LF everywhere, on every OS (the Windows CI runner would otherwise check out CRLF).
+* text=auto eol=lf
+# Byte-exact test data: request golden files and XML fixtures, including raw live captures from
+# TallyPrime (D-038), must never have their line endings or encoding touched.
+shared/tests/golden/** -text
+fixtures/** -text

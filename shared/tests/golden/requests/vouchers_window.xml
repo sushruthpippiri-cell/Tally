@@ -1,0 +1,20 @@
+<ENVELOPE>
+  <HEADER>
+    <VERSION>1</VERSION>
+    <TALLYREQUEST>Export</TALLYREQUEST>
+    <TYPE>Data</TYPE>
+    <ID>TA_Vouchers</ID>
+  </HEADER>
+  <BODY>
+    <DESC>
+      <STATICVARIABLES>
+        <SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>
+        <SVCURRENTCOMPANY>Sharma &amp; Sons Traders</SVCURRENTCOMPANY>
+        <SVFROMDATE TYPE="Date">20240401</SVFROMDATE>
+        <SVTODATE TYPE="Date">20991231</SVTODATE>
+        <TAFromAlterId>0</TAFromAlterId>
+        <TAToAlterId>5000</TAToAlterId>
+      </STATICVARIABLES>
+    </DESC>
+  </BODY>
+</ENVELOPE>
