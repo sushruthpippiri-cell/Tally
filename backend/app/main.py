@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api import auth, companies, health
+from app.api import auth, companies, health, users
 from app.core.config import get_settings
 from app.core.errors import install_error_handlers
 from tally_contract.log import configure_logging, get_logger
@@ -14,5 +14,6 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(companies.router)
+    app.include_router(users.router)
     get_logger(__name__).info("app_started", env=settings.env)
     return app
