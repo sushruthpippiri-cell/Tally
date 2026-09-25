@@ -42,6 +42,13 @@ def _body(code: ErrorCode, message: str, details: Any = None) -> dict[str, Any]:
     return {"code": code.value, "message": message, "details": details}
 
 
+def error_response(
+    code: ErrorCode, message: str, status: int, headers: dict[str, str] | None = None
+) -> JSONResponse:
+    """The standard error body, for code that runs outside a route (middleware)."""
+    return JSONResponse(_body(code, message), status_code=status, headers=headers)
+
+
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError) -> JSONResponse:

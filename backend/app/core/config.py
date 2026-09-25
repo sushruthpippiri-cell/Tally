@@ -1,9 +1,10 @@
 """Settings from environment variables (see .env.example)."""
 
 from functools import lru_cache
+from ipaddress import ip_network
 from typing import Annotated, Literal
 
-from pydantic import SecretStr, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _DEV_DATABASE_URL = "postgresql+asyncpg://tally_app:tally_app_dev@localhost:5432/tally"
@@ -21,6 +22,8 @@ class Settings(BaseSettings):
     jwt_access_ttl_minutes: int = 30
     jwt_refresh_ttl_hours: int = 24
     cors_origins: Annotated[list[str], NoDecode] = []
+    # D-033 #5-6: X-Forwarded-For/-Proto are honoured only from these peers (CIDRs).
+    trusted_proxies: Annotated[list[str], NoDecode] = []
     min_agent_version: str = "0.0.0"
     min_tdl_version: str = "0.0.0"
     allow_unverified_incremental: bool | None = None  # D-029: true in dev/test, false in prod
@@ -30,10 +33,18 @@ class Settings(BaseSettings):
     @model_validator(mode="before")
     @classmethod
     def _split_cors(cls, data: dict[str, object]) -> dict[str, object]:
-        raw = data.get("cors_origins")
-        if isinstance(raw, str):
-            data["cors_origins"] = [o.strip() for o in raw.split(",") if o.strip()]
+        for key in ("cors_origins", "trusted_proxies"):
+            raw = data.get(key)
+            if isinstance(raw, str):
+                data[key] = [o.strip() for o in raw.split(",") if o.strip()]
         return data
+
+    @field_validator("trusted_proxies")
+    @classmethod
+    def _cidrs(cls, value: list[str]) -> list[str]:
+        for cidr in value:
+            ip_network(cidr, strict=False)  # ValueError -> startup fails with the bad entry
+        return value
 
     @model_validator(mode="after")
     def _apply_env_defaults(self) -> "Settings":

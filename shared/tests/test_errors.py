@@ -9,7 +9,7 @@ ROOT = Path(__file__).parents[2]
 
 def test_counts_and_disjoint() -> None:
     assert len(SRS_CODES) == 15
-    assert len(PROPOSED_CODES) == 15
+    assert len(PROPOSED_CODES) == 16
     assert not set(SRS_CODES) & set(PROPOSED_CODES)
     assert set(ErrorCode) == set(SRS_CODES) | set(PROPOSED_CODES)
 
