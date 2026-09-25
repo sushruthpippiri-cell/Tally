@@ -18,6 +18,7 @@ Job = Callable[[AsyncSession, datetime], Awaitable[int]]
 # One advisory-lock key per job; any fixed, distinct 64-bit numbers.
 LOCK_MARK_OFFLINE = 3_001
 LOCK_COMMAND_TIMEOUTS = 3_002
+LOCK_FIRE_SCHEDULES = 3_003
 
 
 async def run_exclusive(
@@ -38,11 +39,13 @@ async def run_exclusive(
 def build_scheduler() -> AsyncIOScheduler:
     from app.jobs.agents import mark_offline
     from app.jobs.commands import command_timeouts
+    from app.jobs.schedules import fire_schedules
 
     scheduler = AsyncIOScheduler(timezone=UTC)
     for job_id, lock, job in (
         ("mark_offline", LOCK_MARK_OFFLINE, mark_offline),
         ("command_timeouts", LOCK_COMMAND_TIMEOUTS, command_timeouts),
+        ("fire_schedules", LOCK_FIRE_SCHEDULES, fire_schedules),
     ):
         scheduler.add_job(
             run_exclusive,

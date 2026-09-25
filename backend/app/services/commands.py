@@ -63,7 +63,9 @@ def to_out(command: AgentCommand, agent: Agent, tz: str) -> CommandStatusOut:
     )
 
 
-async def _route(session: AsyncSession, ctx: CompanyContext, agent_id: uuid.UUID | None) -> Agent:
+async def route_agent(
+    session: AsyncSession, ctx: CompanyContext, agent_id: uuid.UUID | None
+) -> Agent:
     if agent_id is not None:
         agent = await session.scalar(
             scoped(select(Agent), Agent, ctx).where(Agent.agent_id == agent_id)
@@ -104,7 +106,7 @@ async def create_command(
     session: AsyncSession, ctx: CompanyContext, body: SyncRequest, agent_id: uuid.UUID | None
 ) -> CommandStatusOut:
     """AGT-1.5: creates a PENDING command and nothing else; the Agent collects it by polling."""
-    agent = await _route(session, ctx, agent_id)
+    agent = await route_agent(session, ctx, agent_id)
     command = AgentCommand(
         company_id=ctx.company_id,
         agent_id=agent.agent_id,
