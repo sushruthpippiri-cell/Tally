@@ -40,6 +40,6 @@ How the probe tool and test company are set up: `docs/plan/gate-track.md`.
 | G32* | Predefined group / voucher type identity | Reserved name exported and stable even if renamed | NOT TESTED | | | | D-001 |
 | G33* | ALTERID window paging | from/to ALTERID filter returns exactly the objects in the window; company max ALTERID obtainable | NOT TESTED | | | | D-013 |
 | G34* | Voucher scope | The voucher Collection returns accounting vouchers only: no orders, Delivery/Receipt Notes, Stock Journals or optional vouchers (SRS 1.3) | NOT TESTED | | | | Voucher sync scope |
-| G35* | Error responses and encoding | Exact response for an unknown report and for a company that is not loaded; response encoding; invalid XML characters Tally emits | NOT TESTED | | | | TDL_NOT_LOADED, COMPANY_NOT_LOADED detection; parser sanitising |
+| G35* | Error responses, encoding and formats | Exact response for an unknown report and for a company that is not loaded; response encoding; invalid XML characters Tally emits; date and logical value formats in our report fields (`UniversalDate`, Yes/No) | NOT TESTED | | | | TDL_NOT_LOADED, COMPANY_NOT_LOADED detection; parser sanitising |
 
 \* Additions not in SRS v7.3: G30–G33 from planning, G34–G35 from Phase 4 (D-038).

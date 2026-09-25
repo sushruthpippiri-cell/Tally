@@ -1,0 +1,39 @@
+;; TA_Minimal.tdl - DRAFT, never yet loaded into a real TallyPrime (D-038).
+;; Load this FIRST (capture kit README, step 3): it contains only the TA_Info report, so a load
+;; error here is about TDL loading itself, not about the data reports. Then unload it and load
+;; TallyAnalytics.tdl, which contains the same section plus everything else.
+;; Every assumption about Tally's own fields is tagged ;; GATE-Gxx (docs/validation-gate.md).
+
+;; ==== BEGIN TA_INFO (identical in TallyAnalytics.tdl; a test checks) ====
+[System: Formula]
+    TA_TDLVersion : "0.1.0"
+
+[Report: TA_Info]
+    Form : TA_Info
+
+[Form: TA_Info]
+    Part   : TA_Info
+    XMLTag : "TA_INFO"
+
+[Part: TA_Info]
+    Line : TA_Info
+
+[Line: TA_Info]
+    Fields : TA_InfoTDLVersion, TA_InfoCompanyGuid, TA_InfoCompanyName
+    XMLTag : "INFO"
+
+[Field: TA_InfoTDLVersion]
+    Use    : Name Field
+    Set As : @@TA_TDLVersion
+    XMLTag : "TDLVERSION"
+
+[Field: TA_InfoCompanyGuid]
+    Use    : Name Field
+    Set As : $GUID:Company:##SVCurrentCompany    ;; GATE-G20 GATE-G1: the targeted company's GUID (AGT-3.2)
+    XMLTag : "COMPANYGUID"
+
+[Field: TA_InfoCompanyName]
+    Use    : Name Field
+    Set As : ##SVCurrentCompany                  ;; GATE-G20
+    XMLTag : "COMPANYNAME"
+;; ==== END TA_INFO ====

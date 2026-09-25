@@ -1,0 +1,697 @@
+;; TallyAnalytics.tdl - DRAFT, never yet loaded into a real TallyPrime (D-038).
+;; The project's TDL package: one Report per Collection (FR-1.1, FR-1.3), each with GUID and
+;; ALTERID, an ALTERID window filter and a key-only variant (FR-1.2). Load TA_Minimal.tdl
+;; first; see tdl/README.md and the capture kit README.
+;; Every assumption about Tally's own fields and functions is tagged ;; GATE-Gxx; the XML tags
+;; are ours and must match shared/tally_contract/tally_constants.py (tested).
+;; Out of scope, deliberately: GST tax detail (D-037), godowns and batches (SRS 1.3).
+
+;; ==== BEGIN TA_INFO (identical in TallyAnalytics.tdl; a test checks) ====
+[System: Formula]
+    TA_TDLVersion : "0.1.0"
+
+[Report: TA_Info]
+    Form : TA_Info
+
+[Form: TA_Info]
+    Part   : TA_Info
+    XMLTag : "TA_INFO"
+
+[Part: TA_Info]
+    Line : TA_Info
+
+[Line: TA_Info]
+    Fields : TA_InfoTDLVersion, TA_InfoCompanyGuid, TA_InfoCompanyName
+    XMLTag : "INFO"
+
+[Field: TA_InfoTDLVersion]
+    Use    : Name Field
+    Set As : @@TA_TDLVersion
+    XMLTag : "TDLVERSION"
+
+[Field: TA_InfoCompanyGuid]
+    Use    : Name Field
+    Set As : $GUID:Company:##SVCurrentCompany    ;; GATE-G20 GATE-G1: the targeted company's GUID (AGT-3.2)
+    XMLTag : "COMPANYGUID"
+
+[Field: TA_InfoCompanyName]
+    Use    : Name Field
+    Set As : ##SVCurrentCompany                  ;; GATE-G20
+    XMLTag : "COMPANYNAME"
+;; ==== END TA_INFO ====
+
+;; ==== shared variables, filters and fields ====
+[Variable: TAFromAlterId]
+    Type : Number
+
+[Variable: TAToAlterId]
+    Type : Number
+
+[System: Variable]
+    TAFromAlterId : 0
+    TAToAlterId   : 0
+
+[System: Formula]
+    ;; 0/0 means "no window": a full pull. Otherwise (from, to] (D-013).
+    TA_NoWindow        : ##TAFromAlterId = 0 AND ##TAToAlterId = 0
+    TA_InAlterIdWindow : @@TA_NoWindow OR ($AlterID > ##TAFromAlterId AND $AlterID <= ##TAToAlterId)    ;; GATE-G7 GATE-G33
+    ;; SRS 1.3 / D-037: accounting vouchers only - no orders, delivery/receipt notes, stock
+    ;; journals or optional vouchers.
+    TA_IsAccountingVoucher : $$IsAccountingVch:$VoucherTypeName AND NOT $IsOptional    ;; GATE-G34
+
+[Line: TA_Key]
+    Fields : TA_Guid, TA_AlterId
+    XMLTag : "KEY"
+
+[Field: TA_Guid]
+    Use    : Name Field
+    Set As : $GUID    ;; GATE-G1 GATE-G2 GATE-G3 GATE-G4
+    XMLTag : "GUID"
+
+[Field: TA_AlterId]
+    Use    : Name Field
+    Set As : $$String:$AlterID    ;; GATE-G1 GATE-G2 GATE-G3 GATE-G4 GATE-G5
+    XMLTag : "ALTERID"
+
+[Field: TA_Name]
+    Use    : Name Field
+    Set As : $Name
+    XMLTag : "NAME"
+
+[Field: TA_ParentName]
+    Use    : Name Field
+    Set As : $Parent    ;; GATE-G12 GATE-G15
+    XMLTag : "PARENT"
+
+[Field: TA_ReservedName]
+    Use    : Name Field
+    Set As : $ReservedName    ;; GATE-G32
+    XMLTag : "RESERVEDNAME"
+
+;; ==== company ====
+[Report: TA_Company]
+    Form : TA_Company
+
+[Form: TA_Company]
+    Part   : TA_Company
+    XMLTag : "TA_COMPANY"
+
+[Part: TA_Company]
+    Line   : TA_CompanyLine
+    Repeat : TA_CompanyLine : TA_CompanyColl
+    Scroll : Vertical
+
+[Line: TA_CompanyLine]
+    Fields : TA_Guid, TA_AlterId, TA_Name, TA_CoBooksFrom, TA_CoFYStart, TA_CoLastMasterAlterId, TA_CoLastVoucherAlterId
+    XMLTag : "COMPANY"
+
+[Collection: TA_CompanyColl]
+    Type   : Company
+    Filter : TA_IsTargetCompany
+    Fetch  : GUID, AlterID, Name, BooksFrom, StartingFrom, AltMstId, AltVchId
+
+[System: Formula]
+    TA_IsTargetCompany : $Name = ##SVCurrentCompany    ;; GATE-G20
+
+;; FR-1.2 key-only form (GATE-G21)
+[Report: TA_CompanyKeys]
+    Form : TA_CompanyKeys
+
+[Form: TA_CompanyKeys]
+    Part   : TA_CompanyKeys
+    XMLTag : "TA_COMPANYKEYS"
+
+[Part: TA_CompanyKeys]
+    Line   : TA_Key
+    Repeat : TA_Key : TA_CompanyColl
+    Scroll : Vertical
+
+[Field: TA_CoBooksFrom]
+    Use    : Name Field
+    Set As : $$String:$BooksFrom:UniversalDate    ;; GATE-G35
+    XMLTag : "BOOKSFROM"
+
+[Field: TA_CoFYStart]
+    Use    : Name Field
+    Set As : $$String:$StartingFrom:UniversalDate    ;; GATE-G35
+    XMLTag : "FYSTART"
+
+[Field: TA_CoLastMasterAlterId]
+    Use    : Name Field
+    Set As : $$String:$AltMstId    ;; GATE-G33
+    XMLTag : "LASTMASTERALTERID"
+
+[Field: TA_CoLastVoucherAlterId]
+    Use    : Name Field
+    Set As : $$String:$AltVchId    ;; GATE-G33
+    XMLTag : "LASTVOUCHERALTERID"
+
+;; ==== groups ====
+[Report: TA_Groups]
+    Form : TA_Groups
+
+[Form: TA_Groups]
+    Part   : TA_Groups
+    XMLTag : "TA_GROUPS"
+
+[Part: TA_Groups]
+    Line   : TA_GroupsLine
+    Repeat : TA_GroupsLine : TA_GroupsColl
+    Scroll : Vertical
+
+[Line: TA_GroupsLine]
+    Fields : TA_Guid, TA_AlterId, TA_Name, TA_ParentName, TA_GrpParentGuid, TA_ReservedName, TA_GrpIsRevenue, TA_GrpIsDeemedPositive, TA_GrpAffectsGP
+    XMLTag : "GROUP"
+
+[Collection: TA_GroupsColl]
+    Type   : Group
+    Filter : TA_InAlterIdWindow                  ;; GATE-G7 GATE-G33
+    Fetch  : GUID, AlterID, Name, Parent, ReservedName, IsRevenue, IsDeemedPositive, AffectsGrossProfit
+
+;; FR-1.2 key-only form (GATE-G21)
+[Report: TA_GroupsKeys]
+    Form : TA_GroupsKeys
+
+[Form: TA_GroupsKeys]
+    Part   : TA_GroupsKeys
+    XMLTag : "TA_GROUPSKEYS"
+
+[Part: TA_GroupsKeys]
+    Line   : TA_Key
+    Repeat : TA_Key : TA_GroupsColl
+    Scroll : Vertical
+
+[Field: TA_GrpParentGuid]
+    Use    : Name Field
+    Set As : $GUID:Group:$Parent    ;; GATE-G12
+    XMLTag : "PARENTGUID"
+
+[Field: TA_GrpIsRevenue]
+    Use    : Name Field
+    Set As : $$String:$IsRevenue    ;; GATE-G14
+    XMLTag : "ISREVENUE"
+
+[Field: TA_GrpIsDeemedPositive]
+    Use    : Name Field
+    Set As : $$String:$IsDeemedPositive    ;; GATE-G14
+    XMLTag : "ISDEEMEDPOSITIVE"
+
+[Field: TA_GrpAffectsGP]
+    Use    : Name Field
+    Set As : $$String:$AffectsGrossProfit    ;; GATE-G14
+    XMLTag : "AFFECTSGROSSPROFIT"
+
+;; ==== ledgers (with opening balance and opening bills, D-022) ====
+[Report: TA_Ledgers]
+    Form : TA_Ledgers
+
+[Form: TA_Ledgers]
+    Part   : TA_Ledgers
+    XMLTag : "TA_LEDGERS"
+
+[Part: TA_Ledgers]
+    Line   : TA_LedgersLine
+    Repeat : TA_LedgersLine : TA_LedgersColl
+    Scroll : Vertical
+
+[Line: TA_LedgersLine]
+    Fields : TA_Guid, TA_AlterId, TA_Name, TA_ParentName, TA_LedParentGuid, TA_LedBillWise, TA_LedOpening, TA_LedInactive
+    XMLTag : "LEDGER"
+    Explode : TA_LedOpeningBills : $$NumItems:BillAllocations > 0    ;; GATE-G31
+
+[Collection: TA_LedgersColl]
+    Type   : Ledger
+    Filter : TA_InAlterIdWindow                  ;; GATE-G7 GATE-G33
+    Fetch  : GUID, AlterID, Name, Parent, IsBillWiseOn, OpeningBalance, BillAllocations
+
+;; FR-1.2 key-only form (GATE-G21)
+[Report: TA_LedgersKeys]
+    Form : TA_LedgersKeys
+
+[Form: TA_LedgersKeys]
+    Part   : TA_LedgersKeys
+    XMLTag : "TA_LEDGERSKEYS"
+
+[Part: TA_LedgersKeys]
+    Line   : TA_Key
+    Repeat : TA_Key : TA_LedgersColl
+    Scroll : Vertical
+
+[Field: TA_LedParentGuid]
+    Use    : Name Field
+    Set As : $GUID:Group:$Parent    ;; GATE-G12
+    XMLTag : "PARENTGUID"
+
+[Field: TA_LedBillWise]
+    Use    : Name Field
+    Set As : $$String:$IsBillWiseOn
+    XMLTag : "ISBILLWISE"
+
+[Field: TA_LedOpening]
+    Use    : Name Field
+    Set As : $$String:$OpeningBalance    ;; GATE-G16 GATE-G23: signed, negative = debit
+    XMLTag : "OPENINGBALANCE"
+
+[Field: TA_LedInactive]
+    Use    : Name Field
+    Set As : $$String:$IsDeactivated    ;; GATE-G29: field name unverified
+    XMLTag : "ISINACTIVE"
+
+[Part: TA_LedOpeningBills]
+    Line   : TA_LedOpeningBill
+    Repeat : TA_LedOpeningBill : BillAllocations    ;; GATE-G31
+
+[Line: TA_LedOpeningBill]
+    Fields : TA_BillName, TA_BillDate, TA_BillDueDate, TA_BillOpening
+    XMLTag : "OPENINGBILL"
+
+[Field: TA_BillName]
+    Use    : Name Field
+    Set As : $Name    ;; GATE-G31
+    XMLTag : "NAME"
+
+[Field: TA_BillDate]
+    Use    : Name Field
+    Set As : $$String:$BillDate:UniversalDate    ;; GATE-G31 GATE-G35
+    XMLTag : "BILLDATE"
+
+[Field: TA_BillDueDate]
+    Use    : Name Field
+    Set As : $$String:$BillCreditPeriod:UniversalDate    ;; GATE-G31
+    XMLTag : "DUEDATE"
+
+[Field: TA_BillOpening]
+    Use    : Name Field
+    Set As : $$String:$OpeningBalance    ;; GATE-G31 GATE-G23
+    XMLTag : "AMOUNT"
+
+;; ==== voucher types ====
+[Report: TA_VoucherTypes]
+    Form : TA_VoucherTypes
+
+[Form: TA_VoucherTypes]
+    Part   : TA_VoucherTypes
+    XMLTag : "TA_VOUCHERTYPES"
+
+[Part: TA_VoucherTypes]
+    Line   : TA_VoucherTypesLine
+    Repeat : TA_VoucherTypesLine : TA_VoucherTypesColl
+    Scroll : Vertical
+
+[Line: TA_VoucherTypesLine]
+    Fields : TA_Guid, TA_AlterId, TA_Name, TA_ParentName, TA_VtParentGuid, TA_ReservedName
+    XMLTag : "VOUCHER_TYPE"
+
+[Collection: TA_VoucherTypesColl]
+    Type   : VoucherType
+    Filter : TA_InAlterIdWindow                  ;; GATE-G7 GATE-G33
+    Fetch  : GUID, AlterID, Name, Parent, ReservedName
+
+;; FR-1.2 key-only form (GATE-G21)
+[Report: TA_VoucherTypesKeys]
+    Form : TA_VoucherTypesKeys
+
+[Form: TA_VoucherTypesKeys]
+    Part   : TA_VoucherTypesKeys
+    XMLTag : "TA_VOUCHERTYPESKEYS"
+
+[Part: TA_VoucherTypesKeys]
+    Line   : TA_Key
+    Repeat : TA_Key : TA_VoucherTypesColl
+    Scroll : Vertical
+
+[Field: TA_VtParentGuid]
+    Use    : Name Field
+    Set As : $GUID:VoucherType:$Parent    ;; GATE-G15
+    XMLTag : "PARENTGUID"
+
+;; ==== stock items (with opening balance) ====
+[Report: TA_StockItems]
+    Form : TA_StockItems
+
+[Form: TA_StockItems]
+    Part   : TA_StockItems
+    XMLTag : "TA_STOCKITEMS"
+
+[Part: TA_StockItems]
+    Line   : TA_StockItemsLine
+    Repeat : TA_StockItemsLine : TA_StockItemsColl
+    Scroll : Vertical
+
+[Line: TA_StockItemsLine]
+    Fields : TA_Guid, TA_AlterId, TA_Name, TA_SiBaseUnit, TA_SiAltUnit, TA_SiConversion, TA_SiDenominator, TA_SiOpeningQty, TA_SiOpeningValue, TA_SiOpeningRate
+    XMLTag : "STOCK_ITEM"
+
+[Collection: TA_StockItemsColl]
+    Type   : StockItem
+    Filter : TA_InAlterIdWindow                  ;; GATE-G7 GATE-G33
+    Fetch  : GUID, AlterID, Name, BaseUnits, AdditionalUnits, Conversion, Denominator, OpeningBalance, OpeningValue, OpeningRate
+
+;; FR-1.2 key-only form (GATE-G21)
+[Report: TA_StockItemsKeys]
+    Form : TA_StockItemsKeys
+
+[Form: TA_StockItemsKeys]
+    Part   : TA_StockItemsKeys
+    XMLTag : "TA_STOCKITEMSKEYS"
+
+[Part: TA_StockItemsKeys]
+    Line   : TA_Key
+    Repeat : TA_Key : TA_StockItemsColl
+    Scroll : Vertical
+
+[Field: TA_SiBaseUnit]
+    Use    : Name Field
+    Set As : $BaseUnits    ;; GATE-G27
+    XMLTag : "BASEUNIT"
+
+[Field: TA_SiAltUnit]
+    Use    : Name Field
+    Set As : $AdditionalUnits    ;; GATE-G27
+    XMLTag : "ALTERNATEUNIT"
+
+[Field: TA_SiConversion]
+    Use    : Name Field
+    Set As : $$String:$Conversion    ;; GATE-G27
+    XMLTag : "CONVERSION"
+
+[Field: TA_SiDenominator]
+    Use    : Name Field
+    Set As : $$String:$Denominator    ;; GATE-G27
+    XMLTag : "DENOMINATOR"
+
+[Field: TA_SiOpeningQty]
+    Use    : Name Field
+    Set As : $$String:$OpeningBalance    ;; GATE-G17 GATE-G27: "12 Nos"
+    XMLTag : "OPENINGQTY"
+
+[Field: TA_SiOpeningValue]
+    Use    : Name Field
+    Set As : $$String:$OpeningValue    ;; GATE-G17
+    XMLTag : "OPENINGVALUE"
+
+[Field: TA_SiOpeningRate]
+    Use    : Name Field
+    Set As : $$String:$OpeningRate    ;; GATE-G17
+    XMLTag : "OPENINGRATE"
+
+;; ==== cost centres ====
+[Report: TA_CostCentres]
+    Form : TA_CostCentres
+
+[Form: TA_CostCentres]
+    Part   : TA_CostCentres
+    XMLTag : "TA_COSTCENTRES"
+
+[Part: TA_CostCentres]
+    Line   : TA_CostCentresLine
+    Repeat : TA_CostCentresLine : TA_CostCentresColl
+    Scroll : Vertical
+
+[Line: TA_CostCentresLine]
+    Fields : TA_Guid, TA_AlterId, TA_Name, TA_ParentName
+    XMLTag : "COST_CENTRE"
+
+[Collection: TA_CostCentresColl]
+    Type   : CostCentre
+    Filter : TA_InAlterIdWindow                  ;; GATE-G7 GATE-G33
+    Fetch  : GUID, AlterID, Name, Parent
+
+;; FR-1.2 key-only form (GATE-G21)
+[Report: TA_CostCentresKeys]
+    Form : TA_CostCentresKeys
+
+[Form: TA_CostCentresKeys]
+    Part   : TA_CostCentresKeys
+    XMLTag : "TA_COSTCENTRESKEYS"
+
+[Part: TA_CostCentresKeys]
+    Line   : TA_Key
+    Repeat : TA_Key : TA_CostCentresColl
+    Scroll : Vertical
+
+;; ==== vouchers (header, ledger entries, inventory entries, bill and cost-centre allocations) ====
+[Report: TA_Vouchers]
+    Form : TA_Vouchers
+
+[Form: TA_Vouchers]
+    Part   : TA_Vouchers
+    XMLTag : "TA_VOUCHERS"
+
+[Part: TA_Vouchers]
+    Line   : TA_VchLine
+    Repeat : TA_VchLine : TA_VouchersColl
+    Scroll : Vertical
+
+[Line: TA_VchLine]
+    Fields  : TA_Guid, TA_AlterId, TA_VchNumber, TA_VchTypeName, TA_VchTypeGuid, TA_VchDate, TA_VchNarration, TA_VchCancelled
+    Explode : TA_VchLedgerEntries : $$NumItems:AllLedgerEntries > 0
+    Explode : TA_VchInventoryEntries : $$NumItems:AllInventoryEntries > 0
+    XMLTag  : "VOUCHER"
+
+[Collection: TA_VouchersColl]
+    Type   : Voucher
+    Filter : TA_InAlterIdWindow, TA_IsAccountingVoucher    ;; GATE-G7 GATE-G33 GATE-G34
+    Fetch  : GUID, AlterID, VoucherNumber, VoucherTypeName, Date, Narration, IsCancelled, IsOptional, AllLedgerEntries, AllInventoryEntries
+
+;; FR-1.2 key-only form (GATE-G21)
+[Report: TA_VouchersKeys]
+    Form : TA_VouchersKeys
+
+[Form: TA_VouchersKeys]
+    Part   : TA_VouchersKeys
+    XMLTag : "TA_VOUCHERSKEYS"
+
+[Part: TA_VouchersKeys]
+    Line   : TA_Key
+    Repeat : TA_Key : TA_VouchersColl
+    Scroll : Vertical
+
+[Part: TA_VchLedgerEntries]
+    Line   : TA_VchLedgerEntry
+    Repeat : TA_VchLedgerEntry : AllLedgerEntries
+
+[Line: TA_VchLedgerEntry]
+    Fields  : TA_LeLedgerName, TA_LeLedgerGuid, TA_LeAmount, TA_LeDeemedPositive
+    Explode : TA_VchBillAllocations : $$NumItems:BillAllocations > 0
+    Explode : TA_VchCostCentres : $$NumItems:CategoryAllocations > 0
+    XMLTag  : "LEDGERENTRY"
+
+[Part: TA_VchBillAllocations]
+    Line   : TA_VchBillAllocation
+    Repeat : TA_VchBillAllocation : BillAllocations
+
+[Line: TA_VchBillAllocation]
+    Fields : TA_BaName, TA_BaType, TA_BaDueDate, TA_BaAmount
+    XMLTag : "BILLALLOCATION"
+
+;; Cost centres sit under cost categories in Tally.
+[Part: TA_VchCostCentres]
+    Line   : TA_VchCostCategory
+    Repeat : TA_VchCostCategory : CategoryAllocations
+
+[Line: TA_VchCostCategory]
+    Explode : TA_VchCostCentreAllocs : $$NumItems:CostCentreAllocations > 0
+    XMLTag  : "COSTCATEGORY"
+
+[Part: TA_VchCostCentreAllocs]
+    Line   : TA_VchCostCentreAlloc
+    Repeat : TA_VchCostCentreAlloc : CostCentreAllocations
+
+[Line: TA_VchCostCentreAlloc]
+    Fields : TA_CcName, TA_CcGuid, TA_CcAmount
+    XMLTag : "COSTCENTREALLOCATION"
+
+[Part: TA_VchInventoryEntries]
+    Line   : TA_VchInventoryEntry
+    Repeat : TA_VchInventoryEntry : AllInventoryEntries
+
+[Line: TA_VchInventoryEntry]
+    Fields : TA_IeItemName, TA_IeItemGuid, TA_IeQty, TA_IeRate, TA_IeAmount, TA_IeDeemedPositive
+    XMLTag : "INVENTORYENTRY"
+
+[Field: TA_VchNumber]
+    Use    : Name Field
+    Set As : $VoucherNumber
+    XMLTag : "VOUCHERNUMBER"
+
+[Field: TA_VchTypeName]
+    Use    : Name Field
+    Set As : $VoucherTypeName
+    XMLTag : "VOUCHERTYPENAME"
+
+[Field: TA_VchTypeGuid]
+    Use    : Name Field
+    Set As : $GUID:VoucherType:$VoucherTypeName    ;; GATE-G30
+    XMLTag : "VOUCHERTYPEGUID"
+
+[Field: TA_VchDate]
+    Use    : Name Field
+    Set As : $$String:$Date:UniversalDate    ;; GATE-G35
+    XMLTag : "DATE"
+
+[Field: TA_VchNarration]
+    Use    : Name Field
+    Set As : $Narration
+    XMLTag : "NARRATION"
+
+[Field: TA_VchCancelled]
+    Use    : Name Field
+    Set As : $$String:$IsCancelled    ;; GATE-G9
+    XMLTag : "ISCANCELLED"
+
+[Field: TA_LeLedgerName]
+    Use    : Name Field
+    Set As : $LedgerName
+    XMLTag : "LEDGERNAME"
+
+[Field: TA_LeLedgerGuid]
+    Use    : Name Field
+    Set As : $GUID:Ledger:$LedgerName    ;; GATE-G30
+    XMLTag : "LEDGERGUID"
+
+[Field: TA_LeAmount]
+    Use    : Name Field
+    Set As : $$String:$Amount    ;; GATE-G23: signed, negative = debit
+    XMLTag : "AMOUNT"
+
+[Field: TA_LeDeemedPositive]
+    Use    : Name Field
+    Set As : $$String:$IsDeemedPositive    ;; GATE-G23
+    XMLTag : "ISDEEMEDPOSITIVE"
+
+[Field: TA_BaName]
+    Use    : Name Field
+    Set As : $Name    ;; GATE-G26 GATE-G31
+    XMLTag : "NAME"
+
+[Field: TA_BaType]
+    Use    : Name Field
+    Set As : $BillType    ;; GATE-G25
+    XMLTag : "BILLTYPE"
+
+[Field: TA_BaDueDate]
+    Use    : Name Field
+    Set As : $$String:$BillCreditPeriod:UniversalDate    ;; GATE-G31
+    XMLTag : "DUEDATE"
+
+[Field: TA_BaAmount]
+    Use    : Name Field
+    Set As : $$String:$Amount    ;; GATE-G23 GATE-G31
+    XMLTag : "AMOUNT"
+
+[Field: TA_CcName]
+    Use    : Name Field
+    Set As : $Name
+    XMLTag : "NAME"
+
+[Field: TA_CcGuid]
+    Use    : Name Field
+    Set As : $GUID:CostCentre:$Name    ;; GATE-G30
+    XMLTag : "COSTCENTREGUID"
+
+[Field: TA_CcAmount]
+    Use    : Name Field
+    Set As : $$String:$Amount    ;; GATE-G23
+    XMLTag : "AMOUNT"
+
+[Field: TA_IeItemName]
+    Use    : Name Field
+    Set As : $StockItemName
+    XMLTag : "STOCKITEMNAME"
+
+[Field: TA_IeItemGuid]
+    Use    : Name Field
+    Set As : $GUID:StockItem:$StockItemName    ;; GATE-G30
+    XMLTag : "STOCKITEMGUID"
+
+[Field: TA_IeQty]
+    Use    : Name Field
+    Set As : $$String:$BilledQty    ;; GATE-G27: "12 Nos"
+    XMLTag : "QUANTITY"
+
+[Field: TA_IeRate]
+    Use    : Name Field
+    Set As : $$String:$Rate    ;; GATE-G27: "100.00/Nos"
+    XMLTag : "RATE"
+
+[Field: TA_IeAmount]
+    Use    : Name Field
+    Set As : $$String:$Amount    ;; GATE-G23 GATE-G28
+    XMLTag : "AMOUNT"
+
+[Field: TA_IeDeemedPositive]
+    Use    : Name Field
+    Set As : $$String:$IsDeemedPositive    ;; GATE-G23
+    XMLTag : "ISDEEMEDPOSITIVE"
+
+;; ==== closing balances as of a date (SVTODATE = the date) ====
+[Report: TA_StockClosing]
+    Form : TA_StockClosing
+
+[Form: TA_StockClosing]
+    Part   : TA_StockClosing
+    XMLTag : "TA_STOCKCLOSING"
+
+[Part: TA_StockClosing]
+    Line   : TA_StockClosingLine
+    Repeat : TA_StockClosingLine : TA_StockClosingColl
+    Scroll : Vertical
+
+[Line: TA_StockClosingLine]
+    Fields : TA_Guid, TA_Name, TA_AsOfDate, TA_ScQty
+    XMLTag : "STOCK_CLOSING"
+
+[Collection: TA_StockClosingColl]
+    Type  : StockItem
+    Fetch : GUID, Name, ClosingBalance    ;; GATE-G18
+
+[Report: TA_LedgerClosing]
+    Form : TA_LedgerClosing
+
+[Form: TA_LedgerClosing]
+    Part   : TA_LedgerClosing
+    XMLTag : "TA_LEDGERCLOSING"
+
+[Part: TA_LedgerClosing]
+    Line   : TA_LedgerClosingLine
+    Repeat : TA_LedgerClosingLine : TA_LedgerClosingColl
+    Scroll : Vertical
+
+[Line: TA_LedgerClosingLine]
+    Fields : TA_Guid, TA_Name, TA_AsOfDate, TA_LcBalance
+    XMLTag : "LEDGER_CLOSING"
+
+[Collection: TA_LedgerClosingColl]
+    Type  : Ledger
+    Fetch : GUID, Name, ClosingBalance    ;; GATE-G19
+
+;; ==== reconciliation totals: drafted here, completed in P10 (D-008) ====
+[Report: TA_ReconTotals]
+    Form : TA_ReconTotals
+
+[Form: TA_ReconTotals]
+    Part   : TA_ReconTotals
+    XMLTag : "TA_RECONTOTALS"
+
+[Part: TA_ReconTotals]
+    Line : TA_ReconTotalsLine
+
+[Line: TA_ReconTotalsLine]
+    Fields : TA_AsOfDate
+    XMLTag : "RECON_TOTAL"
+
+[Field: TA_AsOfDate]
+    Use    : Name Field
+    Set As : $$String:##SVToDate:UniversalDate    ;; GATE-G18 GATE-G19 GATE-G35
+    XMLTag : "ASOFDATE"
+
+[Field: TA_ScQty]
+    Use    : Name Field
+    Set As : $$String:$ClosingBalance    ;; GATE-G18 GATE-G27
+    XMLTag : "CLOSINGQTY"
+
+[Field: TA_LcBalance]
+    Use    : Name Field
+    Set As : $$String:$ClosingBalance    ;; GATE-G19 GATE-G23
+    XMLTag : "CLOSINGBALANCE"
