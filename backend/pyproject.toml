@@ -14,6 +14,8 @@ dependencies = [
   "psycopg[binary]",
   "pyyaml",
   "packaging",
+  "pyjwt>=2.14.0",
+  "bcrypt>=5.0.0",
 ]
 
 [build-system]

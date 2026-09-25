@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import date
 from decimal import Decimal
 
+import bcrypt
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agents import Agent, AgentCommand
 from app.models.balances import LedgerOpeningBalance
-from app.models.company import Company
+from app.models.company import Company, Role, User, UserRole
 from app.models.defaults import PREDEFINED_GROUPS
 from app.models.enums import (
     AccountingDirection,
@@ -24,6 +25,7 @@ from app.models.enums import (
     CommandType,
     MasterStatus,
     Nature,
+    RoleName,
     SyncMode,
 )
 from app.models.masters import CostCentre, Group, Ledger, StockItem, VoucherType
@@ -67,6 +69,42 @@ async def make_company(
     session.add(company)
     await session.flush()
     return company
+
+
+PASSWORD = "correct horse battery staple"
+# Cost 4 keeps tests fast; bcrypt.checkpw works with any cost.
+_PASSWORD_HASH = bcrypt.hashpw(PASSWORD.encode(), bcrypt.gensalt(rounds=4)).decode()
+_emails = itertools.count(1)
+
+
+async def make_user(
+    session: AsyncSession,
+    company: Company | None = None,
+    *roles: RoleName,
+    email: str | None = None,
+    is_active: bool = True,
+) -> User:
+    """A user with password `PASSWORD` and the given roles in `company`."""
+    user = User(
+        email=email or f"user{next(_emails)}@example.com",
+        password_hash=_PASSWORD_HASH,
+        name="Test User",
+        is_active=is_active,
+    )
+    session.add(user)
+    await session.flush()
+    if company is not None:
+        await grant(session, user, company, *roles)
+    return user
+
+
+async def grant(session: AsyncSession, user: User, company: Company, *roles: RoleName) -> None:
+    for role in roles:
+        role_id = (
+            await session.execute(select(Role.role_id).where(Role.role_name == role))
+        ).scalar_one()
+        session.add(UserRole(user_id=user.user_id, company_id=company.company_id, role_id=role_id))
+    await session.flush()
 
 
 async def make_agent(session: AsyncSession, company: Company, name: str = "agent-1") -> Agent:
