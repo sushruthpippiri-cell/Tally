@@ -3,6 +3,8 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
+P4 (Tally contract) — **session 1 done** 2026-09-25: decisions, P4.1–P4.4 and the capture kit (K1–K3) committed; `make check` green (711 tests); CI green (check, capture-kit on Windows PowerShell 5.1, agent-windows). Stopped as the kickoff prompt says. **Next: P4.5–P4.9 in a new session** (all buildable on drafts). **Then blocked on live captures**: gate-track step G-E needs the owner to run `dist/tally-capture-kit` in the Windows VM.
+
 P3 (Agent control plane) — **complete** 2026-09-25. Local suite PASS ([phase-03](test-reports/phase-03.md), 613 tests, 0 skipped) and CI green (run 36107675601, both `check` and `agent-windows`). Next: P4 (Tally contract) — not started; waits for the owner, and **D-002 must be confirmed before P4**.
 
 P2 (identity, RBAC, settings) — **complete** 2026-09-25. Local suite PASS ([phase-02](test-reports/phase-02.md), 416 tests, 1 skipped with reason) and CI green (run 36103266538, both `check` and `agent-windows`). Next: P3 (Agent control plane) — not started; waits for the owner.
@@ -14,6 +16,13 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-25 | P4 decisions | 0510bae | D-002 and D-037 (GST out of v1) ACCEPTED; D-038 capture kit ACCEPTED; gates G34 (voucher scope) and G35 (error responses, encoding, formats) added. |
+| 2026-09-25 | P4.1 records | 8a20ba6 | Record schemas and `BatchEnvelope`; `CollectionType`, `AccountingDirection`, `AllocationType` moved into `tally_contract.enums` (backend re-exports). |
+| 2026-09-25 | P4.2 TDL drafts | c80473a | `tdl/TA_Minimal.tdl` (TA_Info only) and `tdl/TallyAnalytics.tdl`; `tally_constants.py` holds every Tally fact, GATE-tagged; static test ties TDL, version and XML tags together. |
+| 2026-09-25 | P4.3 requests | 9423513 | Request builder with golden files; `.gitattributes` keeps fixtures and golden files byte-exact on Windows. |
+| 2026-09-25 | P4.4 parser | 8b375ae | Streaming (stdlib `iterparse`, not lxml: no new Windows dependency), per-record isolation, TDL_NOT_LOADED / COMPANY_NOT_LOADED detection, AC-66. `normalize.to_amount` (G23) and the bill-type map (G25) moved here from P4.5 because the parser needs them; `values.py` sits beside the parser to avoid an import cycle. |
+| 2026-09-25 | K1 mock Tally | 052aaa6 | `tools/tally_tools/mock_tally.py` for the kit's CI now and the Agent in P7. |
+| 2026-09-25 | K2/K3 capture kit | 732403d, cc08b8f | `tools/capture_kit/` + `make capture-kit`. Windows workflows split and path-filtered (D-038 #7); capture-kit passed on real PS 5.1 on the first run apart from a verifier glob; expected Tally errors now shown as OK. `agent-windows` is now blocking. |
 | 2026-09-25 | P3.7 commands + migration 0004 | b08caed | D-036 ACCEPTED. `created_at` from the app clock + `seq` identity: oldest = (created_at, seq); the P3.6 test workaround removed. Routing: one eligible Agent targeted even if OFFLINE/REGISTERING (waiting label); several need one ACTIVE or `agent_id`. |
 | 2026-09-25 | P3.8 claim/progress/result | c86e7fd | Single conditional UPDATEs. Committed races: 10 claims → 1; claims blocked behind an uncommitted claim all lose; one Agent, two commands → 1 (unique index). Mutation-checked (naive claim; dropped index). |
 | 2026-09-25 | P3.9 timeouts | 5be8794 | EXPIRED / FAILED_AGENT_LOST jobs; AGT-1.9 late calls → 409 with the row unchanged; on-time progress blocked behind the lost job loses (mutation-checked). `on_command_lost` hook for P5. |
@@ -71,7 +80,8 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Blocked
 | Item | Blocked by (gate / decision / question) | Since |
 |---|---|---|
-| _(none)_ | D-002 is still needed before P4, D-021 before P8. | |
+| Gate track G-E (confirm or fix every GATE-tagged TDL line and constant; live fixtures in the harness; gate statuses) | Live captures from the owner's Windows VM with TallyPrime (`make capture-kit`, then the kit README) | 2026-09-25 |
+| _(none)_ | D-021 is still needed before P8. | |
 
 ## Questions for the product owner
 | # | Question | Raised in | Answer |
