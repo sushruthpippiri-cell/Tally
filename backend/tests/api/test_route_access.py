@@ -299,3 +299,14 @@ async def test_roles_are_held_per_company(
     ).status_code == 200
     assert _is_forbidden(await api.put(f"/companies/{b.company_id}", json={}, headers=headers))
     assert (await api.get(f"/companies/{b.company_id}", headers=headers)).status_code == 200
+
+
+def test_every_agent_endpoint_is_documented_in_openapi() -> None:
+    """P3 definition of done: the OpenAPI spec documents every Agent endpoint."""
+    spec = create_app().openapi()
+    agent_paths = {p for p in spec["paths"] if p.startswith("/agent/")}
+    assert agent_paths == {p for _, p, _ in AGENT_ROUTES} | {"/agent/register"}
+    for path in agent_paths:
+        for operation in spec["paths"][path].values():
+            assert operation.get("summary"), f"{path} has no summary"
+            assert "agent protocol" in operation["tags"]

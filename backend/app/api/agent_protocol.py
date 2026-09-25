@@ -19,14 +19,14 @@ from app.services import agents, commands
 router = APIRouter(prefix="/agent", tags=["agent protocol"])
 
 
-@router.post("/register", status_code=201)
+@router.post("/register", status_code=201, summary="Register with a one-time token (SRS 4.2)")
 async def register(
     body: RegisterRequest, session: AsyncSession = Depends(get_session)
 ) -> RegisterResponse:
     return await agents.register_agent(session, body)
 
 
-@router.post("/heartbeat")
+@router.post("/heartbeat", summary="Heartbeat and poll for a command (AGT-1.1)")
 async def heartbeat(
     body: HeartbeatRequest,
     agent: AgentContext = Depends(current_agent),

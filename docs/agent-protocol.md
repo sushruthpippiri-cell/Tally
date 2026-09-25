@@ -2,8 +2,8 @@
 
 How the Sync Agent (P7) talks to the backend. The backend **never** connects to an Agent
 (CLAUDE.md rule 12): everything below is the Agent calling the backend over HTTPS with its
-bearer credential. Started in P3.5; the command calls and the sequence diagram are completed
-in P3.12.
+bearer credential. Every endpoint below is in the OpenAPI spec (`/openapi.json`, tag
+"agent protocol").
 
 ## Credentials
 - Registration: `POST /agent/register` with the one-time token the Owner/Admin generated
@@ -51,3 +51,53 @@ independent of any Tally request in flight.** A single Tally export can take up 
 and is retried once at half size (AGT-4.3), so one step can take about 20 minutes. Progress
 sent only between Tally requests would let the lease lapse and turn a healthy long sync into
 FAILED_AGENT_LOST. Run the progress timer on a separate thread/task from the Tally client.
+
+## Commands — claim, progress, result
+The heartbeat offers at most one command; the Agent then drives it:
+
+| Call | Allowed when | Effect | Otherwise |
+|---|---|---|---|
+| `POST /agent/commands/{id}/claim` | Agent ACTIVE; command PENDING and inside its claim window (default 10 min); the Agent has nothing CLAIMED/RUNNING | → CLAIMED, lease = now + `command_lease_seconds` | 409 `INVALID_COMMAND_STATE` (already claimed, expired, one in progress), 409 `AGENT_INCOMPATIBLE`, 404 if not this Agent's command |
+| `POST /agent/commands/{id}/progress` | CLAIMED or RUNNING, lease not yet expired | → RUNNING, lease renewed; also counts as a heartbeat | 409 (lease lapsed, finished), 404 |
+| `POST /agent/commands/{id}/result` `{status, error_code?, error_message?}` | COMPLETED: RUNNING. FAILED (needs `error_code`): CLAIMED or RUNNING. Lease not expired | → COMPLETED / FAILED | 409, 404, 422 |
+
+Each call is one conditional `UPDATE` on the command row (AGT-1.3), so a duplicate or late call
+can never change a finished command. A 409 means "stop working on this command"; do not retry it.
+
+| State | Set by | Final |
+|---|---|---|
+| PENDING | Sync Now or a schedule | |
+| CLAIMED | claim | |
+| RUNNING | first progress | |
+| COMPLETED / FAILED | result | yes |
+| EXPIRED | backend job: not claimed within the claim window (AGT-1.10) | yes |
+| FAILED_AGENT_LOST | backend job: lease passed (AGT-1.8); reason in `error_message` | yes |
+
+A failed, expired or lost command is never retried or reassigned (AGT-1.4, AGT-1.9): an
+Owner/Admin issues a new command, to this Agent or a standby.
+
+```mermaid
+sequenceDiagram
+    participant U as Owner (dashboard)
+    participant B as Backend
+    participant A as Agent
+    participant T as TallyPrime
+    U->>B: POST /companies/{id}/sync
+    B-->>U: 201 PENDING (never contacts the Agent)
+    loop every poll_interval_seconds (30 s)
+        A->>B: POST /agent/heartbeat
+        B-->>A: config + oldest PENDING command (if ACTIVE and idle)
+    end
+    A->>B: POST /agent/commands/{id}/claim
+    B-->>A: CLAIMED, lease_expires_at
+    par every progress_interval_seconds (60 s), own timer
+        A->>B: POST /agent/commands/{id}/progress
+        B-->>A: RUNNING, lease renewed
+    and the sync itself
+        A->>T: TDL export requests (each up to 10 min, retried once)
+        T-->>A: XML
+        A->>B: POST /agent/commands/{id}/batches (P5)
+    end
+    A->>B: POST /agent/commands/{id}/result COMPLETED | FAILED
+    Note over B: lease passed without progress -> FAILED_AGENT_LOST
+```
