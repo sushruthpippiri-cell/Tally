@@ -3,6 +3,8 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
+P3 (Agent control plane) — **first half done** 2026-09-25: P3.1–P3.6 committed, `make check` green (481 tests). Stopped as the kickoff prompt says; **P3.7–P3.12 wait for the owner**.
+
 P2 (identity, RBAC, settings) — **complete** 2026-09-25. Local suite PASS ([phase-02](test-reports/phase-02.md), 416 tests, 1 skipped with reason) and CI green (run 36103266538, both `check` and `agent-windows`). Next: P3 (Agent control plane) — not started; waits for the owner.
 
 P1 (data model) — **complete** 2026-09-23. Local suite PASS ([phase-01](test-reports/phase-01.md), 183 tests, 0 skipped) and CI green (run 35887137380, both `check` and `agent-windows`). Next: P2 (identity, RBAC, settings) — not started; waits for the owner.
@@ -12,6 +14,12 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-25 | P3.1 credentials + committing fixture | 7e43c09 | `agt_<id>.<secret>`, salted SHA-256; `reg_` tokens hashed. `committed` fixture: real commits on separate connections, TRUNCATE only on a `_test` database (D-035 #14). D-035 ACCEPTED. APScheduler added. |
+| 2026-09-25 | P3.2 registration token | 7f4a380 | MANAGE_AGENTS, shown once, 24 h, audited. |
+| 2026-09-25 | P3.3 registration | cb05398 | CAS on token and GUID binding in one transaction; mismatch leaves the token usable (AC-13, AC-14). Committed races: one token x8 → one Agent; two first Agents with different GUIDs → one binds. Mutation-checked against a naive read-then-write. |
+| 2026-09-25 | P3.4 AgentContext | 2cab749 | CREDENTIAL_INVALID vs AGENT_REVOKED (SEC-2.2); a wrong secret never reveals revocation. |
+| 2026-09-25 | P3.5 heartbeat | 3ea4b23 | Migration 0003 (`error_code`, partial unique index: one command in progress per Agent, D-035 #13). INCOMPATIBLE (AC-22), GUID confirmation, D-025, COMPANY_MISMATCH warning (AGT-3.4). Route test: P2 skip removed; Agent routes checked; user/company routes reject Agent credentials. `docs/agent-protocol.md` started (independent progress timer). |
+| 2026-09-25 | P3.6 offline job | 03db83b | `mark_offline` per company threshold; `run_exclusive` advisory lock tested on real connections (D-017). **This commit went in with one failing test** (my check pipeline did not stop on failure); fixed in 74f5d17 — a heartbeat test tied on `created_at`. |
 | 2026-09-25 | P2 follow-up | (see log) | D-034 ACCEPTED. Per-replica rate-limit ceiling added to the Phase 16 plan as required task P16.11 (before production). |
 | 2026-09-25 | P2.7 audit service | 330c906 | `audit.record()` writes every LOG-1.2 field; `diff()`. D-033 ACCEPTED with the plan. |
 | 2026-09-25 | P2.9 periods | 922b481 | TZ-safe day bounds, FY/quarter labels; AC-62 run under 3 server time zones. AC-62/AC-63 partial until analytics group by them (P8). |
