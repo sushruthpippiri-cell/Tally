@@ -189,8 +189,11 @@ async def test_the_oldest_pending_command_is_offered(
     api: httpx.AsyncClient, session: AsyncSession, company: Company
 ) -> None:
     agent, credential = await make_registered_agent(session, company)
-    first = await make_command(session, agent)
     await make_command(session, agent)
+    first = await make_command(session, agent)
+    # One test transaction gives both the same now(); make `first` the older one.
+    first.created_at = datetime.now(UTC) - timedelta(minutes=1)
+    await session.flush()
     other_agent, _ = await make_registered_agent(session, company, name="other")
     await make_command(session, other_agent)
     r = await _heartbeat(api, credential)
