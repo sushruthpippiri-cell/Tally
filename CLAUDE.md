@@ -108,6 +108,7 @@ A read-only analytics platform that sits beside TallyPrime. A Windows **Tally Sy
 1. Read this file, the phase file named in the prompt, `docs/decisions.md`, and the SRS sections the phase lists.
 2. Plan first (plan mode): task IDs, files you will touch, schemas/SQL, tests, open questions. Wait for approval.
 3. Implement one task at a time: tests first for the listed IDs, then code, then `make check`.
+   **Gate every commit on `make check`'s exit status only: `make check && git commit ...`.** Never decide from its output (`make check | grep passed`, `; echo exit=$?` then commit): a pipeline or `;` lets a failing check through. Redirect the output to a log if it is long, but keep the `&&`.
 4. Commit per task: `P5.3: stale-record protection for master upserts`.
 5. New assumption? Add a `D-0xx` entry (status PROPOSED) to `docs/decisions.md` and mention it in your summary.
 6. Blocked on a Tally fact or a business decision? Stop, record it under Questions in `docs/progress.md`, and ask.
