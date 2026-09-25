@@ -2,6 +2,11 @@
 
 from enum import StrEnum
 
+# Defined in the shared contract so the Agent, parser and database agree (P4.1).
+from tally_contract.enums import AccountingDirection as AccountingDirection
+from tally_contract.enums import AllocationType as AllocationType
+from tally_contract.enums import CollectionType as CollectionType
+
 
 class RoleName(StrEnum):
     OWNER = "OWNER"
@@ -90,31 +95,6 @@ class BaseVoucherType(StrEnum):
     CREDIT_NOTE = "CREDIT_NOTE"
     DEBIT_NOTE = "DEBIT_NOTE"
     OTHER = "OTHER"
-
-
-class AccountingDirection(StrEnum):
-    DEBIT = "DEBIT"
-    CREDIT = "CREDIT"
-
-
-class AllocationType(StrEnum):
-    """Normalized bill allocation type (D-004)."""
-
-    NEW_REF = "NEW_REF"
-    AGST_REF = "AGST_REF"
-    ADVANCE = "ADVANCE"
-    ON_ACCOUNT = "ON_ACCOUNT"
-    UNSUPPORTED = "UNSUPPORTED"
-
-
-class CollectionType(StrEnum):
-    COMPANY = "COMPANY"
-    GROUP = "GROUP"
-    LEDGER = "LEDGER"
-    VOUCHER_TYPE = "VOUCHER_TYPE"
-    STOCK_ITEM = "STOCK_ITEM"
-    COST_CENTRE = "COST_CENTRE"
-    VOUCHER = "VOUCHER"
 
 
 class WatermarkStatus(StrEnum):
