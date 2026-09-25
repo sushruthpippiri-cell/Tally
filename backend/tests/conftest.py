@@ -63,13 +63,19 @@ async def client_for(
 ) -> AsyncIterator[httpx.AsyncClient]:
     async def _session() -> AsyncIterator[AsyncSession]:
         # "Commit" the test's setup (releases a savepoint; the outer transaction is still
-        # rolled back after the test), so a failed request rolls back only its own writes.
+        # rolled back after the test), then run the request in its own SAVEPOINT: a failed
+        # request rolls back only its own writes, like a real one, and - unlike
+        # session.rollback() - does not expire the test's objects.
         await session.commit()
+        request = await session.begin_nested()
         try:
             yield session
         except Exception:
-            await session.rollback()  # like a real request: nothing uncommitted survives
+            if request.is_active:
+                await request.rollback()
             raise
+        if request.is_active:
+            await request.commit()
 
     app.dependency_overrides[get_session] = _session
     base = transport.pop("base_url", "http://test")
