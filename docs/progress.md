@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P3 (Agent control plane) — **first half done** 2026-09-25: P3.1–P3.6 committed, `make check` green (481 tests). Stopped as the kickoff prompt says; **P3.7–P3.12 wait for the owner**.
+P3 (Agent control plane) — local suite PASS 2026-09-25 ([phase-03](test-reports/phase-03.md), 613 tests, 0 skipped); waiting on CI. Next: P4 (Tally contract) — not started; waits for the owner, and **D-002 must be confirmed before P4**.
 
 P2 (identity, RBAC, settings) — **complete** 2026-09-25. Local suite PASS ([phase-02](test-reports/phase-02.md), 416 tests, 1 skipped with reason) and CI green (run 36103266538, both `check` and `agent-windows`). Next: P3 (Agent control plane) — not started; waits for the owner.
 
@@ -14,6 +14,13 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-25 | P3.7 commands + migration 0004 | b08caed | D-036 ACCEPTED. `created_at` from the app clock + `seq` identity: oldest = (created_at, seq); the P3.6 test workaround removed. Routing: one eligible Agent targeted even if OFFLINE/REGISTERING (waiting label); several need one ACTIVE or `agent_id`. |
+| 2026-09-25 | P3.8 claim/progress/result | c86e7fd | Single conditional UPDATEs. Committed races: 10 claims → 1; claims blocked behind an uncommitted claim all lose; one Agent, two commands → 1 (unique index). Mutation-checked (naive claim; dropped index). |
+| 2026-09-25 | P3.9 timeouts | 5be8794 | EXPIRED / FAILED_AGENT_LOST jobs; AGT-1.9 late calls → 409 with the row unchanged; on-time progress blocked behind the lost job loses (mutation-checked). `on_command_lost` hook for P5. |
+| 2026-09-25 | P3.10 schedules | 8805249 | `next_fire_at`, cron in company TZ, missed runs coalesce; simultaneous firings INCREMENTAL first (tested in both insertion orders; removing the sort fails it). |
+| 2026-09-25 | P3.11 Agent management | 27e63a5 | Agents view (+ `NO_ACTIVE_SCHEDULE`), rotation (committed races: one-instant switch, vs revocation, two rotations), revocation deactivates schedules, tally-settings (AC-24). Replacement path tested end to end. Phase 5 plan gains the required schedule-activation item. |
+| 2026-09-25 | P3.12 docs | 2b31319 | `docs/agent-protocol.md` complete (states, sequence diagram); OpenAPI summary test for every Agent endpoint. Smoke test on the dev DB: register → heartbeat → Sync Now → claim/progress/result → COMPLETED. |
+| 2026-09-25 | P3 tag review | (see log) | Downgraded to partial: AGT-1.1, VER-1.1 (the Agent's side: P7), AC-17, AC-19, AGT-1.6, FR-4.4 (dashboard: P13). |
 | 2026-09-25 | P3.1 credentials + committing fixture | 7e43c09 | `agt_<id>.<secret>`, salted SHA-256; `reg_` tokens hashed. `committed` fixture: real commits on separate connections, TRUNCATE only on a `_test` database (D-035 #14). D-035 ACCEPTED. APScheduler added. |
 | 2026-09-25 | P3.2 registration token | 7f4a380 | MANAGE_AGENTS, shown once, 24 h, audited. |
 | 2026-09-25 | P3.3 registration | cb05398 | CAS on token and GUID binding in one transaction; mismatch leaves the token usable (AC-13, AC-14). Committed races: one token x8 → one Agent; two first Agents with different GUIDs → one binds. Mutation-checked against a naive read-then-write. |
@@ -83,6 +90,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
+| 03 | [phase-03.md](test-reports/phase-03.md) | PASS - 613 tests, 0 failed, 0 skipped, 89.3% coverage; CI pending |
 | 02 | [phase-02.md](test-reports/phase-02.md) | PASS - 416 tests, 0 failed, 1 skipped (no Agent routes until P3), 90.2% coverage; CI run 36103266538 green |
 | 01 | [phase-01.md](test-reports/phase-01.md) | PASS - 183 tests, 0 failed, 0 skipped, 91.4% coverage; CI run 35887137380 green |
 | 00 | [phase-00.md](test-reports/phase-00.md) | PASS - 78 tests, 0 failed, 0 skipped, 83% coverage; CI run 35881605525 green |

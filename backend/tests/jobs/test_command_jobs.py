@@ -68,7 +68,8 @@ def _snapshot(c: AgentCommand) -> tuple[object, ...]:
     )
 
 
-@pytest.mark.req("AC-19", "RTE-1.6")
+@pytest.mark.req("RTE-1.6")
+@pytest.mark.req_partial("AC-19")  # "Agent offline" shown on the dashboard: P13
 async def test_offline_agent_command_waits_labelled_and_is_claimed_on_return(
     api: httpx.AsyncClient, session: AsyncSession, company: Company, owner: User
 ) -> None:

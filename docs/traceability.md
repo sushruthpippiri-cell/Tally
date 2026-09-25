@@ -5,15 +5,35 @@ a test marked `@pytest.mark.req` fully proves it; `@pytest.mark.req_partial` tes
 listed separately and never count as covered (CLAUDE.md).
 
 - Requirement IDs in the SRS: **356**
-- Fully covered by at least one test: **12**
-- Partially covered only: **18**
-- Not covered yet: **326**
+- Fully covered by at least one test: **40**
+- Partially covered only: **28**
+- Not covered yet: **288**
 
 ## Covered
 
 | Requirement | Tests |
 |---|---|
+| SEC-2.1 | backend/tests/races/test_rotation_races.py::test_rotation_switches_credentials_in_one_instant |
+| SEC-2.2 | backend/tests/core/test_agent_auth.py::test_invalid_and_revoked_credentials_get_distinguishable_errors |
+| SEC-2.3 | backend/tests/api/test_agent_management.py::test_rotation_keeps_the_agent_id_and_revocation_is_permanent |
+| AGT-3.1 | backend/tests/api/test_agent_registration.py::test_registration_issues_a_credential_bound_to_one_company |
+| AGT-3.4 | backend/tests/api/test_heartbeat.py::test_company_mismatch_warns_and_never_rebinds |
+| AGT-1.2 | backend/tests/jobs/test_command_jobs.py::test_every_command_state_and_path |
+| AGT-1.3 | backend/tests/api/test_command_lifecycle.py::test_a_command_can_be_claimed_once |
+| AGT-1.4 | backend/tests/jobs/test_command_jobs.py::test_a_failed_command_is_not_retried |
+| AGT-1.5 | backend/tests/api/test_commands.py::test_sync_now_only_creates_a_pending_command |
+| AGT-1.7 | backend/tests/api/test_command_lifecycle.py::test_progress_keeps_a_long_sync_alive_past_the_first_lease |
+| AGT-1.8 | backend/tests/jobs/test_command_jobs.py::test_a_running_command_past_its_lease_is_lost_and_never_reassigned |
+| AGT-1.9 | backend/tests/jobs/test_command_jobs.py::test_late_calls_never_change_a_lost_or_expired_command |
+| AGT-1.10 | backend/tests/jobs/test_command_jobs.py::test_pending_expires_after_the_company_claim_timeout |
+| RTE-1.1 | backend/tests/api/test_commands.py::test_the_one_active_agent_is_targeted_automatically |
+| RTE-1.2 | backend/tests/api/test_commands.py::test_two_active_agents_need_an_agent_id_and_only_that_one_gets_it |
+| RTE-1.3 | backend/tests/api/test_schedules.py::test_a_schedule_is_bound_to_its_agent_for_good |
 | RTE-1.4 | backend/tests/models/test_agents.py::test_command_agent_is_mandatory_and_immutable |
+| RTE-1.5 | backend/tests/api/test_commands.py::test_an_agent_of_another_company_is_refused |
+| RTE-1.6 | backend/tests/jobs/test_command_jobs.py::test_offline_agent_command_waits_labelled_and_is_claimed_on_return |
+| AGT-4.2 | backend/tests/api/test_agent_management.py::test_tally_settings_reject_batches_over_10000_and_reach_the_agent |
+| VER-1.2 | backend/tests/api/test_heartbeat.py::test_below_minimum_version_is_incompatible_and_gets_no_command |
 | DR-4.6 | backend/tests/models/test_identity.py::test_guid_unique_per_company_not_globally |
 | DR-ML-1 | backend/tests/models/test_masters.py::test_masters_cannot_be_deleted |
 | RBAC-1.1 | backend/tests/api/test_route_access.py::test_user_of_another_company_gets_403_and_no_data<br>backend/tests/api/test_route_access.py::test_each_role_gets_exactly_what_srs_14_1_allows |
@@ -23,6 +43,14 @@ listed separately and never count as covered (CLAUDE.md).
 | SEC-1.4 | backend/tests/api/test_middleware.py::test_cors_allows_only_configured_origins |
 | SEC-1.9 | backend/tests/api/test_middleware.py::test_100_per_minute_per_ip_then_1000_per_user |
 | Q-1.2 | backend/tests/core/test_periods.py::test_financial_quarters_from_1_april<br>backend/tests/core/test_periods.py::test_1_january_start_gives_calendar_quarters |
+| TEST-3.2 | backend/tests/jobs/test_command_jobs.py::test_a_running_command_past_its_lease_is_lost_and_never_reassigned |
+| AC-13 | backend/tests/api/test_agent_registration.py::test_registration_issues_a_credential_bound_to_one_company |
+| AC-14 | backend/tests/api/test_agent_registration.py::test_a_different_guid_is_rejected_and_the_token_stays_usable |
+| AC-15 | backend/tests/api/test_command_lifecycle.py::test_revoked_agent_gets_agent_revoked_and_no_command_by_any_route |
+| AC-16 | backend/tests/api/test_agent_management.py::test_rotation_invalidates_the_old_credential_and_the_new_one_works |
+| AC-18 | backend/tests/api/test_commands.py::test_two_active_agents_need_an_agent_id_and_only_that_one_gets_it |
+| AC-20 | backend/tests/jobs/test_command_jobs.py::test_a_running_command_past_its_lease_is_lost_and_never_reassigned |
+| AC-22 | backend/tests/api/test_heartbeat.py::test_below_minimum_version_is_incompatible_and_gets_no_command |
 | AC-59 | backend/tests/api/test_settings.py::test_accountant_gets_403_on_settings_and_user_management |
 | AC-60 | backend/tests/api/test_route_access.py::test_user_of_another_company_gets_403_and_no_data<br>backend/tests/api/test_route_access.py::test_each_role_gets_exactly_what_srs_14_1_allows |
 
@@ -30,25 +58,41 @@ listed separately and never count as covered (CLAUDE.md).
 
 | Requirement | Tests proving part of it |
 |---|---|
+| AGT-5.4 | backend/tests/api/test_agent_management.py::test_tally_settings_reject_batches_over_10000_and_reach_the_agent |
+| AGT-1.1 | backend/tests/api/test_heartbeat.py::test_heartbeat_records_versions_uptime_and_queue |
+| AGT-1.6 | backend/tests/api/test_command_lifecycle.py::test_sync_now_is_claimed_run_and_completed_each_state_visible |
+| AGT-6.4 | backend/tests/api/test_agent_management.py::test_agents_view_lists_status_versions_heartbeat_uptime_and_queue |
+| VER-1.1 | backend/tests/api/test_heartbeat.py::test_heartbeat_records_versions_uptime_and_queue |
 | DR-4.1 | backend/tests/models/test_identity.py::test_guid_unique_per_company_not_globally<br>backend/tests/models/test_identity.py::test_voucher_number_is_not_an_identity |
 | DR-4.2 | backend/tests/models/test_identity.py::test_guid_unique_per_company_not_globally |
 | DR-4.4 | backend/tests/models/test_identity.py::test_voucher_number_is_not_an_identity |
 | VAL-1.1 | backend/tests/test_gates.py::test_all_passed_is_incremental<br>backend/tests/test_gates.py::test_untested_depends_on_allow_unverified_flag<br>backend/tests/test_gates.py::test_some_passed_is_not_enough_without_the_unverified_flag |
 | VAL-1.2 | backend/tests/test_gates.py::test_any_failed_forces_full_only_everywhere |
 | ACC-7.3 | backend/tests/models/test_config_audit.py::test_allow_list_entry_survives_group_rename<br>backend/tests/models/test_config_audit.py::test_company_group_entry_resolves_by_guid |
+| FR-4.4 | backend/tests/api/test_agent_management.py::test_agents_view_lists_status_versions_heartbeat_uptime_and_queue |
 | SEC-1.3 | backend/tests/api/test_middleware.py::test_prod_rejects_plain_http_and_sends_hsts |
 | SEC-1.13 | backend/tests/models/test_config_audit.py::test_app_role_cannot_change_audit_logs<br>backend/tests/models/test_config_audit.py::test_even_the_owner_cannot_change_audit_logs |
 | SEC-1.14 | backend/tests/test_config.py::test_prod_missing_secrets_fails_startup<br>backend/tests/test_config.py::test_prod_with_all_secrets_ok_and_incremental_off_by_default |
 | SEC-1.15 | backend/tests/test_db_roles.py::test_app_role_cannot_create_tables_but_owner_can |
 | LOG-1.1 | backend/tests/api/test_auth.py::test_login_success_and_failure_are_audited<br>backend/tests/api/test_settings.py::test_update_stores_override_and_audits_before_after<br>backend/tests/api/test_users.py::test_roles_are_replaced_and_audited |
 | LOG-1.2 | backend/tests/core/test_audit.py::test_record_writes_every_log_1_2_field |
-| TZ-1.1 | backend/tests/core/test_periods.py::test_2358_ist_belongs_to_the_local_day<br>backend/tests/core/test_periods.py::test_today_is_the_company_day_not_the_server_day |
+| TZ-1.1 | backend/tests/api/test_schedules.py::test_next_fire_is_computed_in_the_company_time_zone<br>backend/tests/core/test_periods.py::test_2358_ist_belongs_to_the_local_day<br>backend/tests/core/test_periods.py::test_today_is_the_company_day_not_the_server_day |
 | TZ-1.2 | backend/tests/core/test_periods.py::test_2358_ist_belongs_to_the_local_day |
 | Q-1.1 | backend/tests/core/test_periods.py::test_financial_by_default_calendar_when_chosen |
 | AC-12 | backend/tests/test_gates.py::test_any_failed_forces_full_only_everywhere |
+| AC-17 | backend/tests/api/test_command_lifecycle.py::test_sync_now_is_claimed_run_and_completed_each_state_visible |
+| AC-19 | backend/tests/jobs/test_command_jobs.py::test_offline_agent_command_waits_labelled_and_is_claimed_on_return |
+| AC-24 | backend/tests/api/test_agent_management.py::test_tally_settings_reject_batches_over_10000_and_reach_the_agent |
+| AC-25 | backend/tests/api/test_agent_management.py::test_agents_view_lists_status_versions_heartbeat_uptime_and_queue |
 | AC-62 | backend/tests/core/test_periods.py::test_2358_ist_belongs_to_the_local_day |
 | AC-63 | backend/tests/core/test_periods.py::test_financial_quarters_from_1_april |
 
 ## Not covered yet
 
-SEC-2.0, SEC-2, SEC-2.4, SEC-2.1, SEC-2.2, SEC-2.3, AGT-3.1, AGT-3.2, AGT-3.3, AGT-3.4, AGT-5.1, AGT-5.2, AGT-5.3, AGT-5.4, AGT-5.5, AGT-1.1, AGT-1.2, AGT-1.3, AGT-1.4, AGT-1.5, AGT-1.6, AGT-1.7, AGT-1.8, AGT-1.9, AGT-1.10, RTE-1.1, RTE-1.2, RTE-1.3, RTE-1.5, RTE-1.6, AGT-4.1, AGT-4.2, AGT-4.3, AGT-4.4, AGT-6.1, AGT-6.2, AGT-6.3, AGT-6.4, AGT-2.1, AGT-2.2, AGT-2.3, AGT-2.4, AGT-2.5, AGT-2.6, VER-1.1, VER-1.2, VER-1.3, ACC-DATA-1, ACC-DATA-2, ACC-DATA-3, DR-UDF-1, DR-UDF-2, DR-UDF-3, DR-UDF-4, SYNC-1.1, SYNC-1.2, SYNC-1.3, SYNC-4.1, SYNC-4.2, SYNC-4.3, SYNC-4.4, SYNC-3.1, SYNC-3.2, SYNC-3.3, SYNC-3.4, SYNC-3.5, SYNC-6.1, SYNC-6.2, SYNC-6.3, SYNC-6.4, SYNC-6.5, SYNC-6.6, SYNC-5.1, SYNC-5.2, SYNC-5.3, SYNC-5.4, SYNC-5.5, DR-VE-1, DR-VE-2, DR-VE-3, DR-VE-4, DR-ML-2, DR-ML-3, DR-ML-4, DR-ML-5, FR-1.1, FR-1.2, FR-1.3, FR-1.4, VAL-1.3, ACC-VAL-1, ACC-7.1, ACC-7.2, ACC-7.4, ACC-7.5, ACC-7.6, ACC-8.1, ACC-8.2, ACC-8.3, ACC-1.1, ACC-2.1, ACC-2.2, ACC-6.1, ACC-6.2, ACC-6.3, ACC-6.4, ACC-1.4, ACC-1.8, ACC-1.10, ACC-1.9, ACC-5.1, ACC-5.2, ACC-5.3, ACC-5.4, ACC-5.5, ACC-1.2, ACC-1.5, ACC-1.6, ACC-1.7, ACC-3.1, ACC-3.3, ACC-3.4, ACC-9.1, ACC-9.2, ACC-9.3, ACC-9.4, ACC-9.5, ACC-9.6, TOPN-1.1, TOPN-1.2, TOPN-1.3, TOPN-1.4, ACC-6, ACC-4.4, ACC-4.5, ACC-4.6, FR-2.4, FR-2.1, REC-1.1, REC-1.2, REC-1.3, REC-1.4, REC-1.5, FR-AGE-1, FR-AGE-2, AGE-BILL-1, AGE-BILL-2, AGE-BILL-3, AGE-BILL-4, AGE-BILL-5, FR-PAY-1, FR-PAY-2, FR-PAY-3, FR-PAY-4, FR-PAY-5, FR-PAY-6, FR-STK-1, FR-STK-2, FR-STK-3, FR-STK-4, FR-STK-5, FR-STK-12, FR-STK-19, FR-STK-6, FR-STK-13, FR-STK-14, FR-STK-7, FR-STK-20, FR-STK-8, FR-STK-9, FR-STK-10, FR-STK-15, FR-STK-16, FR-STK-17, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.5, FR-3.6, FR-3.7, FR-3.8, FR-3.9, FR-4.1, FR-4.2, FR-4.3, FR-4.4, FR-4.5, FR-DD-1, FR-DD-2, FR-DD-3, FR-DD-4, FR-DD-5, EXP-1.1, EXP-1.2, EXP-1.3, EXP-1.4, EXP-1.5, EXP-1.6, SEC-1.5, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, SEC-1.11, SEC-1.12, PERF-1.1, PERF-1.2, PERF-1.3, PERF-1.4, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-REL-2, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-1.1, TEST-1.2, TEST-1.3, TEST-1.4, TEST-2.1, TEST-2.2, TEST-3.1, TEST-3.2, TEST-3.3, TEST-4.1, TEST-4.2, TEST-5.1, TEST-5.2, AC-01, AC-02, AC-03, AC-04, AC-05, AC-06, AC-07, AC-08, AC-09, AC-10, AC-11, AC-13, AC-14, AC-15, AC-16, AC-17, AC-18, AC-19, AC-20, AC-21, AC-22, AC-23, AC-24, AC-25, AC-26, AC-27, AC-28, AC-29, AC-30, AC-31, AC-32, AC-33, AC-34, AC-35, AC-36, AC-37, AC-38, AC-39, AC-40, AC-41, AC-42, AC-43, AC-44, AC-45, AC-46, AC-47, AC-48, AC-49, AC-50, AC-51, AC-52, AC-53, AC-54, AC-55, AC-56, AC-57, AC-58, AC-61, AC-64, AC-65, AC-66, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
+SEC-2.0, SEC-2, SEC-2.4, AGT-3.2, AGT-3.3, AGT-5.1, AGT-5.2, AGT-5.3, AGT-5.5, AGT-4.1, AGT-4.3, AGT-4.4, AGT-6.1, AGT-6.2, AGT-6.3, AGT-2.1, AGT-2.2, AGT-2.3, AGT-2.4, AGT-2.5, AGT-2.6, VER-1.3, ACC-DATA-1, ACC-DATA-2, ACC-DATA-3, DR-UDF-1, DR-UDF-2, DR-UDF-3, DR-UDF-4, SYNC-1.1, SYNC-1.2, SYNC-1.3, SYNC-4.1, SYNC-4.2, SYNC-4.3, SYNC-4.4, SYNC-3.1, SYNC-3.2, SYNC-3.3, SYNC-3.4, SYNC-3.5, SYNC-6.1, SYNC-6.2, SYNC-6.3, SYNC-6.4, SYNC-6.5, SYNC-6.6, SYNC-5.1, SYNC-5.2, SYNC-5.3, SYNC-5.4, SYNC-5.5, DR-VE-1, DR-VE-2, DR-VE-3, DR-VE-4, DR-ML-2, DR-ML-3, DR-ML-4, DR-ML-5, FR-1.1, FR-1.2, FR-1.3, FR-1.4, VAL-1.3, ACC-VAL-1, ACC-7.1, ACC-7.2, ACC-7.4, ACC-7.5, ACC-7.6, ACC-8.1, ACC-8.2, ACC-8.3, ACC-1.1, ACC-2.1, ACC-2.2, ACC-6.1, ACC-6.2, ACC-6.3, ACC-6.4, ACC-1.4, ACC-1.8, ACC-1.10, ACC-1.9, ACC-5.1, ACC-5.2, ACC-5.3, ACC-5.4, ACC-5.5, ACC-1.2, ACC-1.5, ACC-1.6, ACC-1.7, ACC-3.1, ACC-3.3, ACC-3.4, ACC-9.1, ACC-9.2, ACC-9.3, ACC-9.4, ACC-9.5, ACC-9.6, TOPN-1.1, TOPN-1.2, TOPN-1.3, TOPN-1.4, ACC-6, ACC-4.4, ACC-4.5, ACC-4.6, FR-2.4, FR-2.1, REC-1.1, REC-1.2, REC-1.3, REC-1.4, REC-1.5, FR-AGE-1, FR-AGE-2, AGE-BILL-1, AGE-BILL-2, AGE-BILL-3, AGE-BILL-4, AGE-BILL-5, FR-PAY-1, FR-PAY-2, FR-PAY-3, FR-PAY-4, FR-PAY-5, FR-PAY-6, FR-STK-1, FR-STK-2, FR-STK-3, FR-STK-4, FR-STK-5, FR-STK-12, FR-STK-19, FR-STK-6, FR-STK-13, FR-STK-14, FR-STK-7, FR-STK-20, FR-STK-8, FR-STK-9, FR-STK-10, FR-STK-15, FR-STK-16, FR-STK-17, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.5, FR-3.6, FR-3.7, FR-3.8, FR-3.9, FR-4.1, FR-4.2, FR-4.3, FR-4.5, FR-DD-1, FR-DD-2, FR-DD-3, FR-DD-4, FR-DD-5, EXP-1.1, EXP-1.2, EXP-1.3, EXP-1.4, EXP-1.5, EXP-1.6, SEC-1.5, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, SEC-1.11, SEC-1.12, PERF-1.1, PERF-1.2, PERF-1.3, PERF-1.4, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-REL-2, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-1.1, TEST-1.2, TEST-1.3, TEST-1.4, TEST-2.1, TEST-2.2, TEST-3.1, TEST-3.3, TEST-4.1, TEST-4.2, TEST-5.1, TEST-5.2, AC-01, AC-02, AC-03, AC-04, AC-05, AC-06, AC-07, AC-08, AC-09, AC-10, AC-11, AC-21, AC-23, AC-26, AC-27, AC-28, AC-29, AC-30, AC-31, AC-32, AC-33, AC-34, AC-35, AC-36, AC-37, AC-38, AC-39, AC-40, AC-41, AC-42, AC-43, AC-44, AC-45, AC-46, AC-47, AC-48, AC-49, AC-50, AC-51, AC-52, AC-53, AC-54, AC-55, AC-56, AC-57, AC-58, AC-61, AC-64, AC-65, AC-66, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
+
+## Marked in tests but not found in the SRS
+
+These are additions (see `docs/decisions.md`) or typos.
+
+SEC-2.0a, SEC-2.0b

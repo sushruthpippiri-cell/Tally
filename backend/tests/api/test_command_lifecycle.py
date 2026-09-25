@@ -52,7 +52,7 @@ async def _call(
     )
 
 
-@pytest.mark.req("AC-17", "AGT-1.6")
+@pytest.mark.req_partial("AC-17", "AGT-1.6")  # shown on the dashboard: P13
 async def test_sync_now_is_claimed_run_and_completed_each_state_visible(
     api: httpx.AsyncClient, company: Company, owner: User, agent: tuple[Agent, str]
 ) -> None:

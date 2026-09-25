@@ -48,7 +48,7 @@ async def _heartbeat(api: httpx.AsyncClient, credential: str, **kw: Any) -> http
     return await api.post("/agent/heartbeat", json=_beat(**kw), headers=agent_header(credential))
 
 
-@pytest.mark.req("AGT-1.1", "VER-1.1")
+@pytest.mark.req_partial("AGT-1.1", "VER-1.1")  # the Agent polling and reporting: P7
 async def test_heartbeat_records_versions_uptime_and_queue(
     api: httpx.AsyncClient, session: AsyncSession, company: Company
 ) -> None:

@@ -164,8 +164,8 @@ async def test_tally_settings_reject_batches_over_10000_and_reach_the_agent(
     }
 
 
-@pytest.mark.req("FR-4.4")
-@pytest.mark.req_partial("AC-25", "AGT-6.4")  # API flag; shown in the UI P13, emphasis P10
+# API only: the Agents view UI is P13; AGT-6.4's extra emphasis after a discrepancy is P10.
+@pytest.mark.req_partial("FR-4.4", "AC-25", "AGT-6.4")
 async def test_agents_view_lists_status_versions_heartbeat_uptime_and_queue(
     api: httpx.AsyncClient, session: AsyncSession, company: Company
 ) -> None:
