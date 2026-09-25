@@ -189,16 +189,30 @@ async def test_the_oldest_pending_command_is_offered(
     api: httpx.AsyncClient, session: AsyncSession, company: Company
 ) -> None:
     agent, credential = await make_registered_agent(session, company)
-    await make_command(session, agent)
     first = await make_command(session, agent)
-    # One test transaction gives both the same now(); make `first` the older one.
-    first.created_at = datetime.now(UTC) - timedelta(minutes=1)
-    await session.flush()
+    await make_command(session, agent)
     other_agent, _ = await make_registered_agent(session, company, name="other")
     await make_command(session, other_agent)
     r = await _heartbeat(api, credential)
     assert r.json()["command"]["command_id"] == str(first.command_id)
     assert r.json()["command"]["sync_mode"] == "FULL"
+
+
+async def test_commands_created_at_the_same_instant_are_offered_in_creation_order(
+    api: httpx.AsyncClient, session: AsyncSession, company: Company
+) -> None:
+    """D-036 #1: equal created_at is broken by seq, never by a random id."""
+    agent, credential = await make_registered_agent(session, company)
+    same = datetime.now(UTC)
+    commands = [await make_command(session, agent) for _ in range(5)]
+    for command in commands:
+        command.created_at = same
+    await session.flush()
+    for command in commands:
+        await session.refresh(command)
+    assert [c.seq for c in commands] == sorted(c.seq for c in commands)
+    r = await _heartbeat(api, credential)
+    assert r.json()["command"]["command_id"] == str(commands[0].command_id)
 
 
 async def test_no_new_command_while_one_is_in_progress(

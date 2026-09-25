@@ -1,13 +1,14 @@
 """Agents, registration tokens, commands and schedules (SRS 5.4)."""
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
     ForeignKey,
+    Identity,
     Index,
     LargeBinary,
     UniqueConstraint,
@@ -15,7 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, company_id_col, created_at, enum_check, tenant_fk, uuid_pk
+from app.models.base import Base, company_id_col, enum_check, tenant_fk, uuid_pk
 from app.models.enums import AgentStatus, CommandStatus, CommandType, SyncMode, TallyStatus
 
 
@@ -101,7 +102,11 @@ class AgentCommand(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.user_id")
     )  # null: scheduler
-    created_at: Mapped[datetime] = created_at()
+    # D-036 #1: the app clock sets created_at; seq breaks ties. Oldest = (created_at, seq).
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(UTC), server_default=text("now()")
+    )
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True))
     claimed_at: Mapped[datetime | None]
     completed_at: Mapped[datetime | None]
     error_code: Mapped[str | None]  # D-035 #1; ErrorCode value, no CHECK (the list grows)
@@ -113,6 +118,7 @@ class SyncSchedule(Base):
     __table_args__ = (
         tenant_fk("agent_id", "agents.agent_id"),
         enum_check("sync_mode", SyncMode),
+        Index(None, "next_fire_at", postgresql_where=text("is_active")),  # D-036 #2
     )
 
     schedule_id: Mapped[uuid.UUID] = uuid_pk()
@@ -121,4 +127,7 @@ class SyncSchedule(Base):
     cron_expression: Mapped[str]
     sync_mode: Mapped[str]
     is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
-    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.user_id"))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.user_id")
+    )  # null: system
+    next_fire_at: Mapped[datetime | None]  # D-036 #2: null while inactive

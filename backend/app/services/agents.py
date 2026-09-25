@@ -258,7 +258,7 @@ async def _next_command(session: AsyncSession, agent: Agent, now: datetime) -> C
             AgentCommand.status == CommandStatus.PENDING,
             AgentCommand.created_at > now - timedelta(minutes=timeout),
         )
-        .order_by(AgentCommand.created_at, AgentCommand.command_id)
+        .order_by(AgentCommand.created_at, AgentCommand.seq)  # D-036 #1
         .limit(1)
     )
     if command is None:
