@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P3 (Agent control plane) — local suite PASS 2026-09-25 ([phase-03](test-reports/phase-03.md), 613 tests, 0 skipped); waiting on CI. Next: P4 (Tally contract) — not started; waits for the owner, and **D-002 must be confirmed before P4**.
+P3 (Agent control plane) — **complete** 2026-09-25. Local suite PASS ([phase-03](test-reports/phase-03.md), 613 tests, 0 skipped) and CI green (run 36107675601, both `check` and `agent-windows`). Next: P4 (Tally contract) — not started; waits for the owner, and **D-002 must be confirmed before P4**.
 
 P2 (identity, RBAC, settings) — **complete** 2026-09-25. Local suite PASS ([phase-02](test-reports/phase-02.md), 416 tests, 1 skipped with reason) and CI green (run 36103266538, both `check` and `agent-windows`). Next: P3 (Agent control plane) — not started; waits for the owner.
 
@@ -90,7 +90,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
-| 03 | [phase-03.md](test-reports/phase-03.md) | PASS - 613 tests, 0 failed, 0 skipped, 89.3% coverage; CI pending |
+| 03 | [phase-03.md](test-reports/phase-03.md) | PASS - 613 tests, 0 failed, 0 skipped, 89.3% coverage; CI run 36107675601 green |
 | 02 | [phase-02.md](test-reports/phase-02.md) | PASS - 416 tests, 0 failed, 1 skipped (no Agent routes until P3), 90.2% coverage; CI run 36103266538 green |
 | 01 | [phase-01.md](test-reports/phase-01.md) | PASS - 183 tests, 0 failed, 0 skipped, 91.4% coverage; CI run 35887137380 green |
 | 00 | [phase-00.md](test-reports/phase-00.md) | PASS - 78 tests, 0 failed, 0 skipped, 83% coverage; CI run 35881605525 green |
