@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _DEV_DATABASE_URL = "postgresql+asyncpg://tally_app:tally_app_dev@localhost:5432/tally"
 _DEV_MIGRATION_URL = "postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally"
-_DEV_JWT_SECRET = "dev-only-secret-change-me"
+_DEV_JWT_SECRET = "dev-only-jwt-secret-change-me-in-prod"  # >= 32 bytes for HS256
 
 
 class Settings(BaseSettings):
@@ -46,6 +46,9 @@ class Settings(BaseSettings):
             ]
             if missing:
                 raise ValueError(f"missing required settings in prod: {', '.join(missing)}")
+            assert self.jwt_secret is not None
+            if len(self.jwt_secret.get_secret_value().encode()) < 32:
+                raise ValueError("JWT_SECRET must be at least 32 bytes (HS256)")
             if self.allow_unverified_incremental is None:
                 self.allow_unverified_incremental = False
         else:

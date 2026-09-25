@@ -77,7 +77,16 @@ class AuditLog(Base):
     UPDATE and DELETE for everyone. Written only through app/core/audit.py."""
 
     __tablename__ = "audit_logs"
-    __table_args__ = (Index(None, "company_id", "created_at"),)
+    __table_args__ = (
+        Index(None, "company_id", "created_at"),
+        # Per-email login throttle counts recent LOGIN rows by email (D-033).
+        Index(
+            "ix_audit_logs_login_entity_id_created_at",
+            "entity_id",
+            "created_at",
+            postgresql_where=text("action = 'LOGIN'"),
+        ),
+    )
 
     id: Mapped[int] = bigint_pk()
     company_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("companies.company_id"))

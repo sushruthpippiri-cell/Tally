@@ -22,7 +22,7 @@ def test_prod_with_all_secrets_ok_and_incremental_off_by_default() -> None:
         env="prod",
         database_url="postgresql+asyncpg://a",
         database_migration_url="postgresql+psycopg://b",
-        jwt_secret="x",
+        jwt_secret="x" * 32,
         cors_origins="https://a.example, https://b.example",
     )
     assert s.cors_origins == ["https://a.example", "https://b.example"]
@@ -38,3 +38,14 @@ def test_dev_and_test_get_defaults_and_incremental_on(env: str) -> None:
 
 def test_explicit_flag_wins() -> None:
     assert _s(env="dev", allow_unverified_incremental=False).allow_unverified_incremental is False
+
+
+def test_prod_rejects_a_short_jwt_secret() -> None:
+    with pytest.raises(ValidationError, match="at least 32 bytes"):
+        _s(
+            env="prod",
+            database_url="postgresql+asyncpg://a",
+            database_migration_url="postgresql+psycopg://b",
+            jwt_secret="too-short",
+            cors_origins="https://a.example",
+        )

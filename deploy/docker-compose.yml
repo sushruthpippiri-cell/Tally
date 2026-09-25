@@ -32,7 +32,7 @@ services:
       ENV: dev
       DATABASE_URL: postgresql+asyncpg://tally_app:${TALLY_APP_PASSWORD:-tally_app_dev}@postgres:5432/tally
       DATABASE_MIGRATION_URL: postgresql+psycopg://tally_owner:${TALLY_OWNER_PASSWORD:-tally_owner_dev}@postgres:5432/tally
-      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-secret-change-me-in-prod}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
     ports:
       - "8000:8000"

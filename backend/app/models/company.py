@@ -53,3 +53,17 @@ class UserRole(Base):
         ForeignKey("companies.company_id"), primary_key=True, index=True
     )
     role_id: Mapped[int] = mapped_column(ForeignKey("roles.role_id"), primary_key=True)
+
+
+class RefreshToken(Base):
+    """One row per issued refresh token, so a refresh can rotate it and reuse is detected
+    (D-033). `used_at` set = rotated; a revoked token (password change, detected reuse) is
+    deleted, so presenting it is a plain 401 rather than another reuse alarm."""
+
+    __tablename__ = "refresh_tokens"
+
+    jti: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.user_id"), index=True)
+    expires_at: Mapped[datetime]
+    used_at: Mapped[datetime | None]
+    created_at: Mapped[datetime] = created_at()

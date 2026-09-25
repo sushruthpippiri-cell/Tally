@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import create_access_token
 from app.models.agents import Agent, AgentCommand
 from app.models.balances import LedgerOpeningBalance
 from app.models.company import Company, Role, User, UserRole
@@ -96,6 +97,10 @@ async def make_user(
     if company is not None:
         await grant(session, user, company, *roles)
     return user
+
+
+def auth_header(user: User) -> dict[str, str]:
+    return {"Authorization": f"Bearer {create_access_token(user.user_id)}"}
 
 
 async def grant(session: AsyncSession, user: User, company: Company, *roles: RoleName) -> None:

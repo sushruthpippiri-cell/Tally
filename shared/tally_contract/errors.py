@@ -1,6 +1,6 @@
 """Error codes shared by backend and Agent.
 
-15 codes come from SRS v7.3. The other 14 are additions NOT in the SRS (decision D-030);
+15 codes come from SRS v7.3. The other 15 are additions NOT in the SRS (decision D-030);
 each carries `# not in SRS v7.3`.
 """
 
@@ -39,6 +39,7 @@ class ErrorCode(StrEnum):
     FORBIDDEN = "FORBIDDEN"  # not in SRS v7.3
     NOT_FOUND = "NOT_FOUND"  # not in SRS v7.3
     CONFLICT = "CONFLICT"  # not in SRS v7.3
+    RATE_LIMITED = "RATE_LIMITED"  # not in SRS v7.3
 
 
 SRS_CODES: tuple[ErrorCode, ...] = tuple(list(ErrorCode)[:15])

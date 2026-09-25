@@ -182,7 +182,7 @@ Access token in memory; refresh token in `sessionStorage`; bearer headers only (
 With gate rows NOT_TESTED, incremental sync is allowed when `ALLOW_UNVERIFIED_INCREMENTAL=true` (default in dev/test) and forced to full-pull in prod (VAL-1.1). Any FAILED row forces full-pull everywhere (VAL-1.2).
 
 ### D-030 Error codes added beyond SRS v7.3 — ACCEPTED
-The SRS defines 15 error codes (`TALLY_SERVER_DISABLED`, `TDL_NOT_LOADED`, `COMPANY_NOT_LOADED`, `COMPANY_MISMATCH`, `TALLY_EXPORT_TIMEOUT`, `QUEUE_FULL`, `SYNC_LOCKED`, `STALE_ALTERID`, `CREDENTIAL_INVALID`, `AGENT_REVOKED`, `UDF_NOT_FOUND`, `UNRESOLVED_GROUP`, `UNSUPPORTED_ALLOCATION_TYPE`, `UNLINKED_CREDIT_NOTE`, `UNLINKED_DEBIT_NOTE`). The 14 below are **additions not in SRS v7.3** (checked by searching the SRS text; none appear). They live in `tally_contract.errors.ErrorCode` marked `# not in SRS v7.3`.
+The SRS defines 15 error codes (`TALLY_SERVER_DISABLED`, `TDL_NOT_LOADED`, `COMPANY_NOT_LOADED`, `COMPANY_MISMATCH`, `TALLY_EXPORT_TIMEOUT`, `QUEUE_FULL`, `SYNC_LOCKED`, `STALE_ALTERID`, `CREDENTIAL_INVALID`, `AGENT_REVOKED`, `UDF_NOT_FOUND`, `UNRESOLVED_GROUP`, `UNSUPPORTED_ALLOCATION_TYPE`, `UNLINKED_CREDIT_NOTE`, `UNLINKED_DEBIT_NOTE`). The 15 below are **additions not in SRS v7.3** (checked by searching the SRS text; none appear). They live in `tally_contract.errors.ErrorCode` marked `# not in SRS v7.3`.
 
 | Code | Used for | Introduced in |
 |---|---|---|
@@ -200,6 +200,7 @@ The SRS defines 15 error codes (`TALLY_SERVER_DISABLED`, `TDL_NOT_LOADED`, `COMP
 | `FORBIDDEN` | Authenticated but not permitted (403) | P0 |
 | `NOT_FOUND` | Resource does not exist (404) | P0 |
 | `CONFLICT` | Generic 409 | P0 |
+| `RATE_LIMITED` | Too many requests (429): SEC-1.9 limits and the per-email login throttle (D-033) | P2 |
 
 
 ### D-031 Phase 1 schema choices not covered by the SRS — ACCEPTED (product owner, 2026-09-23)
