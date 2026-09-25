@@ -94,8 +94,8 @@ when G32 passes.
 **Verify with:** G13 (every chain reaches a predefined group), G14 (nature on a user top-level
 group), G32 (reserved name survives a rename).
 
-### D-002 Voucher lines reference masters by GUID — PROPOSED (gate G30)
-The voucher TDL emits the referenced master's GUID for every ledger entry, inventory entry and cost-centre allocation (in addition to the name). Ingest resolves by GUID. If G30 fails: resolve by exact name among the company's masters and log `UNKNOWN_MASTER_REFERENCE` on a miss.
+### D-002 Voucher lines reference masters by GUID — ACCEPTED (product owner, 2026-09-25; gate G30)
+The voucher TDL emits the referenced master's GUID for every ledger entry, inventory entry and cost-centre allocation (in addition to the name); every record reference therefore carries both `*_guid` (optional) and `*_name`. Ingest resolves by GUID. If G30 fails, the fallback resolves **names against the masters synced in the same run**; an unknown name is logged as a sync error (`UNKNOWN_MASTER_REFERENCE`) and is never guessed.
 
 ### D-003 `company_id` on every child table — ACCEPTED
 Follows SRS Principle 5.1-1. `voucher_entries`, `bill_allocations`, `cost_centre_allocations`, `voucher_items` carry `company_id` with composite indexes.
@@ -296,3 +296,21 @@ shared a `created_at`. Fixed in the product, not only the test.
 | 4 | Schedules of REVOKED or INCOMPATIBLE Agents advance without creating a command (logged); OFFLINE Agents still get PENDING commands (RTE-1.6) | D-012: such Agents cannot receive commands. |
 | 5 | **One-Agent companies**: "eligible" = not REVOKED or INCOMPATIBLE. With exactly one eligible Agent, "Sync Now" without `agent_id` targets it even when OFFLINE or REGISTERING; the command waits with "Waiting — Agent offline since …" or "Waiting — Agent has not connected yet". With several eligible Agents: exactly one ACTIVE → it, else 422 `AGENT_SELECTION_REQUIRED` (RTE-1.1/1.2). None eligible → 422 `AGENT_SELECTION_REQUIRED` "No Agent can take commands; register one" | Asking an Owner to choose from a list of one is confusing; RTE-1.6 already covers a waiting command. |
 | 6 | **Replacing an Agent keeps scheduled syncs working**: revoking an Agent deactivates its schedules in the same transaction (audited `SCHEDULE_DEACTIVATED`); registration creates the D-023 default schedules whenever the company has no schedule belonging to a non-revoked Agent (not only for the first Agent), so a replacement gets them and a standby beside a working Agent does not; the Agents view warns `NO_ACTIVE_SCHEDULE` when an ACTIVE Agent exists but no schedule is active. P5 activates a new Agent's default schedules after its first FULL sync (`docs/plan/phase-05-sync-engine.md`) | Replacing an Agent must not silently stop scheduled syncs. |
+
+### D-037 GST analytics are out of scope for v1 — ACCEPTED (product owner, 2026-09-25)
+Confirms the SRS 8.15 default (and D-016) before the voucher TDL Collection is finalised, as 8.15
+requires. The voucher Collection emits no tax detail (no rate, HSN/SAC or CGST/SGST/IGST split);
+tax ledgers arrive as ordinary ledger entries and are classified through
+`classification.tax_groups`. Revenue and purchases are reported at taxable value. Bringing GST
+into scope later needs a `tax_details` table, TDL extensions and new requirements (SRS 8.15).
+
+### D-038 Live-Tally capture kit and two more gates — ACCEPTED (product owner, 2026-09-25)
+| # | Choice | Why |
+|---|---|---|
+| 1 | Live captures are taken with a **PowerShell-only capture kit** (`tools/capture_kit/`, built by `make capture-kit`), run inside a Windows 11 ARM VM with TallyPrime using only built-in Windows tools. It replaces the Python `tally_probe` of gate-track step G-A; analysis happens on the Mac (step G-E) | The capture machine must need nothing installed. |
+| 2 | The kit saves raw response bytes, a `meta.json` per request, and a zip of each run into one folder that can be shared with the Mac; its first step (`check`) only verifies that Tally's XML server is reachable, the company is open and the project TDL is loaded | Captures must be exact evidence (VAL-1.3), and setup problems must show up before anything else. |
+| 3 | A minimal TDL (`tdl/TA_Minimal.tdl`, only `TallyAnalyticsInfo`) is loaded first, then the full one; the README says where TallyPrime reports TDL errors and exactly what to copy back. A failing report during capture is saved and the run continues | The TDL has never been loaded into a real Tally, so the first load may fail. |
+| 4 | Reference evidence (TEST-4.1): the kit captures TallyPrime's built-in reports (Trial Balance, Day Book, Stock Summary, List of Accounts); an optional section runs tally-database-loader with file output so only Node.js is needed | Nothing to install for the main kit; TEST-4.1 can still be met as worded. |
+| 5 | Captures come from a **dedicated test company only**, never a real business's books | Captured responses are committed to the repository. |
+| 6 | New gates (not in SRS v7.3): **G34** the voucher Collection excludes order and inventory-only vouchers (SRS 1.3); **G35** Tally's error-response text (unknown report, company not loaded), response encoding and invalid XML characters | Both are Tally facts the parser and TDL rely on; rule 15 requires them to be gated. |
+| 7 | Windows CI jobs run only when files they depend on change (path filters, separate workflow); the Linux `check` job runs on every push | Windows runners cost twice the Linux rate on a private repo; running out of minutes would stop CI and block every phase. |

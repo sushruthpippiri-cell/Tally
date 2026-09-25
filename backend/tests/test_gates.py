@@ -13,14 +13,14 @@ from app.core.gates import (
 )
 
 ROOT = Path(__file__).parents[2]
-ALL = {f"G{i}": "NOT_TESTED" for i in range(1, 34)}
+ALL = {f"G{i}": "NOT_TESTED" for i in range(1, 36)}  # G34-G35: D-038
 
 
 def _with(**changes: str) -> dict[str, str]:
     return {**ALL, **changes}
 
 
-def test_yaml_has_all_33_gates_not_tested() -> None:
+def test_yaml_has_all_35_gates_not_tested() -> None:
     assert load_gate_status(GATE_STATUS_PATH) == ALL
 
 
