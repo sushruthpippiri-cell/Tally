@@ -4,8 +4,9 @@ import itertools
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import bcrypt
 import pytest
@@ -13,8 +14,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.agent_credentials import new_credential, new_registration_token
 from app.core.security import create_access_token
-from app.models.agents import Agent, AgentCommand
+from app.models.agents import Agent, AgentCommand, AgentRegistrationToken
 from app.models.balances import LedgerOpeningBalance
 from app.models.company import Company, Role, User, UserRole
 from app.models.defaults import PREDEFINED_GROUPS
@@ -117,6 +119,67 @@ async def make_agent(session: AsyncSession, company: Company, name: str = "agent
     session.add(agent)
     await session.flush()
     return agent
+
+
+async def make_registration_token(
+    session: AsyncSession,
+    company: Company,
+    created_by: User | None = None,
+    expires_at: datetime | None = None,
+) -> str:
+    """A token row; returns the plaintext token."""
+    if created_by is None:
+        created_by = await make_user(session)
+    token, token_hash = new_registration_token()
+    session.add(
+        AgentRegistrationToken(
+            company_id=company.company_id,
+            token_hash=token_hash,
+            expires_at=expires_at or datetime.now(UTC) + timedelta(hours=24),
+            created_by=created_by.user_id,
+        )
+    )
+    await session.flush()
+    return token
+
+
+async def make_registered_agent(
+    session: AsyncSession,
+    company: Company,
+    name: str = "agent-1",
+    status: AgentStatus = AgentStatus.ACTIVE,
+    **fields: Any,
+) -> tuple[Agent, str]:
+    """An Agent with a real credential; returns (agent, credential)."""
+    agent_id = uuid.uuid4()
+    credential, salt, credential_hash = new_credential(agent_id)
+    values: dict[str, Any] = {
+        "tally_guid": company.tally_guid or guid(),
+        "tally_company_name": company.name,
+        "tally_host": "localhost",
+        "tally_port": 9000,
+        "extraction_batch_size": 5000,
+        "agent_version": "1.0.0",
+        "tdl_version": "1.0.0",
+        "last_heartbeat_at": datetime.now(UTC),
+        "registered_at": datetime.now(UTC),
+    } | fields
+    agent = Agent(
+        agent_id=agent_id,
+        company_id=company.company_id,
+        agent_name=name,
+        status=status,
+        credential_hash=credential_hash,
+        credential_salt=salt,
+        **values,
+    )
+    session.add(agent)
+    await session.flush()
+    return agent, credential
+
+
+def agent_header(credential: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {credential}"}
 
 
 async def make_command(

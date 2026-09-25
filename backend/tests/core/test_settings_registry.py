@@ -120,6 +120,7 @@ INVALID: list[tuple[str, Any]] = [
     ("sync.keylist_max_missing_ratio", "1.5"),
     ("sync.db_commit_batch", 0),
     ("agent.poll_interval_seconds", 0),
+    ("agent.command_lease_seconds", 179),  # D-035 #11: >= 3 progress intervals
     ("analytics.quarter_mode", "fiscal"),
     ("stock.fast_ranking_basis", "margin"),
     ("cashflow.include_journal", "false"),

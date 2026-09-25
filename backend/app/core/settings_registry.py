@@ -173,7 +173,8 @@ _SPECS = [
     SettingSpec("agent.offline_threshold_minutes", INT, 5, _POSITIVE),
     SettingSpec("agent.command_claim_timeout_minutes", INT, 10, _POSITIVE),
     SettingSpec("agent.tally_uptime_advisory_days", INT, 7, _POSITIVE),
-    SettingSpec("agent.command_lease_seconds", INT, 300, _POSITIVE),
+    # D-035 #11: at least 3 progress intervals (60 s) must fit in one lease.
+    SettingSpec("agent.command_lease_seconds", INT, 300, _int(180)),
     SettingSpec("anomaly.history_window_days", INT, 180, _POSITIVE),
     SettingSpec("anomaly.deviation_sd", DEC, "3", _decimal(positive=True)),
     SettingSpec("anomaly.max_multiplier", DEC, None, _decimal(positive=True, nullable=True)),
