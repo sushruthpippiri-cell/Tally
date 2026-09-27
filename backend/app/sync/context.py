@@ -17,6 +17,11 @@ class IngestContext:
     now: datetime
     company_guid: str | None
     books_from: date | None  # openings are stored as at this date (D-039 #5)
+    snapshots: bool = False  # a stock snapshot batch: no watermark, no holds (D-040 #8)
+
+    @property
+    def entity_type(self) -> str:
+        return "STOCK_SNAPSHOT" if self.snapshots else self.collection.value
 
 
 @dataclass(frozen=True)

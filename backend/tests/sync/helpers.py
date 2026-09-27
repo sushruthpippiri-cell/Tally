@@ -93,14 +93,14 @@ async def lease(committed: Factory, st: Setup, collection: CollectionType) -> No
 
 def envelope(
     st: Setup,
-    collection: CollectionType,
+    collection: CollectionType | None,
     records: list[Any],
     *,
     window: AlterIdWindow | DateWindow | None = None,
     parse_errors: list[Any] | None = None,
     batch_id: uuid.UUID | None = None,
 ) -> BatchEnvelope:
-    if window is None and records:
+    if window is None and records and collection is not None:
         window = AlterIdWindow(from_alter_id=0, to_alter_id=max(r.alter_id for r in records))
     return BatchEnvelope(
         collection_type=collection,
@@ -109,7 +109,7 @@ def envelope(
         batch_seq=0,
         batch_id=batch_id or uuid.uuid4(),
         window=window,
-        records=sorted(records, key=lambda r: r.alter_id),
+        records=sorted(records, key=lambda r: getattr(r, "alter_id", 0)),
         parse_errors=parse_errors or [],
     )
 

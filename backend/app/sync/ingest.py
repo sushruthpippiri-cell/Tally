@@ -25,7 +25,7 @@ from app.models.enums import CollectionType
 from app.models.sync import SyncBatch, SyncError, SyncRun, SyncWatermark
 from app.services.settings import get_setting
 from app.services.sync_runs import open_run, running_command
-from app.sync import holds, leases, masters, vouchers
+from app.sync import holds, leases, masters, snapshots, vouchers
 from app.sync.context import ChunkOutcome, IngestContext, RecordFailure
 from tally_contract.errors import ErrorCode
 from tally_contract.log import get_logger
@@ -77,12 +77,16 @@ async def _replayed(
 
 
 async def _context(
-    session: AsyncSession, agent: AgentContext, env: BatchEnvelope, collection: CollectionType
+    session: AsyncSession,
+    agent: AgentContext,
+    env: BatchEnvelope,
+    collection: CollectionType,
+    is_snapshot: bool,
 ) -> IngestContext:
     company = await session.get(Company, agent.company_id)
     assert company is not None
     books_from: date | None = company.books_from
-    if collection in NEEDS_BOOKS_FROM and books_from is None:
+    if collection in NEEDS_BOOKS_FROM and not is_snapshot and books_from is None:
         raise AppError(
             ErrorCode.INVALID_COMMAND_STATE,
             "Sync the COMPANY collection first: openings are stored as at books-beginning",
@@ -96,6 +100,7 @@ async def _context(
         now=datetime.now(UTC),
         company_guid=company.tally_guid,
         books_from=books_from,
+        snapshots=is_snapshot,
     )
 
 
@@ -115,7 +120,7 @@ def _error_row(ctx: IngestContext, failure: RecordFailure, hold: int | None) -> 
     return SyncError(
         company_id=ctx.company_id,
         sync_run_id=ctx.sync_run_id,
-        entity_type=ctx.collection.value,
+        entity_type=ctx.entity_type,
         tally_guid=failure.guid,
         alter_id=failure.alter_id,
         error_code=failure.code.value,
@@ -150,12 +155,16 @@ async def _record(
             incoming_alter_id=incoming,
         )
     for failure in outcome.failures:  # D-039 #7: held below the failure, retried next run
-        hold = failure.alter_id - 1 if failure.alter_id is not None else pre_batch_watermark
+        hold: int | None = (
+            failure.alter_id - 1 if failure.alter_id is not None else pre_batch_watermark
+        )
+        if ctx.snapshots:
+            hold = None  # snapshots have no watermark to hold
         session.add(_error_row(ctx, failure, hold))
         log.warning(
             "sync_record_failed",
             code=failure.code.value,
-            collection=ctx.collection.value,
+            collection=ctx.entity_type,
             guid=failure.guid,
             alter_id=failure.alter_id,
             message=failure.message,
@@ -175,19 +184,31 @@ async def ingest(
     replay = await _replayed(session, agent, env)
     if replay is not None:
         return replay
-    if env.collection_type is None:
-        raise AppError(ErrorCode.VALIDATION_ERROR, "Snapshot and balance batches come in P5.6", 422)
-    collection = env.collection_type
-    if collection not in WRITERS:
-        raise AppError(
-            ErrorCode.VALIDATION_ERROR, f"{collection} batches are not accepted yet", 422
-        )
+    is_snapshot = env.collection_type is None
+    if is_snapshot:
+        if any(r.record_type != "STOCK_SNAPSHOT" for r in env.records):
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                "Without a collection only stock snapshots are accepted; balances and "
+                "reconciliation totals come in P10",
+                422,
+            )
+        collection = CollectionType.STOCK_ITEM  # snapshots ride on the item lease (D-040 #8)
+        writer: Writer = snapshots.write_snapshots
+    else:
+        assert env.collection_type is not None
+        collection = env.collection_type
+        if collection not in WRITERS:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR, f"{collection} batches are not accepted yet", 422
+            )
+        writer = WRITERS[collection]
 
     run, _ = await open_run(session, agent, env.sync_run_id)
     if run.command_id != command_id:
         raise AppError(ErrorCode.NOT_FOUND, "Sync run not found", 404)
     pre_batch_watermark = await _chunk_guard(session, agent, command_id, collection)
-    ctx = await _context(session, agent, env, collection)
+    ctx = await _context(session, agent, env, collection, is_snapshot)
     await session.commit()  # nothing written; releases the checks' row locks
 
     windowed = isinstance(env.window, AlterIdWindow)
@@ -197,7 +218,7 @@ async def ingest(
     for index, chunk in enumerate(chunks):
         try:
             watermark = await _chunk_guard(session, agent, command_id, collection)
-            outcome = await WRITERS[collection](session, ctx, list(chunk))
+            outcome = await writer(session, ctx, list(chunk))
             if index == 0:  # the Agent's parse errors: ALTERID unknown (D-039 #7)
                 outcome.failures += [
                     RecordFailure(e.guid, None, e.code, e.message) for e in env.parse_errors
@@ -212,7 +233,9 @@ async def ingest(
                 )
                 .execution_options(synchronize_session=False)
             )
-            if windowed and chunk:  # D-039 #2: only ALTERID pages move it, per chunk
+            if (
+                windowed and chunk and not is_snapshot
+            ):  # D-039 #2: only ALTERID pages move it, per chunk
                 cap = await holds.run_cap(session, ctx.sync_run_id, collection)
                 watermark = await _advance(
                     session,
@@ -239,6 +262,9 @@ async def ingest(
         result.watermark = watermark
     if result.failed:
         result.status = "PARTIAL"
+    if is_snapshot:  # a replay repeats the same upsert (D-040 #8)
+        await session.commit()
+        return result
     session.add(
         SyncBatch(
             batch_id=env.batch_id,
