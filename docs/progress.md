@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P5 (sync engine) — **complete** 2026-09-27. Local suite PASS ([phase-05](test-reports/phase-05.md), 935 tests, 0 skipped, 90.9% line coverage); CI: see the Done row "P5 phase report". Decisions D-039 and D-040 ACCEPTED (D-014, D-027 superseded). Not covered by design: DR-VE-2 (per-line voucher updates) waits for GATE-G24; the Agent-side halves of AC-01/02, SYNC-1.3, FR-STK-15, NFR-REL-2 are P7. Next: P6 (lifecycle and hierarchy) — waits for the owner.
+P5 (sync engine) — **complete** 2026-09-27. Local suite PASS ([phase-05](test-reports/phase-05.md), 935 tests, 0 skipped, 90.9% line coverage); CI green (runs 36299076074 `check`, 36299076088 `agent-windows`). Decisions D-039 and D-040 ACCEPTED (D-014, D-027 superseded). Not covered by design: DR-VE-2 (per-line voucher updates) waits for GATE-G24; the Agent-side halves of AC-01/02, SYNC-1.3, FR-STK-15, NFR-REL-2 are P7. Next: P6 (lifecycle and hierarchy) — waits for the owner.
 
 P4 (Tally contract) — **complete on drafts, blocked on live captures (G-E)** 2026-09-27. Local suite PASS ([phase-04](test-reports/phase-04.md), 804 tests, 0 skipped); CI green (runs 36294681749 check, 36294681754 capture-kit, 36294681770 agent-windows). Every Tally fact is a GATE-tagged draft; confirming them needs the owner's captures from the Windows VM (`make capture-kit`, then the kit README). Next: P5 (sync engine) can start without the captures — it waits for the owner.
 
@@ -18,7 +18,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
-| 2026-09-27 | P5 phase report | (this commit) | [phase-05](test-reports/phase-05.md): 935 passed, 0 skipped, fresh DB, `make check` PASS. |
+| 2026-09-27 | P5 phase report | 6eb1ef1 | [phase-05](test-reports/phase-05.md): 935 passed, 0 skipped, fresh DB, `make check` PASS. |
 | 2026-09-27 | P5.10 closing tests and docs | c694a63 | NFR-REL-2 (an exception mid-voucher leaves a new voucher absent or a modified one entirely at its stored version), SYNC-4.4 (lease + stale protection both needed), `docs/sync-engine.md`, agent-protocol run endings. |
 | 2026-09-27 | P5.9 full-only collections | 0c8f7bc | Owner rule 1 / AC-12 / VAL-1.2: a scheduled INCREMENTAL run syncs a FULL_ONLY collection by full pull and ends COMPLETED; only ALTER_ID batches get `GATE_NOT_PASSED`; its watermark never moves; status shows "Full sync only". Mutation-checked. |
 | 2026-09-27 | P5.8 status APIs | fb33188 | `sync/status`, `runs`, `errors` (VIEW_LOGS), `lease-status`; custom-field mappings (audited) and the generated UDF TDL (DR-UDF-1, DR-UDF-4). |
