@@ -16,6 +16,7 @@ from tally_contract.records import (
     LedgerClosingBalanceRecord,
     StockSnapshotRecord,
 )
+from tally_contract.udf import UdfReader
 from tally_contract.values import text
 
 __all__ = [
@@ -49,9 +50,21 @@ class TallyInfo(BaseModel):
     company_name: str
 
 
-def parse_collection(raw: bytes, collection_type: CollectionType) -> ParseResult[Any]:
+def parse_collection(
+    raw: bytes, collection_type: CollectionType, udf: UdfReader | None = None
+) -> ParseResult[Any]:
+    """`udf`: the run's reader for mapped user-defined fields (DR-UDF-2/3), if any."""
     report = tc.REPORTS[collection_type]
-    return parse(raw, tc.RECORD_TAGS[report], _BUILDERS[collection_type])
+    build = _BUILDERS[collection_type]
+    if udf is not None:
+        plain = build
+
+        def build(e: ET.Element) -> Any:
+            record = plain(e)
+            fields = udf.read(collection_type, e)
+            return record.model_copy(update={"custom_fields": fields}) if fields else record
+
+    return parse(raw, tc.RECORD_TAGS[report], build)
 
 
 def parse_keys(raw: bytes) -> ParseResult[KeyRecord]:
