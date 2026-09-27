@@ -1,7 +1,7 @@
 """Agents, registration tokens, commands and schedules (SRS 5.4)."""
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
@@ -16,7 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, company_id_col, enum_check, tenant_fk, uuid_pk
+from app.models.base import Base, company_id_col, created_at, enum_check, tenant_fk, uuid_pk
 from app.models.enums import AgentStatus, CommandStatus, CommandType, SyncMode, TallyStatus
 
 
@@ -103,9 +103,7 @@ class AgentCommand(Base):
         ForeignKey("users.user_id")
     )  # null: scheduler
     # D-036 #1: the app clock sets created_at; seq breaks ties. Oldest = (created_at, seq).
-    created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(UTC), server_default=text("now()")
-    )
+    created_at: Mapped[datetime] = created_at()
     seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True))
     claimed_at: Mapped[datetime | None]
     completed_at: Mapped[datetime | None]

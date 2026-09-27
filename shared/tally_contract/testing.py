@@ -1,8 +1,13 @@
 """Test helpers: assert on structured log records, not only on return values."""
 
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+
+# The instant every test starts at (root conftest.py): tests never see the real date. Noon UTC,
+# so the local date is the same in every time zone from UTC-11 to UTC+11.
+FIXED_NOW = datetime(2026, 3, 16, 12, 0, tzinfo=UTC)
 
 
 def _events(caplog: pytest.LogCaptureFixture) -> list[tuple[str, dict[str, Any]]]:

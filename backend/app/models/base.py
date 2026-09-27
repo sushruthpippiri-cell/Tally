@@ -8,7 +8,7 @@
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -64,7 +64,9 @@ def bigint_pk() -> Mapped[int]:
 
 
 def created_at() -> Mapped[datetime]:
-    return mapped_column(server_default=text("now()"))
+    """Set from the app clock, the one clock every comparison uses (D-036 #1, CLAUDE.md);
+    the database default is only a backstop for hand-written SQL."""
+    return mapped_column(default=lambda: datetime.now(UTC), server_default=text("now()"))
 
 
 def company_id_col(index: bool = True) -> Mapped[uuid.UUID]:

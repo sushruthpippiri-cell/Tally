@@ -95,6 +95,12 @@ A read-only analytics platform that sits beside TallyPrime. A Windows **Tally Sy
 - Where a requirement says something is logged (`STALE_ALTERID`, `UDF_NOT_FOUND`, `TALLY_EXPORT_TIMEOUT`, malformed XML, ...), the test asserts on the log record with `assert_logged(caplog, event, level=..., **fields)`, not only on the return value.
 - Frontend and end-to-end tests keep traces and screenshots on failure (Playwright `trace: 'retain-on-failure'`, `screenshot: 'only-on-failure'`, output under `logs/e2e/`).
 
+**Time and dates in tests**
+- Tests never depend on the real date or time. The root `conftest.py` starts every test at `FIXED_NOW` (`tally_contract.testing`, ticking forward from there), so a test gets the same date on any day it runs.
+- A test about a particular moment sets the clock explicitly: `with time_machine.travel(<instant>, tick=False):`, or pass `now` into the code under test. Never compute a test's dates from the real clock or compare against `date.today()`.
+- Code takes "now" from the app clock (`datetime.now(UTC)`, or an injected `now`) and "today" from `app/core/periods.py` in `company_timezone`. Never SQL `now()` for anything compared with "now": every timestamp that is compared is written by the app (the `created_at()` column helper does this).
+- "Days since today" logic (aging, payment behaviour, stock classification, schedules, expiries) is tested at fixed instants, including day, month, financial-year and time-zone boundaries.
+
 **Test after every phase**
 - At the end of each phase run the **full** suite (not only the new tests) plus `make check`, against a freshly migrated database: `make phase-report PHASE=NN`.
 - That writes `docs/test-reports/phase-NN.md`: tests run / passed / failed / skipped; the reason for every skip (e.g. "waiting on GATE-G23"; a skip without a reason fails the report); coverage; acceptance-criteria IDs covered; the log file name.

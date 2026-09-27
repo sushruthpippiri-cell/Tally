@@ -1,12 +1,26 @@
 """Repo-wide pytest hooks (CLAUDE.md "Testing and logs")."""
 
+from collections.abc import Iterator
+
 import pytest
+import time_machine
 
 from tally_contract.log import configure_logging
+from tally_contract.testing import FIXED_NOW
 
 pytest_plugins = ["pytester"]  # used to test the hooks below
 
 configure_logging("test")
+
+# Every test runs on this clock, never the real date (CLAUDE.md "Testing and logs"). It ticks,
+# so durations still pass, but the date is always the same. A test about a particular moment
+# travels there itself: `with time_machine.travel(<instant>, tick=False): ...`, or passes `now`.
+
+
+@pytest.fixture(autouse=True)
+def _fixed_clock() -> Iterator[None]:
+    with time_machine.travel(FIXED_NOW, tick=True):
+        yield
 
 
 @pytest.fixture(autouse=True)

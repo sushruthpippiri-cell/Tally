@@ -1,9 +1,10 @@
 """Company settings and feature flags (SRS 18, D-001, D-016, D-033 #11)."""
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -185,7 +186,11 @@ async def update_settings(
             )
             .on_conflict_do_update(
                 index_elements=[CompanySetting.company_id, CompanySetting.setting_key],
-                set_={"setting_value": value, "updated_by": ctx.user_id, "updated_at": func.now()},
+                set_={
+                    "setting_value": value,
+                    "updated_by": ctx.user_id,
+                    "updated_at": datetime.now(UTC),
+                },
             )
         )
         await audit.record(
@@ -213,7 +218,11 @@ async def update_settings(
             )
             .on_conflict_do_update(
                 index_elements=[FeatureConfig.company_id, FeatureConfig.feature_name],
-                set_={"enabled": enabled, "updated_by": ctx.user_id, "updated_at": func.now()},
+                set_={
+                    "enabled": enabled,
+                    "updated_by": ctx.user_id,
+                    "updated_at": datetime.now(UTC),
+                },
             )
         )
         await audit.record(
