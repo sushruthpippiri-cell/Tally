@@ -1,4 +1,5 @@
-"""Local HTTPS servers and an HTTP CONNECT proxy for the Agent's network tests."""
+"""Fixtures for the Agent tests: local HTTPS servers with a throwaway CA and an HTTP CONNECT
+proxy (D-042 #4). As fixtures, because `tests` on the path is the backend's package."""
 
 import json
 import socket
@@ -10,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+import pytest
 import trustme
 
 
@@ -109,3 +111,74 @@ class ConnectProxy:
 
     def close(self) -> None:
         self._server.close()
+
+
+@pytest.fixture
+def ca() -> trustme.CA:
+    return trustme.CA()
+
+
+@pytest.fixture
+def ca_bundle(ca: trustme.CA, tmp_path: Path) -> Path:
+    return write_ca(ca, tmp_path / "office-ca.pem")
+
+
+@pytest.fixture
+def serve_https(ca: trustme.CA) -> Any:
+    return lambda **kw: https_server(ca, **kw)
+
+
+@pytest.fixture
+def connect_proxy() -> Iterator[ConnectProxy]:
+    proxy = ConnectProxy()
+    yield proxy
+    proxy.close()
+
+
+# --- Tally ---------------------------------------------------------------------------------
+
+
+class FakeProcesses:
+    """What the process table says about TallyPrime (AGT-6.3)."""
+
+    def __init__(self, running: bool = True, started_at: float = 0.0) -> None:
+        self.running, self.started_at = running, started_at
+
+    def find(self, name: str) -> Any:
+        from tally_agent.tally_process import TallyProcess
+
+        return TallyProcess(4242, self.started_at) if self.running else None
+
+
+@pytest.fixture
+def mock_tally() -> Iterator[tuple[Any, str]]:
+    """The mock TallyPrime (tools/tally_tools/mock_tally.py): (its config, its port)."""
+    from tally_tools.mock_tally import MockConfig, running
+
+    config = MockConfig(companies=["Sharma Traders", "Other Co"])
+    with running(config) as url:
+        yield config, url.rsplit(":", 1)[1]
+
+
+@pytest.fixture
+def closed_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return int(s.getsockname()[1])
+
+
+@pytest.fixture
+def make_tally() -> Any:
+    """make_tally(port, running=True, timeout=5): a TallyClient with a fake process table."""
+    from tally_agent.tally_client import TallyClient
+
+    def make(port: Any, *, running: bool = True, timeout: float = 5) -> TallyClient:
+        return TallyClient(
+            "127.0.0.1",
+            int(port),
+            timeout_seconds=timeout,
+            process_name="tally.exe",
+            processes=FakeProcesses(running=running),
+        )
+
+    return make

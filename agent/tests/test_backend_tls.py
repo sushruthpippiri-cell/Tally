@@ -5,14 +5,13 @@ import base64
 import re
 import ssl
 from pathlib import Path
+from typing import Any
 
 import pytest
-import trustme
 from pydantic import ValidationError
 
 from tally_agent.backend_client import BackendClient, TlsVerificationFailed, tls_context
 from tally_agent.config import AgentSettings
-from tests.netutil import ConnectProxy, https_server, write_ca
 
 AGENT = Path(__file__).parents[1] / "tally_agent"
 
@@ -21,48 +20,36 @@ def settings(tmp_path: Path, url: str, **kw: object) -> AgentSettings:
     return AgentSettings(backend_url=url, company_name="Test Co", data_dir=tmp_path, **kw)  # type: ignore[arg-type]
 
 
-@pytest.fixture
-def ca() -> trustme.CA:
-    return trustme.CA()
-
-
 @pytest.mark.req("SEC-2.0")
 def test_an_untrusted_certificate_is_refused_and_a_customer_ca_bundle_is_trusted(
-    tmp_path: Path, ca: trustme.CA
+    tmp_path: Path, serve_https: Any, ca_bundle: Path
 ) -> None:
-    with https_server(ca) as url:
+    with serve_https() as url:
         plain = BackendClient(settings(tmp_path, url))
         with pytest.raises(TlsVerificationFailed, match="ca_bundle"):
             plain.call("GET", "/health")
-        bundle = write_ca(ca, tmp_path / "office-ca.pem")
-        trusted = BackendClient(settings(tmp_path, url, ca_bundle=bundle))
+        trusted = BackendClient(settings(tmp_path, url, ca_bundle=ca_bundle))
         assert trusted.call("GET", "/health") == {"ok": True, "path": "/health"}
 
 
 def test_the_ca_bundle_adds_to_the_public_roots_and_tls_1_2_is_the_minimum(
-    tmp_path: Path, ca: trustme.CA
+    tmp_path: Path, ca_bundle: Path
 ) -> None:
-    bundle = write_ca(ca, tmp_path / "office-ca.pem")
-    context = tls_context(settings(tmp_path, "https://backend.example", ca_bundle=bundle))
+    context = tls_context(settings(tmp_path, "https://backend.example", ca_bundle=ca_bundle))
     assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
     assert context.minimum_version == ssl.TLSVersion.TLSv1_2
     assert len(context.get_ca_certs()) > 1  # certifi's roots are still there
 
 
 def test_requests_go_through_the_configured_proxy_with_its_credentials(
-    tmp_path: Path, ca: trustme.CA
+    tmp_path: Path, serve_https: Any, ca_bundle: Path, connect_proxy: Any
 ) -> None:
-    proxy = ConnectProxy()
-    try:
-        with https_server(ca) as url:
-            bundle = write_ca(ca, tmp_path / "office-ca.pem")
-            config = settings(tmp_path, url, ca_bundle=bundle, proxy_url=proxy.url)
-            client = BackendClient(config, proxy_credentials="office:s3cret")
-            assert client.call("GET", "/agent/heartbeat")["ok"] is True
-        assert proxy.tunnels == [url.removeprefix("https://")]
-        assert proxy.auth == ["Basic " + base64.b64encode(b"office:s3cret").decode()]
-    finally:
-        proxy.close()
+    with serve_https() as url:
+        config = settings(tmp_path, url, ca_bundle=ca_bundle, proxy_url=connect_proxy.url)
+        client = BackendClient(config, proxy_credentials="office:s3cret")
+        assert client.call("GET", "/agent/heartbeat")["ok"] is True
+    assert connect_proxy.tunnels == [url.removeprefix("https://")]
+    assert connect_proxy.auth == ["Basic " + base64.b64encode(b"office:s3cret").decode()]
 
 
 @pytest.mark.parametrize(

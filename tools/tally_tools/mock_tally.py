@@ -9,6 +9,7 @@ the Agent), never Tally's behaviour: only live captures do that (docs/validation
 
 import argparse
 import threading
+import time
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -25,20 +26,25 @@ class MockConfig:
     tdl_loaded: bool = True
     fail_reports: set[str] = field(default_factory=set)  # answered with HTTP 500
     utf16: bool = False  # answer in UTF-16 LE with a BOM (GATE-G35 encodings)
+    delay_seconds: float = 0  # answer this late (the Agent's timeout, AGT-4.3)
+    guids: dict[str, str] = field(default_factory=dict)  # company -> GUID, e.g. a different one
+    tdl_version: str = tc.TDL_VERSION
+    requests: list[tuple[str, str | None]] = field(default_factory=list)  # (report, company)
 
 
-def _guid(name: str) -> str:
+def company_guid(name: str) -> str:
+    """The GUID the mock reports for a company (unless `guids` overrides it)."""
     return "guid-" + "".join(ch if ch.isalnum() else "-" for ch in name.lower())
 
 
-def _report_body(report: str, company: str) -> str:
+def _report_body(config: "MockConfig", report: str, company: str) -> str:
     """Tiny, fixed responses in our TDL's shape; enough to exercise tools end to end."""
     tag = tc.RECORD_TAGS.get(report)
     root = report.upper()
     if report == tc.INFO_REPORT:
         rows = (
-            f"<INFO><TDLVERSION>{tc.TDL_VERSION}</TDLVERSION>"
-            f"<COMPANYGUID>{_guid(company)}</COMPANYGUID>"
+            f"<INFO><TDLVERSION>{escape(config.tdl_version)}</TDLVERSION>"
+            f"<COMPANYGUID>{config.guids.get(company, company_guid(company))}</COMPANYGUID>"
             f"<COMPANYNAME>{escape(company)}</COMPANYNAME></INFO>"
         )
     elif tag == "KEY":
@@ -67,6 +73,7 @@ def answer(config: MockConfig, body: bytes) -> tuple[int, bytes]:
         return 200, b"<RESPONSE><LINEERROR>Could not understand the request</LINEERROR></RESPONSE>"
     report = root.findtext("HEADER/ID") or ""
     company = root.findtext(f"BODY/DESC/STATICVARIABLES/{tc.VAR_COMPANY}")
+    config.requests.append((report, company))
     if report in config.fail_reports:
         return 500, b"<RESPONSE>Internal error</RESPONSE>"
     if report == tc.BUILTIN_COMPANY_LIST:
@@ -83,7 +90,7 @@ def answer(config: MockConfig, body: bytes) -> tuple[int, bytes]:
             f"'{escape(report)}'!</LINEERROR></RESPONSE>"
         )
     else:
-        text = _report_body(report, company or "")
+        text = _report_body(config, report, company or "")
     encoded = b"\xff\xfe" + text.encode("utf-16-le") if config.utf16 else text.encode("utf-8")
     return 200, encoded
 
@@ -95,6 +102,8 @@ def _handler(config: MockConfig) -> type[BaseHTTPRequestHandler]:
 
         def do_POST(self) -> None:
             length = int(self.headers.get("Content-Length") or 0)
+            if config.delay_seconds:
+                time.sleep(config.delay_seconds)
             self._send(*answer(config, self.rfile.read(length)))
 
         def _send(self, status: int, payload: bytes) -> None:
