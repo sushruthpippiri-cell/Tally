@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P5 (sync engine) — **session 1 done (P5.1–P5.5)** 2026-09-27; session 2 (P5.6–P5.10: stock snapshots, run bookkeeping with `on_command_lost` and schedule activation, status APIs, GATE_NOT_PASSED, the phase report) not started — waits for the owner. Local `make check` PASS (871 tests). Decisions: D-039 ACCEPTED (supersedes D-014, D-027); migration 0005.
+P5 (sync engine) — **session 1 done (P5.1–P5.5)** 2026-09-27; session 2 (P5.6–P5.10: stock snapshots, run bookkeeping with `on_command_lost` and schedule activation, status APIs, GATE_NOT_PASSED, the phase report) not started — waits for the owner. Local `make check` PASS (871 tests); CI green (run 36297101128 `check`; the path-filtered Windows workflows were not triggered). Decisions: D-039 ACCEPTED (supersedes D-014, D-027); migration 0005.
 
 P4 (Tally contract) — **complete on drafts, blocked on live captures (G-E)** 2026-09-27. Local suite PASS ([phase-04](test-reports/phase-04.md), 804 tests, 0 skipped); CI green (runs 36294681749 check, 36294681754 capture-kit, 36294681770 agent-windows). Every Tally fact is a GATE-tagged draft; confirming them needs the owner's captures from the Windows VM (`make capture-kit`, then the kit README). Next: P5 (sync engine) can start without the captures — it waits for the owner.
 
