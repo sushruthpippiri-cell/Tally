@@ -3,7 +3,14 @@ name = "tally-agent"
 version = "0.0.0"
 requires-python = ">=3.12,<3.13"
 # No FastAPI/SQLAlchemy: ships to Windows machines.
-dependencies = ["tally-contract", "typer", "httpx"]
+dependencies = [
+  "tally-contract",
+  "typer",
+  "httpx",
+  "certifi",
+  "psutil",
+  "pywin32; sys_platform == 'win32'",  # DPAPI, ACLs, the Windows service (D-042)
+]
 
 [project.scripts]
 tally-agent = "tally_agent.__main__:app"

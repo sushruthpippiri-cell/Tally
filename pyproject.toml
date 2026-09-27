@@ -26,6 +26,8 @@ dev = [
   "import-linter",
   "httpx",
   "types-pyyaml",
+  "types-psutil",
+  "trustme",  # a throwaway CA for the Agent's TLS tests (D-042 #4)
   # only so import-linter can resolve the forbidden externals; runtime dep arrives with P15
   "anthropic",
   "mcp",

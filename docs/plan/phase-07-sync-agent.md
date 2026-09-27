@@ -3,12 +3,14 @@
 **Size:** L (split: P7.1–P7.4, P7.5–P7.7, P7.8–P7.10) · **Depends on:** P3, P4, P5, P6
 **SRS:** 4 (all), 3.2, 16 (Agent and Tally rows), 21 (Agent rows)
 **Requirements:** AGT-1.1, 1.7, AGT-2.1–2.6, AGT-3.1–3.4, AGT-4.1–4.4, AGT-5.1–5.5, AGT-6.1–6.4, VER-1.1, FR-1.4, SEC-2.0
-**Acceptance:** AC-21, AC-23, AC-24, AC-25, plus end-to-end AC-01, AC-02, AC-04 · **Decisions:** D-005, D-013, D-026, D-027
+**Acceptance:** AC-21, AC-23, AC-24, AC-25, plus end-to-end AC-01, AC-02, AC-04 · **Decisions:** D-005, D-013, D-026, D-039 (supersedes D-027), D-040, D-041, D-042
 
 ## Goal
 A Windows service that registers once, heartbeats and polls, runs sync commands against TallyPrime with the project TDL, survives Tally being closed and the internet dropping without losing data, and reports its own and Tally's health.
 
 ## Tasks
+
+Implemented per **D-042** where it differs from the text below (threads, streaming parse, DPAPI machine scope with the data_dir ACL, proxy and CA bundle, dates from the backend, queue semantics under D-039, TDL version equal to the bundled one).
 
 ### P7.1 Package structure and configuration
 - Modules: `config.py`, `credentials.py`, `cli.py`, `backend_client.py`, `tally_client.py`, `tally_process.py`, `preflight.py`, `executor.py`, `queue.py`, `service.py`, `logging_setup.py`.
@@ -41,7 +43,7 @@ TDL version check → `TallyAnalyticsInfo` for the **named** company (never the 
 - Limits: 50,000 records or oldest batch 7 days (configurable) → QUEUE_FULL: stop pulling, keep uploading, report (AGT-2.2, 2.4).
 - Backoff: 30 s doubling to 15 min, with jitter (AGT-2.3). After 20 failed attempts → append to `deadletter.jsonl` and report the count; never drop silently (AGT-2.5).
 - Queue and dead-letter files restricted to the service account (AGT-2.6), set by the installer with `icacls`.
-- Uploader runs independently of commands; if a command's lease was lost mid-run, queued batches still upload later under D-027 and stale protection.
+- Uploader runs independently of commands, strictly in order per (run, collection). A batch is accepted only while its command is RUNNING (D-039): if the command was lost, the run's queued batches are obsolete and re-pulled next run; a dead-lettered batch takes the rest of its run and collection with it (D-042 #6).
 
 ### P7.7 Status reporting
 Uptime, queue status, dead-letter count, Tally status, versions, and the last error per collection in each heartbeat.

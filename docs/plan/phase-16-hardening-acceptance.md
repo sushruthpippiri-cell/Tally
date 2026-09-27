@@ -42,6 +42,9 @@ Playwright + mock Tally + real Agent process where feasible, covering UC-1 to UC
 ### P16.8 Agent distribution
 PyInstaller build on `windows-latest` in CI; Inno Setup installer that installs to Program Files, creates `%ProgramData%\TallyAgent` with ACLs for the service account (AGT-2.6), registers the Windows service, and runs a first-time wizard (backend URL, Tally host/port, company name, registration token). Upgrade preserves config, credential and queue; uninstall leaves the queue for inspection. Update `docs/agent-install.md`.
 
+### P16.8a Code signing — REQUIRED (owner, D-042 #8)
+Sign the Agent's PyInstaller build (every `.exe` and `.dll` we ship) and its installer with an Authenticode code-signing certificate (an EV certificate builds SmartScreen reputation fastest), timestamped so signatures outlive the certificate. Unsigned executables are routinely blocked by Windows SmartScreen and office antivirus, which would stop installs at customer sites. CI verifies every shipped binary with `signtool verify /pa`; the signing key lives in a hardware token or a cloud HSM, never in the repository or a CI secret file.
+
 ### P16.9 Traceability (SRS 25)
 Finalize `tools/traceability.py`: every requirement ID in the SRS maps to at least one test or to an entry in `docs/manual-verification.md` with reason and evidence. Make the CI job blocking.
 
