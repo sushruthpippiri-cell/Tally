@@ -2,7 +2,7 @@
 ParseResult and never raises (TEST-1.4)."""
 
 import xml.etree.ElementTree as ET
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -10,10 +10,17 @@ from pydantic import BaseModel, ConfigDict
 from tally_contract import tally_constants as tc
 from tally_contract.enums import CollectionType
 from tally_contract.parser import builders
-from tally_contract.parser.document import DocumentError, ParseResult, parse
+from tally_contract.parser.document import (
+    DocumentError,
+    DocumentFailure,
+    ParseResult,
+    iter_parse,
+    parse,
+)
 from tally_contract.records import (
     KeyRecord,
     LedgerClosingBalanceRecord,
+    ParseError,
     StockSnapshotRecord,
 )
 from tally_contract.udf import UdfReader
@@ -21,6 +28,10 @@ from tally_contract.values import text
 
 __all__ = [
     "DocumentError",
+    "DocumentFailure",
+    "iter_collection",
+    "iter_keys",
+    "iter_stock_closing",
     "ParseResult",
     "TallyInfo",
     "parse_collection",
@@ -50,21 +61,44 @@ class TallyInfo(BaseModel):
     company_name: str
 
 
+def _collection_builder(
+    collection_type: CollectionType, udf: UdfReader | None
+) -> Callable[[ET.Element], Any]:
+    build = _BUILDERS[collection_type]
+    if udf is None:
+        return build
+
+    def with_udf(e: ET.Element) -> Any:
+        record = build(e)
+        fields = udf.read(collection_type, e)
+        return record.model_copy(update={"custom_fields": fields}) if fields else record
+
+    return with_udf
+
+
 def parse_collection(
     raw: bytes, collection_type: CollectionType, udf: UdfReader | None = None
 ) -> ParseResult[Any]:
     """`udf`: the run's reader for mapped user-defined fields (DR-UDF-2/3), if any."""
     report = tc.REPORTS[collection_type]
-    build = _BUILDERS[collection_type]
-    if udf is not None:
-        plain = build
+    return parse(raw, tc.RECORD_TAGS[report], _collection_builder(collection_type, udf))
 
-        def build(e: ET.Element) -> Any:
-            record = plain(e)
-            fields = udf.read(collection_type, e)
-            return record.model_copy(update={"custom_fields": fields}) if fields else record
 
-    return parse(raw, tc.RECORD_TAGS[report], build)
+def iter_collection(
+    raw: bytes, collection_type: CollectionType, udf: UdfReader | None = None
+) -> Iterator[Any]:
+    """Streaming form (D-042 #2): records and ParseErrors one at a time; raises
+    DocumentFailure for a document that cannot be trusted."""
+    report = tc.REPORTS[collection_type]
+    return iter_parse(raw, tc.RECORD_TAGS[report], _collection_builder(collection_type, udf))
+
+
+def iter_keys(raw: bytes) -> Iterator[KeyRecord | ParseError]:
+    return iter_parse(raw, "KEY", builders.key)
+
+
+def iter_stock_closing(raw: bytes) -> Iterator[StockSnapshotRecord | ParseError]:
+    return iter_parse(raw, tc.RECORD_TAGS[tc.STOCK_CLOSING_REPORT], builders.stock_closing)
 
 
 def parse_keys(raw: bytes) -> ParseResult[KeyRecord]:

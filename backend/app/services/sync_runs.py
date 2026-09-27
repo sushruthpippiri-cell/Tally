@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import audit
+from app.core import audit, periods
 from app.core.agent_credentials import AgentContext
 from app.core.errors import AppError
 from app.core.gates import collection_sync_mode
@@ -164,11 +164,15 @@ async def start_run(session: AsyncSession, agent: AgentContext, command_id: uuid
             key_list_due=collection in due,
         )
     await session.commit()
+    company = await session.get(Company, agent.company_id)
+    assert company is not None
     return RunPlan(
         sync_run_id=run.sync_run_id,
         sync_mode=SyncMode(command.sync_mode),
         date_from=command.date_from,
         date_to=command.date_to,
+        as_of=periods.today(company.company_timezone),  # D-042 #5: never the PC's clock
+        full_pull_from=company.books_from,
         collections=plan,
     )
 

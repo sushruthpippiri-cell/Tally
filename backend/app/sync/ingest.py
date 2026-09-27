@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import periods
 from app.core.agent_credentials import AgentContext
 from app.core.errors import AppError
 from app.core.gates import collection_sync_mode
@@ -240,6 +241,16 @@ async def ingest(
                 ErrorCode.VALIDATION_ERROR,
                 "Without a collection only stock snapshots are accepted; balances and "
                 "reconciliation totals come in P10",
+                422,
+            )
+        company = await session.get(Company, agent.company_id)
+        assert company is not None
+        today = periods.today(company.company_timezone)
+        if any(r.as_of_date > today for r in env.records):  # type: ignore[union-attr]
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                f"A stock snapshot is dated after today ({today}) in the company's time zone; "
+                "take the date from the run plan (D-042 #5)",
                 422,
             )
         collection = CollectionType.STOCK_ITEM  # snapshots ride on the item lease (D-040 #8)

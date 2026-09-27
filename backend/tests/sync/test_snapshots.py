@@ -95,3 +95,11 @@ async def test_other_records_without_a_collection_wait_for_p10(committed: Factor
         ledger_guid="l-cash", as_of_date=DAY, balance=normalize.to_amount("-100.00", True)
     )
     assert await upload(committed, st, envelope(st, None, [balance])) == "VALIDATION_ERROR"
+
+
+async def test_a_snapshot_dated_after_the_companys_today_is_refused(committed: Factory) -> None:
+    """D-042 #5 (owner): the PC's clock is not trusted; the date comes from the run plan."""
+    st = await _ready(committed)
+    tomorrow = snap("s-soap", "40", date(2026, 3, 17))  # the test clock: 2026-03-16
+    assert await upload(committed, st, envelope(st, None, [tomorrow])) == "VALIDATION_ERROR"
+    assert await count(committed, StockSnapshot, st.company_id) == 0

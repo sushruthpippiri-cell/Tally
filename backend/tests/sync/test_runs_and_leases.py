@@ -197,3 +197,19 @@ async def test_finish_marks_the_run_and_releases_leases(
         await session.execute(select(SyncWatermark).execution_options(populate_existing=True))
     ).scalar_one()
     assert mark.locked_by_agent_id is None
+
+
+async def test_the_plan_gives_todays_date_in_the_company_time_zone_and_books_beginning(
+    api: httpx.AsyncClient, session: AsyncSession, agent: tuple[Agent, str]
+) -> None:
+    """D-042 #5 (owner): the snapshot date and date pages come from the backend."""
+    from datetime import date
+
+    row, credential = agent
+    company = await session.get(Company, row.company_id)
+    assert company is not None
+    company.company_timezone, company.books_from = "Asia/Kolkata", date(2023, 4, 1)
+    command = await make_running_command(session, row)
+    with time_machine.travel(datetime(2026, 3, 16, 20, 0, tzinfo=UTC), tick=False):
+        plan = (await _post(api, credential, f"/agent/commands/{command.command_id}/runs")).json()
+    assert (plan["as_of"], plan["full_pull_from"]) == ("2026-03-17", "2023-04-01")  # 01:30 IST

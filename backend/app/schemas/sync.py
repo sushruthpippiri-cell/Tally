@@ -19,6 +19,8 @@ class RunPlan(BaseModel):
     sync_mode: SyncMode
     date_from: date | None
     date_to: date | None
+    as_of: date  # today in company_timezone: the stock snapshot date, the end of date pages
+    full_pull_from: date | None  # books_from: where date-paged full pulls start
     collections: dict[CollectionType, CollectionPlan]
 
 

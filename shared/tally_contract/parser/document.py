@@ -69,34 +69,64 @@ def _elements(text: str, record_tag: str) -> Iterator[ET.Element]:
             element.clear()
 
 
-def parse[R](raw: bytes, record_tag: str, build: Callable[[ET.Element], R]) -> ParseResult[R]:
-    result: ParseResult[R] = ParseResult()
+class DocumentFailure(Exception):
+    """Raised by `iter_parse` when the document as a whole cannot be trusted."""
+
+    def __init__(self, error: DocumentError) -> None:
+        super().__init__(error.message)
+        self.error = error
+
+
+def iter_parse[R](
+    raw: bytes,
+    record_tag: str,
+    build: Callable[[ET.Element], R],
+    result: "ParseResult[R] | None" = None,
+) -> Iterator[R | ParseError]:
+    """Records (or per-record ParseErrors) one at a time, as the XML is read, so a caller can
+    hand them on without holding them all (D-042 #2). A document that cannot be trusted raises
+    DocumentFailure, possibly after some records were yielded: the caller must then discard
+    what it took from this document (P4: never half a response)."""
     try:
-        text, result.invalid_characters_removed = strip_invalid(decode(raw))
-        if result.invalid_characters_removed:
-            log.info("tally_invalid_characters_removed", count=result.invalid_characters_removed)
-        error = tally_error(text)
-        if error is not None:
-            return _fail(result, error)
+        text, removed = strip_invalid(decode(raw))
+    except UnicodeDecodeError as exc:
+        raise DocumentFailure(
+            DocumentError(code=ErrorCode.PARSE_ERROR, message=f"not UTF-8/16: {exc}")
+        ) from exc
+    if result is not None:
+        result.invalid_characters_removed = removed
+    if removed:
+        log.info("tally_invalid_characters_removed", count=removed)
+    error = tally_error(text)
+    if error is not None:
+        raise DocumentFailure(error)
+    try:
         for element in _elements(text, record_tag):
             try:
-                result.records.append(build(element))
+                yield build(element)
             except (ValueError, ValidationError, KeyError, TypeError) as exc:
                 guid = (element.findtext("GUID") or "").strip() or None
                 snippet = ET.tostring(element, encoding="unicode")[:SNIPPET]
                 code = exc.code if isinstance(exc, RecordRejected) else ErrorCode.PARSE_ERROR
-                result.errors.append(
-                    ParseError(guid=guid, code=code, message=str(exc)[:1000], snippet=snippet)
-                )
                 log.warning("record_parse_failed", record_tag=record_tag, guid=guid, error=str(exc))
-    except UnicodeDecodeError as exc:
-        return _fail(
-            result, DocumentError(code=ErrorCode.PARSE_ERROR, message=f"not UTF-8/16: {exc}")
-        )
+                yield ParseError(guid=guid, code=code, message=str(exc)[:1000], snippet=snippet)
     except ET.ParseError as exc:
-        return _fail(
-            result, DocumentError(code=ErrorCode.PARSE_ERROR, message=f"malformed XML: {exc}")
-        )
+        raise DocumentFailure(
+            DocumentError(code=ErrorCode.PARSE_ERROR, message=f"malformed XML: {exc}")
+        ) from exc
+
+
+def parse[R](raw: bytes, record_tag: str, build: Callable[[ET.Element], R]) -> ParseResult[R]:
+    """The whole document at once, for small responses and tests; never raises (TEST-1.4)."""
+    result: ParseResult[R] = ParseResult()
+    try:
+        for item in iter_parse(raw, record_tag, build, result):
+            if isinstance(item, ParseError):
+                result.errors.append(item)
+            else:
+                result.records.append(item)
+    except DocumentFailure as exc:
+        return _fail(result, exc.error)
     except Exception as exc:  # the parser never raises (TEST-1.4)
         return _fail(
             result,
