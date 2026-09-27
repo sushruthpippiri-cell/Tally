@@ -106,3 +106,20 @@ def test_every_tally_field_formula_is_gate_tagged_or_trivially_ours() -> None:
             continue
         untagged.append(formula)
     assert untagged == []
+
+
+@pytest.mark.parametrize("collection", list(tc.REPORTS), ids=str)
+def test_a_key_list_and_its_data_pull_share_one_collection_and_filter(
+    collection: CollectionType,
+) -> None:
+    """D-041 #2 (owner): a key list may only be compared with the pull it mirrors. Both reports
+    repeat the one named Collection, so the filter (G34 for vouchers) is the same object; the
+    key Part adds no filter or collection of its own."""
+    _, data_coll = _line_of(tc.REPORTS[collection])
+    _, key_coll = _line_of(tc.KEY_REPORTS[collection])
+    assert key_coll == data_coll
+    assert FULL.count(f"[Collection: {data_coll}]") == 1  # one definition, no look-alike copy
+    key_part = _block(FULL, "Part", tc.KEY_REPORTS[collection])
+    assert "Filter" not in key_part and "Collection" not in key_part
+    if collection == CollectionType.VOUCHER:
+        assert "TA_IsAccountingVoucher" in _attr(_block(FULL, "Collection", key_coll), "Filter")

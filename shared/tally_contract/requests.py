@@ -78,7 +78,11 @@ def collection(
     keys_only: bool = False,
 ) -> bytes:
     """One page of a collection: ALTERID window (from, to], 0/0 = everything (D-013), an
-    optional date window, and the key-only variant (FR-1.2)."""
+    optional date window, and the key-only variant (FR-1.2). A key list differs from the data
+    request only in the report, whose Part repeats the same Collection (D-041 #2); it is never
+    ALTERID-windowed, since that would omit every unchanged record."""
+    if keys_only and (from_alter_id, to_alter_id) != (0, 0):
+        raise ValueError("a key list is never ALTERID-windowed (D-041 #2)")
     reports = tc.KEY_REPORTS if keys_only else tc.REPORTS
     return envelope(
         reports[collection_type],

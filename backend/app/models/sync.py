@@ -4,7 +4,16 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Index, UniqueConstraint, text
+from sqlalchemy import (
+    BigInteger,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    UniqueConstraint,
+    text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import (
@@ -20,6 +29,7 @@ from app.models.base import (
 )
 from app.models.enums import (
     CollectionType,
+    KeyListStatus,
     ReconResult,
     SyncMode,
     SyncRunStatus,
@@ -133,3 +143,57 @@ class ReconciliationResult(Base):
     absolute_difference: Mapped[Decimal] = mapped_column(Money)
     percentage_difference: Mapped[Decimal | None] = mapped_column(Rate)
     result: Mapped[str]
+
+
+class SyncKeyList(Base):
+    """A key list (GUID, ALTERID) for deletion detection, staged in chunks and evaluated once
+    (SYNC-5.x, D-007, D-041). The row stays as history; its keys are deleted after evaluation."""
+
+    __tablename__ = "sync_key_lists"
+    __table_args__ = (
+        UniqueConstraint("company_id", "list_id"),  # target of the keys' tenant FK
+        tenant_fk("sync_run_id", "sync_runs.sync_run_id"),
+        enum_check("collection_type", CollectionType),
+        enum_check("status", KeyListStatus),
+        Index(None, "company_id", "collection_type", "evaluated_at"),
+    )
+
+    list_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)  # chosen by the Agent
+    company_id: Mapped[uuid.UUID] = company_id_col(index=False)
+    sync_run_id: Mapped[uuid.UUID]
+    collection_type: Mapped[str]
+    date_from: Mapped[date | None]  # the window; null: the whole collection
+    date_to: Mapped[date | None]
+    received_chunks: Mapped[list[int]] = mapped_column(
+        ARRAY(Integer), default=list, server_default=text("'{}'")
+    )
+    final_seq: Mapped[int | None]
+    status: Mapped[str] = mapped_column(
+        default=KeyListStatus.RECEIVING, server_default=KeyListStatus.RECEIVING.value
+    )
+    keys_count: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    candidates: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    marked_missing: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    reappeared: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    missed_changes: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    guard_waived: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    confirmed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.user_id"))
+    confirmed_at: Mapped[datetime | None]
+    created_at: Mapped[datetime] = created_at()
+    evaluated_at: Mapped[datetime | None]
+
+
+class SyncKeyListKey(Base):
+    __tablename__ = "sync_key_list_keys"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["company_id", "list_id"],
+            ["sync_key_lists.company_id", "sync_key_lists.list_id"],
+            ondelete="CASCADE",
+        ),
+    )
+
+    list_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    tally_guid: Mapped[str] = mapped_column(primary_key=True)
+    company_id: Mapped[uuid.UUID] = company_id_col(index=False)
+    alter_id: Mapped[int] = mapped_column(BigInteger)

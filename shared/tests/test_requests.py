@@ -91,3 +91,22 @@ def test_window_and_dates_go_in_static_variables() -> None:
     from_date = variables.find(tc.VAR_FROM_DATE)
     assert from_date is not None and from_date.text == "20240401"
     assert from_date.get("TYPE") == "Date"
+
+
+@pytest.mark.parametrize("collection", list(CollectionType), ids=str)
+def test_a_key_request_differs_from_its_data_request_only_in_the_report(
+    collection: CollectionType,
+) -> None:
+    """D-041 #2 (owner): same company, same date window, same (absent) ALTERID window."""
+    dates = {"date_from": date(2024, 4, 1), "date_to": date(2024, 4, 30)}
+    data = rq.collection(collection, CO, **dates)
+    keys = rq.collection(collection, CO, keys_only=True, **dates)
+    assert keys == data.replace(
+        f"<ID>{tc.REPORTS[collection]}</ID>".encode(),
+        f"<ID>{tc.KEY_REPORTS[collection]}</ID>".encode(),
+    )
+
+
+def test_a_key_request_is_never_alter_id_windowed() -> None:
+    with pytest.raises(ValueError, match="never ALTERID-windowed"):
+        rq.collection(CollectionType.VOUCHER, CO, keys_only=True, from_alter_id=5, to_alter_id=9)

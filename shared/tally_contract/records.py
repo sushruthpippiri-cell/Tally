@@ -294,3 +294,28 @@ class BatchEnvelope(_Record):
             if alter_ids != sorted(alter_ids):
                 raise ValueError("records must be sorted by alter_id (D-026)")
         return self
+
+
+class KeyListChunk(_Record):
+    """One chunk of a key list for deletion detection (SYNC-5.1, D-041). The keys come from
+    the collection's key-only report, which repeats the very Collection (and filter) its data
+    report pulls. `window` limits which local records can be marked missing: a DATE window
+    for vouchers, or null for the whole collection."""
+
+    contract_version: str = CONTRACT_VERSION
+    collection_type: CollectionType
+    command_id: uuid.UUID
+    sync_run_id: uuid.UUID
+    list_id: uuid.UUID
+    chunk_seq: int = Field(ge=0)
+    is_final: bool = False
+    window: DateWindow | None = None
+    keys: list[KeyRecord] = Field(default=[], max_length=10_000)
+
+    @model_validator(mode="after")
+    def _scope(self) -> Self:
+        if self.collection_type == CollectionType.COMPANY:
+            raise ValueError("the COMPANY collection has no key list")
+        if self.window is not None and self.collection_type != CollectionType.VOUCHER:
+            raise ValueError("only VOUCHER key lists take a date window")
+        return self

@@ -97,6 +97,16 @@ class BaseVoucherType(StrEnum):
     OTHER = "OTHER"
 
 
+class KeyListStatus(StrEnum):
+    """D-041: a key list is staged while RECEIVING, then evaluated once."""
+
+    RECEIVING = "RECEIVING"
+    APPLIED = "APPLIED"
+    SUSPICIOUS = "SUSPICIOUS"  # the D-007 guard fired; nothing was marked missing
+    CONFIRMED = "CONFIRMED"  # an Owner/Admin waived the guard for the next list
+    ABANDONED = "ABANDONED"  # its run closed before the last chunk arrived
+
+
 class WatermarkStatus(StrEnum):
     """Not in SRS 5.9, which names the column but no values (D-031)."""
 

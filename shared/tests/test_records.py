@@ -16,6 +16,7 @@ from tally_contract.records import (
     AnyRecord,
     BatchEnvelope,
     BillAllocation,
+    KeyListChunk,
     KeyRecord,
     LedgerEntry,
     LedgerRecord,
@@ -166,3 +167,18 @@ def test_windows_must_be_ordered() -> None:
         _envelope(window={"kind": "ALTER_ID", "from_alter_id": 10, "to_alter_id": 5})
     with pytest.raises(ValidationError):
         _envelope(window={"kind": "DATE", "date_from": "2024-05-01", "date_to": "2024-04-01"})
+
+
+def _chunk(**kw: object) -> dict[str, object]:
+    ids = {k: str(uuid.uuid4()) for k in ("command_id", "sync_run_id", "list_id")}
+    return {"collection_type": "VOUCHER", "chunk_seq": 0, **ids, **kw}
+
+
+def test_a_key_list_chunk_takes_a_date_window_for_vouchers_only() -> None:
+    """D-041 #1: masters are listed whole; COMPANY has no key list."""
+    window = {"kind": "DATE", "date_from": "2024-04-01", "date_to": "2024-04-30"}
+    assert KeyListChunk.model_validate(_chunk(window=window)).window is not None
+    with pytest.raises(ValidationError, match="only VOUCHER"):
+        KeyListChunk.model_validate(_chunk(collection_type="LEDGER", window=window))
+    with pytest.raises(ValidationError, match="no key list"):
+        KeyListChunk.model_validate(_chunk(collection_type="COMPANY"))

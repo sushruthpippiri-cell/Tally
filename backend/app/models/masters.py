@@ -39,6 +39,7 @@ class Group(TallySynced, Base):
         tenant_fk("classification_group_id", "groups.group_id"),
         tenant_fk("primary_group_id", "groups.group_id"),
         enum_check("nature", Nature),
+        enum_check("own_nature", Nature),
         enum_check("resolution_status", GroupResolution),
         CheckConstraint(
             "resolution_status <> 'RESOLVED' OR "
@@ -64,7 +65,8 @@ class Group(TallySynced, Base):
     predefined_group_id: Mapped[uuid.UUID | None]  # nearest predefined ancestor, incl. self
     classification_group_id: Mapped[uuid.UUID | None]  # the anchor; null only when broken
     primary_group_id: Mapped[uuid.UUID | None]  # top-level predefined primary group
-    nature: Mapped[str | None]
+    nature: Mapped[str | None]  # resolved: the primary group's, or the top-level group's own
+    own_nature: Mapped[str | None]  # from Tally's own flags on the group (GATE-G14, D-041 #7)
     is_predefined: Mapped[bool]
     reserved_name: Mapped[str | None]  # Tally's reserved name (G32); null for user groups
     resolution_status: Mapped[str]
