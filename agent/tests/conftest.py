@@ -182,3 +182,65 @@ def make_tally() -> Any:
         )
 
     return make
+
+
+# --- a fake backend -------------------------------------------------------------------------
+
+
+class FakeBackend:
+    """A loopback HTTP backend that records calls and answers registration (SRS 4.2)."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, dict[str, Any], dict[str, str]]] = []
+        self.credential = "cred-" + "x" * 40
+        backend = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:
+                length = int(self.headers.get("Content-Length") or 0)
+                body = json.loads(self.rfile.read(length) or b"{}")
+                backend.calls.append(("POST", self.path, body, dict(self.headers)))
+                status, payload = backend.answer(self.path, body)
+                data = json.dumps(payload).encode()
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def log_message(self, format: str, *args: Any) -> None:
+                pass
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self._server.server_address[1]}"
+        threading.Thread(target=self._server.serve_forever, daemon=True).start()
+
+    def answer(self, path: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        if path == "/agent/register":
+            return 201, {
+                "agent_id": "8a1f3c1e-4c3b-4c55-9d2b-0f6c2a1b9e70",
+                "credential": self.credential,
+                "config": {
+                    "poll_interval_seconds": 30,
+                    "progress_interval_seconds": 60,
+                    "command_lease_seconds": 300,
+                    "extraction_batch_size": 5000,
+                    "tally_host": body.get("tally_host", "localhost"),  # as registered
+                    "tally_port": body.get("tally_port", 9000),
+                    "tally_company_name": body.get("tally_company_name", ""),
+                    "expected_tdl_version": "0.0.0",
+                    "collection_sync_modes": {},
+                },
+            }
+        return 404, {"code": "NOT_FOUND", "message": path}
+
+    def close(self) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+
+
+@pytest.fixture
+def fake_backend() -> Iterator[FakeBackend]:
+    backend = FakeBackend()
+    yield backend
+    backend.close()

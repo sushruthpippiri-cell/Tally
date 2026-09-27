@@ -16,8 +16,8 @@ from tally_contract.parser import TallyInfo
 log = get_logger(__name__)
 
 
-def preflight(tally: TallyClient, company_name: str, registered_guid: str) -> TallyInfo:
-    info = tally.info(company_name)
+def check_tdl(info: TallyInfo) -> None:
+    """D-042 #7: the loaded TDL must be the version bundled with this Agent build."""
     if info.tdl_version != tc.TDL_VERSION:
         log.error("tdl_version_mismatch", loaded=info.tdl_version, bundled=tc.TDL_VERSION)
         raise TallyError(
@@ -25,6 +25,11 @@ def preflight(tally: TallyClient, company_name: str, registered_guid: str) -> Ta
             f"TallyPrime has TDL {info.tdl_version or '(unknown)'} loaded; this Agent needs "
             f"{tc.TDL_VERSION}. Load the TDL files installed with this Agent.",
         )
+
+
+def preflight(tally: TallyClient, company_name: str, registered_guid: str) -> TallyInfo:
+    info = tally.info(company_name)
+    check_tdl(info)
     if info.company_guid != registered_guid:
         log.error(
             "company_mismatch",
