@@ -45,3 +45,12 @@ class ErrorCode(StrEnum):
 
 SRS_CODES: tuple[ErrorCode, ...] = tuple(list(ErrorCode)[:15])
 PROPOSED_CODES: tuple[ErrorCode, ...] = tuple(list(ErrorCode)[15:])
+
+
+class RecordRejected(ValueError):
+    """One record refused with a specific code (e.g. DEBIT_CREDIT_IMBALANCE); the parser
+    records it as that record's ParseError and carries on (SYNC-6.5)."""
+
+    def __init__(self, code: ErrorCode, message: str) -> None:
+        super().__init__(message)
+        self.code = code

@@ -8,6 +8,7 @@ Names that are *ours* (report IDs, the XML tags our own TDL emits) are not Tally
 carry no gate tag; they must match tdl/TallyAnalytics.tdl, which a test checks.
 """
 
+from decimal import Decimal
 from typing import Final
 
 from tally_contract.enums import CollectionType
@@ -97,6 +98,11 @@ COMPANY_NOT_LOADED_MARKERS: Final = ("Could not set 'SVCurrentCompany'", "Compan
 # GATE-G23: a ledger entry's AMOUNT is signed, negative = debit, and ISDEEMEDPOSITIVE=Yes on a
 # debit. Both must agree or the record is rejected; nothing is ever guessed (ACC-DATA-3).
 DEBIT_IS_NEGATIVE: Final = True
+# GATE-G23: Tally only saves balanced vouchers and amounts are exact decimals, so a correct parse
+# sums to exactly zero. Relax only if a live capture shows vouchers exported a paisa off.
+BALANCE_TOLERANCE: Final = Decimal("0")
+# GATE-G9: ISCANCELLED is "Yes" on a cancelled voucher; anything else counts as not cancelled.
+CANCELLED_YES: Final = "Yes"
 # GATE-G25: exact BILLTYPE values; anything else normalizes to UNSUPPORTED (AGE-BILL-1).
 BILL_TYPE_VALUES: Final[dict[str, str]] = {
     "New Ref": "NEW_REF",

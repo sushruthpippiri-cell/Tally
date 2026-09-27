@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from tally_contract import tally_constants as tc
-from tally_contract.errors import ErrorCode
+from tally_contract.errors import ErrorCode, RecordRejected
 from tally_contract.log import get_logger
 from tally_contract.parser.sanitize import decode, strip_invalid
 from tally_contract.records import ParseError
@@ -84,8 +84,9 @@ def parse[R](raw: bytes, record_tag: str, build: Callable[[ET.Element], R]) -> P
             except (ValueError, ValidationError, KeyError, TypeError) as exc:
                 guid = (element.findtext("GUID") or "").strip() or None
                 snippet = ET.tostring(element, encoding="unicode")[:SNIPPET]
+                code = exc.code if isinstance(exc, RecordRejected) else ErrorCode.PARSE_ERROR
                 result.errors.append(
-                    ParseError(guid=guid, message=str(exc)[:1000], snippet=snippet)
+                    ParseError(guid=guid, code=code, message=str(exc)[:1000], snippet=snippet)
                 )
                 log.warning("record_parse_failed", record_tag=record_tag, guid=guid, error=str(exc))
     except UnicodeDecodeError as exc:

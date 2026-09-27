@@ -205,6 +205,8 @@ def _inventory_entry(e: ET.Element, sequence: int) -> InventoryEntry:
 
 
 def voucher(e: ET.Element) -> VoucherRecord:
+    entries = [_ledger_entry(x, i) for i, x in enumerate(e.findall("LEDGERENTRY"), 1)]
+    normalize.check_balance(entries)
     return VoucherRecord(
         guid=_required(e, "GUID"),
         alter_id=parse_int(_get(e, "ALTERID")),
@@ -213,8 +215,8 @@ def voucher(e: ET.Element) -> VoucherRecord:
         voucher_type_name=_required(e, "VOUCHERTYPENAME"),
         voucher_date=parse_date(_get(e, "DATE")),
         narration=_get(e, "NARRATION"),
-        is_cancelled=parse_bool(_get(e, "ISCANCELLED")) is True,  # GATE-G9
-        entries=[_ledger_entry(x, i) for i, x in enumerate(e.findall("LEDGERENTRY"), 1)],
+        is_cancelled=normalize.is_cancelled(_get(e, "ISCANCELLED")),  # GATE-G9
+        entries=entries,
         items=[_inventory_entry(x, i) for i, x in enumerate(e.findall("INVENTORYENTRY"), 1)],
     )
 
