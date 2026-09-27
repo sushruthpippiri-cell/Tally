@@ -74,3 +74,51 @@ class RunOut(BaseModel):
     records_failed: int
     started_at: datetime
     ended_at: datetime | None
+
+
+# --- sync status for the dashboard (P5.8, SRS 19.2) -----------------------------------------
+
+
+class CollectionStatus(BaseModel):
+    collection_type: CollectionType
+    mode: Literal["INCREMENTAL", "FULL_ONLY"]
+    label: Literal["Incremental", "Full sync only"]  # AC-12
+    watermark: int
+    status: str  # NEVER_SYNCED | OK | ...
+    last_successful_sync_at: datetime | None
+    lease_holder: str | None  # the Agent holding a live lease
+    lease_expires_at: datetime | None
+    held_back: int  # "sync held back by N failing records" (D-039 #7)
+
+
+class RunSummary(RunOut):
+    agent_id: uuid.UUID
+    command_id: uuid.UUID | None
+    sync_mode: SyncMode
+
+
+class SyncStatusOut(BaseModel):
+    collections: list[CollectionStatus]
+    last_run: RunSummary | None
+    warnings: list[str]
+
+
+class LeaseStatus(BaseModel):
+    collection_type: CollectionType
+    holder_agent_id: uuid.UUID
+    holder_name: str
+    acquired_at: datetime | None
+    expires_at: datetime | None
+    live: bool  # false: expired, reclaimable by any Agent (SYNC-4.3)
+
+
+class SyncErrorOut(BaseModel):
+    id: int
+    sync_run_id: uuid.UUID
+    entity_type: str
+    tally_guid: str | None
+    alter_id: int | None
+    error_code: str
+    message: str
+    watermark_hold: int | None
+    created_at: datetime

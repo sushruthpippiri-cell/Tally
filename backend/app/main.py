@@ -11,6 +11,7 @@ from app.api import (
     companies,
     health,
     schedules,
+    sync,
     users,
 )
 from app.api import settings as settings_api
@@ -49,6 +50,7 @@ def create_app(config: Settings | None = None) -> FastAPI:
         agent_protocol,
         commands,
         schedules,
+        sync,
     ):
         app.include_router(module.router)
     get_logger(__name__).info("app_started", env=config.env)
