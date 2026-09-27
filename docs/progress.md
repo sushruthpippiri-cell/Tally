@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P6 (lifecycle, deletion detection, hierarchy, Data Quality) — **complete** 2026-09-27. Local suite PASS ([phase-06](test-reports/phase-06.md), 1020 tests, 0 skipped, 91.9% line coverage); CI: see the Done row "P6 phase report". D-041 ACCEPTED, and D-007 ACCEPTED with the guard floor lowered to 5. Not covered by design: DR-ML-5 (INACTIVE) waits for G29; SYNC-5.3 is P10; SYNC-5.5 is question 8; the metric halves of ACC-7.x/8.x are P8. Next: P7 (Sync Agent) — waits for the owner.
+P6 (lifecycle, deletion detection, hierarchy, Data Quality) — **complete** 2026-09-27. Local suite PASS ([phase-06](test-reports/phase-06.md), 1020 tests, 0 skipped, 91.9% line coverage); CI green (runs 36310356334 `check`, 36310356314 `agent-windows`, 36310356316 `capture-kit`). D-041 ACCEPTED, and D-007 ACCEPTED with the guard floor lowered to 5. Not covered by design: DR-ML-5 (INACTIVE) waits for G29; SYNC-5.3 is P10; SYNC-5.5 is question 8; the metric halves of ACC-7.x/8.x are P8. Next: P7 (Sync Agent) — waits for the owner.
 
 P5 (sync engine) — **complete** 2026-09-27. Local suite PASS ([phase-05](test-reports/phase-05.md), 935 tests, 0 skipped, 90.9% line coverage); CI green (runs 36299076074 `check`, 36299076088 `agent-windows`). Decisions D-039 and D-040 ACCEPTED (D-014, D-027 superseded). Not covered by design: DR-VE-2 (per-line voucher updates) waits for GATE-G24; the Agent-side halves of AC-01/02, SYNC-1.3, FR-STK-15, NFR-REL-2 are P7. Next: P6 (lifecycle and hierarchy) — waits for the owner.
 
@@ -20,7 +20,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
-| 2026-09-27 | P6 phase report | (next commit) | [phase-06](test-reports/phase-06.md): 1020 passed, 0 skipped, fresh DB, `make check` PASS. |
+| 2026-09-27 | P6 phase report | 3cf2ee4 | [phase-06](test-reports/phase-06.md): 1020 passed, 0 skipped, fresh DB, `make check` PASS. |
 | 2026-09-27 | P6.8 docs | ed30437 | `docs/sync-engine.md` (key lists, lifecycle, hierarchy, Data Quality), `docs/agent-protocol.md` (key lists), traceability. |
 | 2026-09-27 | P6.7 masters endpoints | 0326927 | `/masters/groups` (anchor, predefined and primary group by current name, nature, statuses) and `/masters/voucher-types`. |
 | 2026-09-27 | P6.6 Data Quality | 10743c7 | Registry of checks, each one SQL query; 13 checks including the owner's "not in any classification list", "predefined group possibly renamed" and "predefined voucher type possibly renamed" (both retire when G32 passes). |
