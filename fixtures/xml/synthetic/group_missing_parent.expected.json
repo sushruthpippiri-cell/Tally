@@ -1,0 +1,22 @@
+{
+  "parse": "collection:GROUP",
+  "expected": {
+    "records": [
+      {
+        "guid": "g-projx",
+        "alter_id": 5,
+        "name": "Project X",
+        "record_type": "GROUP",
+        "parent_guid": "g-does-not-exist",
+        "parent_name": "Projects (deleted)",
+        "reserved_name": null,
+        "is_revenue": false,
+        "is_deemed_positive": true,
+        "affects_gross_profit": false
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

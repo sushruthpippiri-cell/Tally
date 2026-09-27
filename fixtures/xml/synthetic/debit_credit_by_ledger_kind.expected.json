@@ -1,0 +1,220 @@
+{
+  "parse": "collection:VOUCHER",
+  "expected": {
+    "records": [
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-k-sale",
+        "alter_id": 201,
+        "voucher_number": null,
+        "voucher_type_guid": null,
+        "voucher_type_name": "Sales",
+        "voucher_date": "2024-08-01",
+        "narration": null,
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": null,
+            "ledger_name": "Sharma Traders",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-1180.00",
+              "is_debit": true,
+              "amount_absolute": "1180.00",
+              "amount_signed": "1180.00",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": null,
+            "ledger_name": "Sales - Retail",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "1000.00",
+              "is_debit": false,
+              "amount_absolute": "1000.00",
+              "amount_signed": "-1000.00",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": null,
+            "ledger_name": "Output GST",
+            "line_sequence": 3,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "180.00",
+              "is_debit": false,
+              "amount_absolute": "180.00",
+              "amount_signed": "-180.00",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": []
+      },
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-k-purchase",
+        "alter_id": 202,
+        "voucher_number": null,
+        "voucher_type_guid": null,
+        "voucher_type_name": "Purchase",
+        "voucher_date": "2024-08-01",
+        "narration": null,
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": null,
+            "ledger_name": "Purchases",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-500.00",
+              "is_debit": true,
+              "amount_absolute": "500.00",
+              "amount_signed": "500.00",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": null,
+            "ledger_name": "Input GST",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-90.00",
+              "is_debit": true,
+              "amount_absolute": "90.00",
+              "amount_signed": "90.00",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": null,
+            "ledger_name": "Kumar Wholesale",
+            "line_sequence": 3,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "590.00",
+              "is_debit": false,
+              "amount_absolute": "590.00",
+              "amount_signed": "-590.00",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": []
+      },
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-k-receipt",
+        "alter_id": 203,
+        "voucher_number": null,
+        "voucher_type_guid": null,
+        "voucher_type_name": "Receipt",
+        "voucher_date": "2024-08-02",
+        "narration": null,
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": null,
+            "ledger_name": "HDFC Current",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-2000.00",
+              "is_debit": true,
+              "amount_absolute": "2000.00",
+              "amount_signed": "2000.00",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": null,
+            "ledger_name": "Sharma Traders",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "2000.00",
+              "is_debit": false,
+              "amount_absolute": "2000.00",
+              "amount_signed": "-2000.00",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": []
+      },
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-k-payment",
+        "alter_id": 204,
+        "voucher_number": null,
+        "voucher_type_guid": null,
+        "voucher_type_name": "Payment",
+        "voucher_date": "2024-08-02",
+        "narration": null,
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": null,
+            "ledger_name": "Office Rent",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-750.50",
+              "is_debit": true,
+              "amount_absolute": "750.50",
+              "amount_signed": "750.50",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": null,
+            "ledger_name": "Cash",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "750.50",
+              "is_debit": false,
+              "amount_absolute": "750.50",
+              "amount_signed": "-750.50",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": []
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

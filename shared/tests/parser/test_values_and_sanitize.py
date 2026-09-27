@@ -55,7 +55,6 @@ def test_dates_ints_and_logicals() -> None:
     [
         ("12 Nos", (Decimal("12"), "Nos")),
         (" 1,200.5 Kgs", (Decimal("1200.5"), "Kgs")),
-        ("2 Box = 24 Nos", (Decimal("2"), "Box")),
         ("-3 Nos", (Decimal("-3"), "Nos")),
         ("7", (Decimal("7"), None)),
         ("", (None, None)),
@@ -63,6 +62,12 @@ def test_dates_ints_and_logicals() -> None:
 )
 def test_quantities_carry_their_unit(raw: str, expected: tuple[object, object]) -> None:
     assert parse_quantity(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["2 Box = 24 Nos", "1 Box of 12 Nos = 12 Nos", "12 Nos 3 Box"])
+def test_compound_quantities_are_rejected_until_g27_is_verified(raw: str) -> None:
+    with pytest.raises(ValueError):
+        parse_quantity(raw)
 
 
 def test_rates_carry_their_unit() -> None:

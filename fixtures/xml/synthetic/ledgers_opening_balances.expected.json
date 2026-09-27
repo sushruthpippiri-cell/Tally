@@ -1,0 +1,105 @@
+{
+  "parse": "collection:LEDGER",
+  "expected": {
+    "records": [
+      {
+        "guid": "l-gupta",
+        "alter_id": 21,
+        "name": "Gupta Stores",
+        "record_type": "LEDGER",
+        "parent_group_guid": "g-sd",
+        "parent_group_name": "Sundry Debtors",
+        "is_bill_wise": true,
+        "opening_balance": {
+          "amount_raw": "-15000.00",
+          "is_debit": true,
+          "amount_absolute": "15000.00",
+          "amount_signed": "15000.00",
+          "accounting_direction": "DEBIT"
+        },
+        "opening_bills": [
+          {
+            "reference_name": "OB-1",
+            "bill_date": "2024-03-31",
+            "due_date": "2024-04-30",
+            "amount": {
+              "amount_raw": "-10000.00",
+              "is_debit": true,
+              "amount_absolute": "10000.00",
+              "amount_signed": "10000.00",
+              "accounting_direction": "DEBIT"
+            }
+          },
+          {
+            "reference_name": "OB-2",
+            "bill_date": "2024-03-31",
+            "due_date": null,
+            "amount": {
+              "amount_raw": "-5000.00",
+              "is_debit": true,
+              "amount_absolute": "5000.00",
+              "amount_signed": "5000.00",
+              "accounting_direction": "DEBIT"
+            }
+          }
+        ],
+        "is_inactive": null,
+        "custom_fields": {}
+      },
+      {
+        "guid": "l-singh",
+        "alter_id": 22,
+        "name": "Singh Distributors",
+        "record_type": "LEDGER",
+        "parent_group_guid": null,
+        "parent_group_name": "Sundry Creditors",
+        "is_bill_wise": true,
+        "opening_balance": {
+          "amount_raw": "8000.00",
+          "is_debit": false,
+          "amount_absolute": "8000.00",
+          "amount_signed": "-8000.00",
+          "accounting_direction": "CREDIT"
+        },
+        "opening_bills": [],
+        "is_inactive": null,
+        "custom_fields": {}
+      },
+      {
+        "guid": "l-cash",
+        "alter_id": 23,
+        "name": "Cash",
+        "record_type": "LEDGER",
+        "parent_group_guid": null,
+        "parent_group_name": "Cash-in-Hand",
+        "is_bill_wise": null,
+        "opening_balance": {
+          "amount_raw": "2500.00 Dr",
+          "is_debit": true,
+          "amount_absolute": "2500.00",
+          "amount_signed": "2500.00",
+          "accounting_direction": "DEBIT"
+        },
+        "opening_bills": [],
+        "is_inactive": null,
+        "custom_fields": {}
+      },
+      {
+        "guid": "l-walkin",
+        "alter_id": 24,
+        "name": "Walk-in Customer",
+        "record_type": "LEDGER",
+        "parent_group_guid": null,
+        "parent_group_name": "Sundry Debtors",
+        "is_bill_wise": false,
+        "opening_balance": null,
+        "opening_bills": [],
+        "is_inactive": null,
+        "custom_fields": {}
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

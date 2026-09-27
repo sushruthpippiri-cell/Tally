@@ -1,0 +1,107 @@
+{
+  "parse": "collection:VOUCHER",
+  "expected": {
+    "records": [
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-u-1",
+        "alter_id": 240,
+        "voucher_number": null,
+        "voucher_type_guid": null,
+        "voucher_type_name": "Sales",
+        "voucher_date": "2024-08-01",
+        "narration": null,
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": null,
+            "ledger_name": "Cash",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-10",
+              "is_debit": true,
+              "amount_absolute": "10",
+              "amount_signed": "10",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": null,
+            "ledger_name": "Sales - Retail",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "10",
+              "is_debit": false,
+              "amount_absolute": "10",
+              "amount_signed": "-10",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": []
+      },
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-u-3",
+        "alter_id": 242,
+        "voucher_number": null,
+        "voucher_type_guid": null,
+        "voucher_type_name": "Sales",
+        "voucher_date": "2024-08-01",
+        "narration": null,
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": null,
+            "ledger_name": "Cash",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-20",
+              "is_debit": true,
+              "amount_absolute": "20",
+              "amount_signed": "20",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": null,
+            "ledger_name": "Sales - Retail",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "20",
+              "is_debit": false,
+              "amount_absolute": "20",
+              "amount_signed": "-20",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": []
+      }
+    ],
+    "errors": [
+      {
+        "guid": "v-u-2",
+        "code": "PARSE_ERROR",
+        "message": "not a %Y%m%d date: None",
+        "snippet": "<VOUCHER><GUID>v-u-2</GUID><ALTERID>241</ALTERID><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME><LEDGERENTRY><LEDGERNAME>Cash</LEDGERNAME><AMOUNT>-10</AMOUNT><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE></LEDGERENTRY><LEDGERENTRY><LEDGERNAME>Sales - Retail</LEDGERNAME><AMOUNT>10</AMOUNT><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE></LEDGERENTRY></VOUCHER>\n"
+      }
+    ],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

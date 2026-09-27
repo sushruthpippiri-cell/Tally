@@ -1,0 +1,36 @@
+{
+  "parse": "collection:STOCK_ITEM",
+  "expected": {
+    "records": [
+      {
+        "guid": "s-soap",
+        "alter_id": 31,
+        "name": "Soap",
+        "record_type": "STOCK_ITEM",
+        "base_unit": "Nos",
+        "alternate_unit": "Box",
+        "conversion": "12",
+        "opening_quantity": "48",
+        "opening_value": "960.00",
+        "opening_rate": "20.00",
+        "custom_fields": {}
+      },
+      {
+        "guid": "s-pen",
+        "alter_id": 32,
+        "name": "Pen",
+        "record_type": "STOCK_ITEM",
+        "base_unit": "Nos",
+        "alternate_unit": null,
+        "conversion": null,
+        "opening_quantity": null,
+        "opening_value": null,
+        "opening_rate": null,
+        "custom_fields": {}
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

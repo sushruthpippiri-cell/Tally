@@ -1,0 +1,34 @@
+{
+  "parse": "ledger_closing",
+  "expected": {
+    "records": [
+      {
+        "record_type": "LEDGER_CLOSING_BALANCE",
+        "ledger_guid": "l-cash",
+        "as_of_date": "2025-03-31",
+        "balance": {
+          "amount_raw": "-4250.00",
+          "is_debit": true,
+          "amount_absolute": "4250.00",
+          "amount_signed": "4250.00",
+          "accounting_direction": "DEBIT"
+        }
+      },
+      {
+        "record_type": "LEDGER_CLOSING_BALANCE",
+        "ledger_guid": "l-capital",
+        "as_of_date": "2025-03-31",
+        "balance": {
+          "amount_raw": "100000.00",
+          "is_debit": false,
+          "amount_absolute": "100000.00",
+          "amount_signed": "-100000.00",
+          "accounting_direction": "CREDIT"
+        }
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

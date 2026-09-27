@@ -1,0 +1,34 @@
+{
+  "parse": "collection:GROUP",
+  "expected": {
+    "records": [
+      {
+        "guid": "g-sd",
+        "alter_id": 6,
+        "name": "Sundry Debtors",
+        "record_type": "GROUP",
+        "parent_guid": "g-ca",
+        "parent_name": "Current Assets",
+        "reserved_name": "Sundry Debtors",
+        "is_revenue": false,
+        "is_deemed_positive": true,
+        "affects_gross_profit": false
+      },
+      {
+        "guid": "g-retail",
+        "alter_id": 7,
+        "name": "Retail Customers  (₹)",
+        "record_type": "GROUP",
+        "parent_guid": "g-sd",
+        "parent_name": "Sundry Debtors",
+        "reserved_name": null,
+        "is_revenue": false,
+        "is_deemed_positive": true,
+        "affects_gross_profit": false
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 2
+  }
+}

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from tally_contract import normalize
 from tally_contract import tally_constants as tc
+from tally_contract.enums import AllocationType
 from tally_contract.records import (
     BillAllocation,
     CompanyRecord,
@@ -160,10 +161,13 @@ def key(e: ET.Element) -> KeyRecord:
 
 def _bill(e: ET.Element) -> BillAllocation:
     raw_type = _get(e, "BILLTYPE") or ""
+    allocation_type = normalize.allocation_type(raw_type)
+    # GATE-G25: an On Account amount settles no particular bill, so it may carry no name.
+    unnamed_ok = allocation_type == AllocationType.ON_ACCOUNT
     return BillAllocation(
-        reference_name=_required(e, "NAME"),
+        reference_name=(_get(e, "NAME") or "") if unnamed_ok else _required(e, "NAME"),
         allocation_type_raw=raw_type,
-        allocation_type=normalize.allocation_type(raw_type),
+        allocation_type=allocation_type,
         due_date=parse_optional_date(_get(e, "DUEDATE")),
         amount=normalize.to_amount(_required(e, "AMOUNT")),
     )
@@ -229,6 +233,7 @@ def stock_closing(e: ET.Element) -> StockSnapshotRecord:
     return StockSnapshotRecord(
         stock_item_guid=_required(e, "GUID"),
         as_of_date=parse_date(_get(e, "ASOFDATE")),
+        # GATE-G18: an empty closing quantity is taken as zero stock; verify on a live capture.
         closing_quantity=quantity if quantity is not None else Decimal(0),
         unit=unit,
     )

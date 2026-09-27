@@ -1,0 +1,68 @@
+{
+  "parse": "collection:VOUCHER",
+  "expected": {
+    "records": [
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-fx-ok",
+        "alter_id": 222,
+        "voucher_number": null,
+        "voucher_type_guid": null,
+        "voucher_type_name": "Sales",
+        "voucher_date": "2024-09-02",
+        "narration": null,
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": null,
+            "ledger_name": "Cash",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-100.00",
+              "is_debit": true,
+              "amount_absolute": "100.00",
+              "amount_signed": "100.00",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": null,
+            "ledger_name": "Sales - Retail",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "100.00",
+              "is_debit": false,
+              "amount_absolute": "100.00",
+              "amount_signed": "-100.00",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": []
+      }
+    ],
+    "errors": [
+      {
+        "guid": "v-fx-1",
+        "code": "PARSE_ERROR",
+        "message": "not a number: '-$100.00 @ ₹83.20/$ = -₹8,320.00'",
+        "snippet": "<VOUCHER><GUID>v-fx-1</GUID><ALTERID>220</ALTERID><VOUCHERNUMBER /><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME><VOUCHERTYPEGUID /><DATE>20240901</DATE><NARRATION /><ISCANCELLED>No</ISCANCELLED><LEDGERENTRY><LEDGERNAME>Overseas Buyer</LEDGERNAME><AMOUNT>-$100.00 @ ₹83.20/$ = -₹8,320.00</AMOUNT><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE></LEDGERENTRY><LEDGERENTRY><LEDGERNAME>Sales - Export</LEDGERNAME><AMOUNT>$100.00 @ ₹83.20/$ = ₹8,320.00</AMOUNT><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE></LEDGERENTRY></VO"
+      },
+      {
+        "guid": "v-fx-2",
+        "code": "PARSE_ERROR",
+        "message": "not a number: '-USD 50'",
+        "snippet": "<VOUCHER><GUID>v-fx-2</GUID><ALTERID>221</ALTERID><VOUCHERNUMBER /><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME><VOUCHERTYPEGUID /><DATE>20240901</DATE><NARRATION /><ISCANCELLED>No</ISCANCELLED><LEDGERENTRY><LEDGERNAME>Overseas Buyer</LEDGERNAME><AMOUNT>-USD 50</AMOUNT><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE></LEDGERENTRY><LEDGERENTRY><LEDGERNAME>Sales - Export</LEDGERNAME><AMOUNT>USD 50</AMOUNT><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE></LEDGERENTRY></VOUCHER>\n"
+      }
+    ],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "parse": "collection:VOUCHER",
+  "expected": {
+    "records": [
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-pay-1",
+        "alter_id": 150,
+        "voucher_number": "P-1",
+        "voucher_type_guid": "vt-pay",
+        "voucher_type_name": "Payment",
+        "voucher_date": "2024-05-31",
+        "narration": null,
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": "l-rent",
+            "ledger_name": "Office Rent",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-10000.00",
+              "is_debit": true,
+              "amount_absolute": "10000.00",
+              "amount_signed": "10000.00",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": [
+              {
+                "cost_centre_guid": "cc-retail",
+                "cost_centre_name": "Retail",
+                "amount_absolute": "6000.00"
+              },
+              {
+                "cost_centre_guid": "cc-online",
+                "cost_centre_name": "Online",
+                "amount_absolute": "4000.00"
+              }
+            ]
+          },
+          {
+            "ledger_guid": "l-hdfc",
+            "ledger_name": "HDFC Current",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "10000.00",
+              "is_debit": false,
+              "amount_absolute": "10000.00",
+              "amount_signed": "-10000.00",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": []
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

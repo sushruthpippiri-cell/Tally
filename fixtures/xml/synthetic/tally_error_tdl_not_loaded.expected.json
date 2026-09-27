@@ -1,0 +1,12 @@
+{
+  "parse": "collection:VOUCHER",
+  "expected": {
+    "records": [],
+    "errors": [],
+    "document_error": {
+      "code": "TDL_NOT_LOADED",
+      "message": "The project TDL is not loaded in TallyPrime (FR-1.4)"
+    },
+    "invalid_characters_removed": 0
+  }
+}

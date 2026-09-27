@@ -1,0 +1,62 @@
+{
+  "parse": "collection:VOUCHER",
+  "expected": {
+    "records": [
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-bal",
+        "alter_id": 211,
+        "voucher_number": null,
+        "voucher_type_guid": null,
+        "voucher_type_name": "Sales",
+        "voucher_date": "2024-08-31",
+        "narration": null,
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": null,
+            "ledger_name": "Cash",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-100.00",
+              "is_debit": true,
+              "amount_absolute": "100.00",
+              "amount_signed": "100.00",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": null,
+            "ledger_name": "Sales - Retail",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "100.00",
+              "is_debit": false,
+              "amount_absolute": "100.00",
+              "amount_signed": "-100.00",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": []
+      }
+    ],
+    "errors": [
+      {
+        "guid": "v-unbal",
+        "code": "DEBIT_CREDIT_IMBALANCE",
+        "message": "debits and credits differ by 0.01 (entries must sum to zero)",
+        "snippet": "<VOUCHER><GUID>v-unbal</GUID><ALTERID>210</ALTERID><VOUCHERNUMBER /><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME><VOUCHERTYPEGUID /><DATE>20240831</DATE><NARRATION /><ISCANCELLED>No</ISCANCELLED><LEDGERENTRY><LEDGERNAME>Sharma Traders</LEDGERNAME><AMOUNT>-1180.00</AMOUNT><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE></LEDGERENTRY><LEDGERENTRY><LEDGERNAME>Sales - Retail</LEDGERNAME><AMOUNT>1000.00</AMOUNT><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE></LEDGERENTRY><LEDGERENTRY><LEDGERNAME>Output GST</LEDGERNAME><A"
+      }
+    ],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

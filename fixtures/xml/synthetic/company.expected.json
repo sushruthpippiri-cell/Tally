@@ -1,0 +1,20 @@
+{
+  "parse": "collection:COMPANY",
+  "expected": {
+    "records": [
+      {
+        "guid": "c-test",
+        "alter_id": 1,
+        "name": "Tally Test Co",
+        "record_type": "COMPANY",
+        "books_from": "2024-04-01",
+        "financial_year_start": "2024-04-01",
+        "last_master_alter_id": 60,
+        "last_voucher_alter_id": 242
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

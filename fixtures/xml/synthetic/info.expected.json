@@ -1,0 +1,15 @@
+{
+  "parse": "info",
+  "expected": {
+    "records": [
+      {
+        "tdl_version": "0.1.0",
+        "company_guid": "c-test",
+        "company_name": "Tally Test Co"
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

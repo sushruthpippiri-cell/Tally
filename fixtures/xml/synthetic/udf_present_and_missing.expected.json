@@ -1,0 +1,56 @@
+{
+  "parse": "collection:LEDGER",
+  "udf": [
+    {
+      "collection_type": "LEDGER",
+      "tally_field": "CreditLimitDays",
+      "field_key": "credit_days",
+      "data_type": "NUMBER"
+    },
+    {
+      "collection_type": "LEDGER",
+      "tally_field": "SalesRegion",
+      "field_key": "region",
+      "data_type": "TEXT"
+    }
+  ],
+  "expected": {
+    "records": [
+      {
+        "guid": "l-sharma",
+        "alter_id": 41,
+        "name": "Sharma Traders",
+        "record_type": "LEDGER",
+        "parent_group_guid": null,
+        "parent_group_name": "Retail Customers",
+        "is_bill_wise": null,
+        "opening_balance": null,
+        "opening_bills": [],
+        "is_inactive": null,
+        "custom_fields": {
+          "credit_days": "30",
+          "region": null
+        }
+      },
+      {
+        "guid": "l-gupta",
+        "alter_id": 42,
+        "name": "Gupta Stores",
+        "record_type": "LEDGER",
+        "parent_group_guid": null,
+        "parent_group_name": "Sundry Debtors",
+        "is_bill_wise": null,
+        "opening_balance": null,
+        "opening_bills": [],
+        "is_inactive": null,
+        "custom_fields": {
+          "credit_days": null,
+          "region": null
+        }
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

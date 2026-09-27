@@ -1,0 +1,12 @@
+{
+  "parse": "info",
+  "expected": {
+    "records": [],
+    "errors": [],
+    "document_error": {
+      "code": "COMPANY_NOT_LOADED",
+      "message": "The named company is not open in TallyPrime (AGT-5.3)"
+    },
+    "invalid_characters_removed": 0
+  }
+}

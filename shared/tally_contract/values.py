@@ -8,7 +8,8 @@ from decimal import Decimal, InvalidOperation
 from tally_contract import tally_constants as tc
 
 _NUMBER = re.compile(r"^\s*(-?\s*[\d,]*\.?\d+)\s*(Dr|Cr)?\.?\s*$", re.I)
-_QUANTITY = re.compile(r"^\s*(-?[\d,]*\.?\d+)\s*([^\d\s=/][^=/]*?)?\s*(=.*)?$")
+# GATE-G27: a number and at most one unit word ("12 Nos", "2.5 Kgs"); anything more fails.
+_QUANTITY = re.compile(r"^\s*(-?[\d,]*\.?\d+)\s*([A-Za-z][A-Za-z.]*)?\s*$")
 
 
 def text(value: str | None) -> str | None:
@@ -74,13 +75,15 @@ def parse_plain_decimal(value: str | None) -> Decimal | None:
 
 
 def parse_quantity(value: str | None) -> tuple[Decimal | None, str | None]:
-    """GATE-G27: "12 Nos" -> (12, "Nos"); "2 Box = 24 Nos" -> (2, "Box"); empty -> (None, None)."""
+    """GATE-G27: "12 Nos" -> (12, "Nos"); empty -> (None, None). A compound form such as
+    "2 Box = 24 Nos" fails the record until a live capture shows which side is the base unit:
+    reading either side could be silently wrong."""
     raw = text(value)
     if raw is None:
         return None, None
     match = _QUANTITY.match(raw)
     if not match:
-        raise ValueError(f"not a quantity: {value!r}")
+        raise ValueError(f"not a quantity this parser understands: {value!r}")
     unit = text(match.group(2))
     return Decimal(match.group(1).replace(",", "")), unit
 

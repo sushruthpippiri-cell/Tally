@@ -84,6 +84,11 @@ list also works in TallyPrime's Educational mode.
 - [ ] **Debit Note** to Kumar Wholesale, 2 Sep 2024.
 - [ ] **Optional voucher**: any voucher marked *Optional*, and a **Sales Order** and a
       **Delivery Note** (these must NOT appear in the voucher capture, G34).
+- [ ] **Foreign-currency voucher** (G35: the real format of such amounts). Enable multi-currency
+      (F11 company features), create the currency **USD** with a rate (e.g. ₹83.20 per $), and
+      record a **Sales** voucher to a new customer **Overseas Buyer** in **USD** (e.g. $100),
+      2 Oct 2024. Until the capture shows the format, the parser rejects such amounts rather than
+      read part of them.
 - [ ] At least **25 accounting vouchers** in total (so the 0–20 and 20–40 ALTERID windows both
       have data, G7, G33).
 - [ ] **Only if you have a TDL customisation that adds a user-defined field** to vouchers: one
@@ -121,4 +126,4 @@ list also works in TallyPrime's Educational mode.
 | G27 | units and the compound unit (E); purchase in boxes (G) |
 | G29 | scenario G29 |
 | G34 | the optional voucher, Sales Order and Delivery Note (G) |
-| G35 | the `error_*` captures and every response's encoding |
+| G35 | the `error_*` captures, every response's encoding, and the foreign-currency voucher (G) |

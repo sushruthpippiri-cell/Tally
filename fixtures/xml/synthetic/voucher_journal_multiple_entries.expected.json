@@ -1,0 +1,85 @@
+{
+  "parse": "collection:VOUCHER",
+  "expected": {
+    "records": [
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-jnl-1",
+        "alter_id": 110,
+        "voucher_number": "J-1",
+        "voucher_type_guid": "vt-jnl",
+        "voucher_type_name": "Journal",
+        "voucher_date": "2024-05-31",
+        "narration": "Month-end adjustments",
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": "l-rent",
+            "ledger_name": "Office Rent",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-12000.00",
+              "is_debit": true,
+              "amount_absolute": "12000.00",
+              "amount_signed": "12000.00",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": "l-frt",
+            "ledger_name": "Freight Inward",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-3000.00",
+              "is_debit": true,
+              "amount_absolute": "3000.00",
+              "amount_signed": "3000.00",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": "l-hdfc",
+            "ledger_name": "HDFC Current",
+            "line_sequence": 3,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "10000.00",
+              "is_debit": false,
+              "amount_absolute": "10000.00",
+              "amount_signed": "-10000.00",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": "l-cash",
+            "ledger_name": "Cash",
+            "line_sequence": 4,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "5000.00",
+              "is_debit": false,
+              "amount_absolute": "5000.00",
+              "amount_signed": "-5000.00",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": []
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

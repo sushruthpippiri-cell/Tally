@@ -1,0 +1,101 @@
+{
+  "parse": "collection:VOUCHER",
+  "expected": {
+    "records": [
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-sale-1",
+        "alter_id": 140,
+        "voucher_number": "S-1",
+        "voucher_type_guid": "vt-sales",
+        "voucher_type_name": "Sales",
+        "voucher_date": "2024-04-01",
+        "narration": "Counter sale (quantity corrected)",
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": "l-sharma",
+            "ledger_name": "Sharma Traders",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-1770.00",
+              "is_debit": true,
+              "amount_absolute": "1770.00",
+              "amount_signed": "1770.00",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [
+              {
+                "reference_name": "S-1",
+                "allocation_type_raw": "New Ref",
+                "allocation_type": "NEW_REF",
+                "due_date": "2024-05-01",
+                "amount": {
+                  "amount_raw": "-1770.00",
+                  "is_debit": true,
+                  "amount_absolute": "1770.00",
+                  "amount_signed": "1770.00",
+                  "accounting_direction": "DEBIT"
+                }
+              }
+            ],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": "l-sales",
+            "ledger_name": "Sales - Retail",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "1500.00",
+              "is_debit": false,
+              "amount_absolute": "1500.00",
+              "amount_signed": "-1500.00",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": "l-ogst",
+            "ledger_name": "Output GST",
+            "line_sequence": 3,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "270.00",
+              "is_debit": false,
+              "amount_absolute": "270.00",
+              "amount_signed": "-270.00",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": [
+          {
+            "stock_item_guid": "s-soap",
+            "stock_item_name": "Soap",
+            "line_sequence": 1,
+            "quantity": "15",
+            "unit": "Nos",
+            "rate": "100.00",
+            "amount": {
+              "amount_raw": "1500.00",
+              "is_debit": false,
+              "amount_absolute": "1500.00",
+              "amount_signed": "-1500.00",
+              "accounting_direction": "CREDIT"
+            },
+            "custom_fields": {}
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

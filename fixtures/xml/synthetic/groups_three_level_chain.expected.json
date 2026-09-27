@@ -1,0 +1,58 @@
+{
+  "parse": "collection:GROUP",
+  "expected": {
+    "records": [
+      {
+        "guid": "g-sales",
+        "alter_id": 1,
+        "name": "Sales Accounts",
+        "record_type": "GROUP",
+        "parent_guid": null,
+        "parent_name": null,
+        "reserved_name": "Sales Accounts",
+        "is_revenue": true,
+        "is_deemed_positive": false,
+        "affects_gross_profit": true
+      },
+      {
+        "guid": "g-online",
+        "alter_id": 2,
+        "name": "Sales - Online",
+        "record_type": "GROUP",
+        "parent_guid": "g-sales",
+        "parent_name": "Sales Accounts",
+        "reserved_name": null,
+        "is_revenue": true,
+        "is_deemed_positive": false,
+        "affects_gross_profit": true
+      },
+      {
+        "guid": "g-market",
+        "alter_id": 3,
+        "name": "Sales - Online - Marketplace",
+        "record_type": "GROUP",
+        "parent_guid": "g-online",
+        "parent_name": "Sales - Online",
+        "reserved_name": null,
+        "is_revenue": true,
+        "is_deemed_positive": false,
+        "affects_gross_profit": true
+      },
+      {
+        "guid": "g-gov",
+        "alter_id": 4,
+        "name": "Government Schemes",
+        "record_type": "GROUP",
+        "parent_guid": null,
+        "parent_name": null,
+        "reserved_name": null,
+        "is_revenue": false,
+        "is_deemed_positive": true,
+        "affects_gross_profit": false
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 2
+  }
+}

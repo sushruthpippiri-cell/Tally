@@ -1,0 +1,31 @@
+{
+  "parse": "stock_closing",
+  "expected": {
+    "records": [
+      {
+        "record_type": "STOCK_SNAPSHOT",
+        "stock_item_guid": "s-soap",
+        "as_of_date": "2025-03-31",
+        "closing_quantity": "30",
+        "unit": "Nos"
+      },
+      {
+        "record_type": "STOCK_SNAPSHOT",
+        "stock_item_guid": "s-rice",
+        "as_of_date": "2025-03-31",
+        "closing_quantity": "12.5",
+        "unit": "Kgs"
+      },
+      {
+        "record_type": "STOCK_SNAPSHOT",
+        "stock_item_guid": "s-pen",
+        "as_of_date": "2025-03-31",
+        "closing_quantity": "0",
+        "unit": null
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

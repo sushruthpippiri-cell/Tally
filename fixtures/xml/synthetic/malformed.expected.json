@@ -1,0 +1,12 @@
+{
+  "parse": "collection:VOUCHER",
+  "expected": {
+    "records": [],
+    "errors": [],
+    "document_error": {
+      "code": "PARSE_ERROR",
+      "message": "malformed XML: no element found: line 4, column 0"
+    },
+    "invalid_characters_removed": 0
+  }
+}

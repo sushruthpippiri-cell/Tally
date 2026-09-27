@@ -1,0 +1,55 @@
+{
+  "parse": "collection:VOUCHER",
+  "expected": {
+    "records": [
+      {
+        "record_type": "VOUCHER",
+        "guid": "v-min",
+        "alter_id": 230,
+        "voucher_number": null,
+        "voucher_type_guid": null,
+        "voucher_type_name": "Contra",
+        "voucher_date": "2024-07-02",
+        "narration": null,
+        "is_cancelled": false,
+        "custom_fields": {},
+        "entries": [
+          {
+            "ledger_guid": null,
+            "ledger_name": "HDFC Current",
+            "line_sequence": 1,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "-5000",
+              "is_debit": true,
+              "amount_absolute": "5000",
+              "amount_signed": "5000",
+              "accounting_direction": "DEBIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          },
+          {
+            "ledger_guid": null,
+            "ledger_name": "Cash",
+            "line_sequence": 2,
+            "stable_line_id": null,
+            "amount": {
+              "amount_raw": "5000",
+              "is_debit": false,
+              "amount_absolute": "5000",
+              "amount_signed": "-5000",
+              "accounting_direction": "CREDIT"
+            },
+            "bill_allocations": [],
+            "cost_centre_allocations": []
+          }
+        ],
+        "items": []
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "parse": "keys",
+  "expected": {
+    "records": [
+      {
+        "record_type": "KEY",
+        "guid": "v-sale-1",
+        "alter_id": 140
+      },
+      {
+        "record_type": "KEY",
+        "guid": "v-rcpt-1",
+        "alter_id": 130
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

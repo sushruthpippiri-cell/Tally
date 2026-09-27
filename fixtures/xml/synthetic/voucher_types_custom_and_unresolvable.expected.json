@@ -1,0 +1,37 @@
+{
+  "parse": "collection:VOUCHER_TYPE",
+  "expected": {
+    "records": [
+      {
+        "guid": "vt-sales",
+        "alter_id": 10,
+        "name": "Sales",
+        "record_type": "VOUCHER_TYPE",
+        "parent_guid": null,
+        "parent_name": null,
+        "reserved_name": "Sales"
+      },
+      {
+        "guid": "vt-pos",
+        "alter_id": 11,
+        "name": "POS Invoice",
+        "record_type": "VOUCHER_TYPE",
+        "parent_guid": "vt-sales",
+        "parent_name": "Sales",
+        "reserved_name": null
+      },
+      {
+        "guid": "vt-orphan",
+        "alter_id": 12,
+        "name": "Export Invoice",
+        "record_type": "VOUCHER_TYPE",
+        "parent_guid": null,
+        "parent_name": "Missing Parent Type",
+        "reserved_name": null
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 1
+  }
+}
