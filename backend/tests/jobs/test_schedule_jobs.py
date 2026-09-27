@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
+import time_machine
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -74,11 +75,14 @@ async def test_at_2am_incremental_is_created_before_reconciliation(
     assert commands[0].created_at == commands[1].created_at  # same instant ...
     assert commands[0].seq < commands[1].seq  # ... ordered by seq
     assert all(c.created_by is None for c in commands)
-    offered = await api.post(
-        "/agent/heartbeat",
-        json=BEAT | {"confirmed_tally_guid": "guid-1"},
-        headers=agent_header(credential),
-    )
+    # Poll a minute after the firing, on the scenario's clock, not the wall clock (the claim
+    # window is 10 minutes; a fixed date would expire these commands on any later day).
+    with time_machine.travel(TWO_AM_IST + timedelta(minutes=1), tick=False):
+        offered = await api.post(
+            "/agent/heartbeat",
+            json=BEAT | {"confirmed_tally_guid": "guid-1"},
+            headers=agent_header(credential),
+        )
     assert offered.json()["command"]["sync_mode"] == "INCREMENTAL"
     by_mode = {s.sync_mode: s.next_fire_at for s in made}
     assert by_mode["INCREMENTAL"] == TWO_AM_IST + timedelta(hours=1)
