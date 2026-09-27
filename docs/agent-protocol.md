@@ -96,8 +96,48 @@ sequenceDiagram
     and the sync itself
         A->>T: TDL export requests (each up to 10 min, retried once)
         T-->>A: XML
-        A->>B: POST /agent/commands/{id}/batches (P5)
+        A->>B: runs, leases, batches (below)
     end
     A->>B: POST /agent/commands/{id}/result COMPLETED | FAILED
     Note over B: lease passed without progress -> FAILED_AGENT_LOST
 ```
+
+## Sync — runs, leases, batches (P5, D-039)
+Inside a RUNNING command the Agent syncs collection by collection:
+
+| Call | Body | Answer | Refused |
+|---|---|---|---|
+| `POST /agent/commands/{id}/runs` | — | 201 `{sync_run_id, sync_mode, date_from, date_to, collections: {TYPE: {mode, watermark, full}}}` | 409 `INVALID_COMMAND_STATE` unless the command is RUNNING |
+| `POST /agent/leases/acquire` | `{sync_run_id, collection_type}` | `{collection_type, last_alter_id, lock_expires_at}` | 409 `SYNC_LOCKED`, `details.holder` names the Agent holding it |
+| `POST /agent/leases/renew` | — | `{renewed: n}` | |
+| `POST /agent/commands/{id}/batches` | a `BatchEnvelope` | `{status: COMPLETE\|PARTIAL, written, unchanged, rejected_stale, failed, chunks_committed, watermark, error}` | 409 `INVALID_COMMAND_STATE` / `SYNC_LOCKED`, 422 (contract major version, validation) |
+| `POST /agent/leases/release` | `{sync_run_id, collection_type, complete?, start_max_alter_id?}` | `{collection_type, last_alter_id}` | 404 if not this Agent's run |
+| `POST /agent/commands/{id}/runs/{run}/finish` | `{status: COMPLETED\|FAILED, notes?}` | the run; COMPLETED with failed records becomes PARTIAL | 409, 404 |
+
+**Plan.** Pull a collection in full when `full` is true (a FULL command, a FULL_ONLY collection,
+or one never synced); otherwise pull ALTERID > `watermark`. Each collection has its own
+watermark (SYNC-1.1).
+
+**One timer.** Sync leases live `command_lease_seconds`, and each command progress call renews
+them with the command. An Agent that stops sending progress loses both together. The command
+result, and `finish`, release every lease the Agent holds.
+
+**Batch acceptance.** A batch is written only while its command is RUNNING, its run is open,
+and the Agent holds a live lease on the collection. This is re-checked inside every chunk
+transaction (`sync.db_commit_batch` records each). So when a command is lost or a lease is
+taken over mid-batch, the chunk in flight finishes and every later chunk is refused. A 409
+means stop. Resending a `batch_id` that already committed returns its stored result and writes
+nothing (SYNC-6.3).
+
+**Records.** Send them in ascending ALTERID. Lower than stored → ignored and logged as
+`STALE_ALTERID`; equal → nothing; higher → applied. A record that cannot be stored (an unknown
+master reference, an unbalanced voucher, or a parse error in `parse_errors`) is skipped and
+counted in `failed`, and the others are stored. The failed record is retried next run: the
+watermark never passes it.
+
+**Watermark.**
+- An `ALTER_ID` window moves it after each committed chunk, to that chunk's max ALTERID (held below any failed record).
+- A `DATE` window never moves it.
+- A FULL pull paged by date moves it only at `release` with `complete: true`, to `start_max_alter_id`: the collection's max ALTERID read **before** the pull began. A record edited during the pull then has a higher ALTERID and is picked up by the next incremental.
+- Without `start_max_alter_id`, and for DATE_RANGE runs, it does not move.
+- The COMPANY batch comes first: LEDGER and STOCK_ITEM batches are refused until its books-beginning date is known.

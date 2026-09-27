@@ -46,6 +46,7 @@ async def setup(
     name: str = "Head Office",
     company_id: uuid.UUID | None = None,
     guid: str | None = None,
+    dates: tuple[date, date] | None = None,
 ) -> Setup:
     """A company (new, or `company_id`), an Agent with a RUNNING command and an open run.
     Each new company gets its own Tally GUID (they are unique across companies)."""
@@ -68,7 +69,8 @@ async def setup(
         company = await s.get(Company, company_id)
         assert company is not None and company.tally_guid is not None
         agent, _ = await make_registered_agent(s, company, name)
-        command = await make_running_command(s, agent, sync_mode)
+        extra = {"date_from": dates[0], "date_to": dates[1]} if dates else {}
+        command = await make_running_command(s, agent, sync_mode, **extra)
         run = await make_sync_run(s, command)
         await s.commit()
     return Setup(
