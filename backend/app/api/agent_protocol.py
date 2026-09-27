@@ -16,6 +16,7 @@ from app.schemas.agents import (
 from app.schemas.commands import AgentCommandOut, ResultRequest
 from app.schemas.sync import (
     FinishRequest,
+    KeyListOut,
     LeaseOut,
     LeaseRequest,
     ReleaseOut,
@@ -24,8 +25,9 @@ from app.schemas.sync import (
     RunPlan,
 )
 from app.services import agents, commands, sync_runs
+from app.sync import keylists
 from app.sync.ingest import BatchResult, ingest
-from tally_contract.records import BatchEnvelope
+from tally_contract.records import BatchEnvelope, KeyListChunk
 
 router = APIRouter(prefix="/agent", tags=["agent protocol"])
 
@@ -131,3 +133,13 @@ async def upload_batch(
     session: AsyncSession = Depends(get_session),
 ) -> BatchResult:
     return await ingest(session, agent, command_id, body)
+
+
+@router.post("/commands/{command_id}/key-lists", summary="Upload a key-list chunk (SYNC-5.1)")
+async def upload_key_list(
+    command_id: uuid.UUID,
+    body: KeyListChunk,
+    agent: AgentContext = Depends(current_agent),
+    session: AsyncSession = Depends(get_session),
+) -> KeyListOut:
+    return await keylists.receive(session, agent, command_id, body)

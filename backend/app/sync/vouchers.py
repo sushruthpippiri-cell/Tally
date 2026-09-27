@@ -17,7 +17,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import audit
-from app.models.enums import VoucherStatus
+from app.models.enums import CollectionType, VoucherStatus
 from app.models.masters import CostCentre, Ledger, StockItem, VoucherType
 from app.models.vouchers import (
     BillAllocation,
@@ -26,6 +26,7 @@ from app.models.vouchers import (
     VoucherEntry,
     VoucherItem,
 )
+from app.sync import lifecycle
 from app.sync.context import ChunkOutcome, IngestContext, RecordFailure
 from tally_contract import normalize
 from tally_contract.errors import ErrorCode, RecordRejected
@@ -314,6 +315,8 @@ async def write_vouchers(
 ) -> ChunkOutcome:
     outcome = ChunkOutcome()
     vouchers: list[VoucherRecord] = records
+    guids = [r.guid for r in vouchers]
+    await lifecycle.restore(session, ctx.company_id, CollectionType.VOUCHER, guids, "pull")
     stored = {
         v.tally_guid: v
         for v in (

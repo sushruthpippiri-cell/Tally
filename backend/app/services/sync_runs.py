@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import exists, select
+from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import audit
@@ -12,8 +12,15 @@ from app.core.errors import AppError
 from app.core.gates import collection_sync_mode
 from app.models.agents import AgentCommand, SyncSchedule
 from app.models.company import Company
-from app.models.enums import CollectionType, CommandStatus, SyncMode, SyncRunStatus, WatermarkStatus
-from app.models.sync import SyncError, SyncRun, SyncWatermark
+from app.models.enums import (
+    CollectionType,
+    CommandStatus,
+    KeyListStatus,
+    SyncMode,
+    SyncRunStatus,
+    WatermarkStatus,
+)
+from app.models.sync import SyncError, SyncKeyList, SyncKeyListKey, SyncRun, SyncWatermark
 from app.schemas.sync import (
     CollectionPlan,
     FinishRequest,
@@ -25,6 +32,7 @@ from app.schemas.sync import (
     RunPlan,
 )
 from app.services import schedules
+from app.services.settings import get_setting
 from app.sync import holds, leases
 from app.sync.context import NOT_STORED, error_row
 from tally_contract.errors import ErrorCode
@@ -84,6 +92,44 @@ async def open_run(
     return run, command
 
 
+async def key_lists_due(
+    session: AsyncSession, company_id: uuid.UUID, sync_run_id: uuid.UUID
+) -> set[CollectionType]:
+    """SYNC-5.4, D-041 #6: a key list is due every N incremental runs (sync.key_list_interval):
+    when the collection has none evaluated yet, or N-1 INCREMENTAL runs started since."""
+    every = int(await get_setting(session, company_id, "sync.key_list_interval"))
+    last = dict(
+        (
+            await session.execute(
+                select(SyncKeyList.collection_type, func.max(SyncKeyList.evaluated_at))
+                .where(SyncKeyList.company_id == company_id, SyncKeyList.evaluated_at.is_not(None))
+                .group_by(SyncKeyList.collection_type)
+            )
+        )
+        .tuples()
+        .all()
+    )
+    due: set[CollectionType] = set()
+    for collection in CollectionType:
+        if collection == CollectionType.COMPANY:
+            continue
+        since = last.get(collection.value)
+        if since is None:
+            due.add(collection)
+            continue
+        runs = await session.scalar(
+            select(func.count()).where(
+                SyncRun.company_id == company_id,
+                SyncRun.sync_mode == SyncMode.INCREMENTAL,
+                SyncRun.started_at > since,
+                SyncRun.sync_run_id != sync_run_id,
+            )
+        )
+        if int(runs or 0) >= every - 1:
+            due.add(collection)
+    return due
+
+
 async def start_run(session: AsyncSession, agent: AgentContext, command_id: uuid.UUID) -> RunPlan:
     command = await running_command(session, agent, command_id)
     now = datetime.now(UTC)
@@ -106,6 +152,7 @@ async def start_run(session: AsyncSession, agent: AgentContext, command_id: uuid
         ).scalars()
     }
     plan: dict[CollectionType, CollectionPlan] = {}
+    due = await key_lists_due(session, agent.company_id, run.sync_run_id)
     for collection in CollectionType:
         mode = collection_sync_mode(collection.value)
         watermark = stored.get(collection.value)
@@ -114,6 +161,7 @@ async def start_run(session: AsyncSession, agent: AgentContext, command_id: uuid
             mode=mode,
             watermark=watermark.last_alter_id if watermark else 0,
             full=command.sync_mode == SyncMode.FULL or mode == "FULL_ONLY" or never,
+            key_list_due=collection in due,
         )
     await session.commit()
     return RunPlan(
@@ -193,11 +241,29 @@ async def close_run(
         )
         status = SyncRunStatus.PARTIAL if missing else SyncRunStatus.COMPLETED
     run.status, run.ended_at = status, now
+    await _abandon_key_lists(session, run.sync_run_id)
     await session.flush()
     log.info("sync_run_closed", sync_run_id=str(run.sync_run_id), status=status.value)
     if run.sync_mode == SyncMode.FULL and status != SyncRunStatus.FAILED:
         await _activate_first_full(session, run, now)
     return status
+
+
+async def _abandon_key_lists(session: AsyncSession, sync_run_id: uuid.UUID) -> None:
+    """A closed run leaves no half-received key list behind (D-041 #1)."""
+    rows = await session.execute(
+        update(SyncKeyList)
+        .where(
+            SyncKeyList.sync_run_id == sync_run_id,
+            SyncKeyList.status == KeyListStatus.RECEIVING,
+        )
+        .values(status=KeyListStatus.ABANDONED)
+        .returning(SyncKeyList.list_id)
+        .execution_options(synchronize_session=False)
+    )
+    abandoned = [list_id for (list_id,) in rows.all()]
+    if abandoned:
+        await session.execute(delete(SyncKeyListKey).where(SyncKeyListKey.list_id.in_(abandoned)))
 
 
 async def _activate_first_full(session: AsyncSession, run: SyncRun, now: datetime) -> None:

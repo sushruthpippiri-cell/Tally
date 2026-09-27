@@ -86,7 +86,12 @@ async def test_a_failed_gate_makes_its_collection_full_only(
     monkeypatch.setattr(gates, "_default_statuses", lambda: failed)
     command = await make_running_command(session, row, SyncMode.INCREMENTAL)
     plan = (await _post(api, credential, f"/agent/commands/{command.command_id}/runs")).json()
-    assert plan["collections"]["VOUCHER"] == {"mode": "FULL_ONLY", "watermark": 500, "full": True}
+    assert plan["collections"]["VOUCHER"] == {
+        "mode": "FULL_ONLY",
+        "watermark": 500,
+        "full": True,
+        "key_list_due": True,
+    }
 
 
 @pytest.mark.parametrize("status", [CommandStatus.CLAIMED, CommandStatus.FAILED_AGENT_LOST])

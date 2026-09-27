@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_session
 from app.core.permissions import CompanyContext, Permission, require
-from app.schemas.sync import LeaseStatus, RunSummary, SyncErrorOut, SyncStatusOut
+from app.schemas.sync import KeyListOut, LeaseStatus, RunSummary, SyncErrorOut, SyncStatusOut
 from app.services import sync_status
+from app.sync import keylists
 
 router = APIRouter(prefix="/companies/{company_id}/sync", tags=["sync status"])
 VIEW = Depends(require(Permission.VIEW_FINANCIALS))  # SRS 19.2: any signed-in member
@@ -50,3 +51,12 @@ async def errors(
     return await sync_status.errors(
         session, ctx, sync_run_id=sync_run_id, code=code, limit=limit, before=before
     )
+
+
+@router.post("/key-lists/{list_id}/confirm")
+async def confirm_key_list(
+    list_id: uuid.UUID,
+    ctx: CompanyContext = Depends(require(Permission.MANAGE_SETTINGS)),  # Owner/Admin (D-041)
+    session: AsyncSession = Depends(get_session),
+) -> KeyListOut:
+    return await keylists.confirm(session, ctx, list_id)

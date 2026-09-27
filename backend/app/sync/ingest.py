@@ -64,7 +64,7 @@ class BatchResult(BaseModel):
     error: str | None = None  # why the batch stopped early
 
 
-def _major(version: str) -> str:
+def major(version: str) -> str:
     return version.split(".", 1)[0]
 
 
@@ -112,7 +112,7 @@ async def _context(
     )
 
 
-async def _chunk_guard(
+async def chunk_guard(
     session: AsyncSession, agent: AgentContext, command_id: uuid.UUID, collection: CollectionType
 ) -> int:
     """Inside the chunk's transaction: the command (FOR SHARE) is still RUNNING and this Agent
@@ -217,7 +217,7 @@ async def _chunk_failed(
 async def ingest(
     session: AsyncSession, agent: AgentContext, command_id: uuid.UUID, env: BatchEnvelope
 ) -> BatchResult:
-    if _major(env.contract_version) != _major(CONTRACT_VERSION):
+    if major(env.contract_version) != major(CONTRACT_VERSION):
         raise AppError(
             ErrorCode.VALIDATION_ERROR,
             f"Contract {env.contract_version} is not compatible with {CONTRACT_VERSION}",
@@ -266,7 +266,7 @@ async def ingest(
     run, _ = await open_run(session, agent, env.sync_run_id)
     if run.command_id != command_id:
         raise AppError(ErrorCode.NOT_FOUND, "Sync run not found", 404)
-    pre_batch_watermark = await _chunk_guard(session, agent, command_id, collection)
+    pre_batch_watermark = await chunk_guard(session, agent, command_id, collection)
     ctx = await _context(session, agent, env, collection, is_snapshot)
     await session.commit()  # nothing written; releases the checks' row locks
 
@@ -276,7 +276,7 @@ async def ingest(
     chunks = [env.records[i : i + size] for i in range(0, len(env.records), size)] or [[]]
     for index, chunk in enumerate(chunks):
         try:
-            watermark = await _chunk_guard(session, agent, command_id, collection)
+            watermark = await chunk_guard(session, agent, command_id, collection)
             outcome = await writer(session, ctx, list(chunk))
             if index == 0:  # the Agent's parse errors: ALTERID unknown (D-039 #7)
                 outcome.failures += [

@@ -4,13 +4,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import CollectionType, SyncMode, SyncRunStatus
+from app.models.enums import CollectionType, KeyListStatus, SyncMode, SyncRunStatus
 
 
 class CollectionPlan(BaseModel):
     mode: Literal["INCREMENTAL", "FULL_ONLY"]  # from the validation gate (VAL-1.1/1.2)
     watermark: int  # pull ALTERID > this when not full
     full: bool  # pull everything (FULL command, FULL_ONLY collection, or never synced)
+    key_list_due: bool = False  # send a key list after this collection (SYNC-5.4, D-041 #6)
 
 
 class RunPlan(BaseModel):
@@ -122,3 +123,18 @@ class SyncErrorOut(BaseModel):
     message: str
     watermark_hold: int | None
     created_at: datetime
+
+
+class KeyListOut(BaseModel):
+    """Where a key list stands (D-041 #1); `waiting_for` lists chunks still missing."""
+
+    list_id: uuid.UUID
+    collection_type: CollectionType
+    status: KeyListStatus
+    received_chunks: list[int]
+    waiting_for: list[int]
+    keys_count: int
+    candidates: int
+    marked_missing: int
+    reappeared: int
+    missed_changes: int

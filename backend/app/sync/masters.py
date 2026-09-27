@@ -27,6 +27,7 @@ from app.models.enums import (
     VoucherTypeResolution,
 )
 from app.models.masters import CostCentre, Group, Ledger, StockItem, VoucherType
+from app.sync import lifecycle
 from app.sync.context import ChunkOutcome, IngestContext, RecordFailure
 from tally_contract.errors import ErrorCode
 from tally_contract.records import (
@@ -245,7 +246,9 @@ async def write_masters(
 ) -> ChunkOutcome:
     model = MODELS[ctx.collection]
     outcome = ChunkOutcome()
-    stored = await stored_alter_ids(session, model, ctx.company_id, [r.guid for r in records])
+    guids = [r.guid for r in records]
+    await lifecycle.restore(session, ctx.company_id, ctx.collection, guids, "pull")  # D-041 #4
+    stored = await stored_alter_ids(session, model, ctx.company_id, guids)
     for record in records:
         before = stored.get(record.guid)
         if before is not None and record.alter_id < before:
