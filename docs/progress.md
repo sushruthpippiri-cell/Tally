@@ -18,7 +18,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
-| 2026-09-27 | P5 phase report | 6eb1ef1 | [phase-05](test-reports/phase-05.md): 935 passed, 0 skipped, fresh DB, `make check` PASS. |
+| 2026-09-27 | P5 phase report | 6c884a3 | [phase-05](test-reports/phase-05.md): 935 passed, 0 skipped, fresh DB, `make check` PASS. |
 | 2026-09-27 | P5.10 closing tests and docs | c694a63 | NFR-REL-2 (an exception mid-voucher leaves a new voucher absent or a modified one entirely at its stored version), SYNC-4.4 (lease + stale protection both needed), `docs/sync-engine.md`, agent-protocol run endings. |
 | 2026-09-27 | P5.9 full-only collections | 0c8f7bc | Owner rule 1 / AC-12 / VAL-1.2: a scheduled INCREMENTAL run syncs a FULL_ONLY collection by full pull and ends COMPLETED; only ALTER_ID batches get `GATE_NOT_PASSED`; its watermark never moves; status shows "Full sync only". Mutation-checked. |
 | 2026-09-27 | P5.8 status APIs | fb33188 | `sync/status`, `runs`, `errors` (VIEW_LOGS), `lease-status`; custom-field mappings (audited) and the generated UDF TDL (DR-UDF-1, DR-UDF-4). |
