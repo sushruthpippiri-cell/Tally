@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P5 (sync engine) — **session 1 done (P5.1–P5.5)** 2026-09-27; session 2 (P5.6–P5.10: stock snapshots, run bookkeeping with `on_command_lost` and schedule activation, status APIs, GATE_NOT_PASSED, the phase report) not started — waits for the owner. Local `make check` PASS (871 tests); CI green (run 36297101128 `check`; the path-filtered Windows workflows were not triggered). Decisions: D-039 ACCEPTED (supersedes D-014, D-027); migration 0005.
+P5 (sync engine) — **complete** 2026-09-27. Local suite PASS ([phase-05](test-reports/phase-05.md), 935 tests, 0 skipped, 90.9% line coverage); CI: see the Done row "P5 phase report". Decisions D-039 and D-040 ACCEPTED (D-014, D-027 superseded). Not covered by design: DR-VE-2 (per-line voucher updates) waits for GATE-G24; the Agent-side halves of AC-01/02, SYNC-1.3, FR-STK-15, NFR-REL-2 are P7. Next: P6 (lifecycle and hierarchy) — waits for the owner.
 
 P4 (Tally contract) — **complete on drafts, blocked on live captures (G-E)** 2026-09-27. Local suite PASS ([phase-04](test-reports/phase-04.md), 804 tests, 0 skipped); CI green (runs 36294681749 check, 36294681754 capture-kit, 36294681770 agent-windows). Every Tally fact is a GATE-tagged draft; confirming them needs the owner's captures from the Windows VM (`make capture-kit`, then the kit README). Next: P5 (sync engine) can start without the captures — it waits for the owner.
 
@@ -18,6 +18,13 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-27 | P5 phase report | (this commit) | [phase-05](test-reports/phase-05.md): 935 passed, 0 skipped, fresh DB, `make check` PASS. |
+| 2026-09-27 | P5.10 closing tests and docs | c694a63 | NFR-REL-2 (an exception mid-voucher leaves a new voucher absent or a modified one entirely at its stored version), SYNC-4.4 (lease + stale protection both needed), `docs/sync-engine.md`, agent-protocol run endings. |
+| 2026-09-27 | P5.9 full-only collections | 0c8f7bc | Owner rule 1 / AC-12 / VAL-1.2: a scheduled INCREMENTAL run syncs a FULL_ONLY collection by full pull and ends COMPLETED; only ALTER_ID batches get `GATE_NOT_PASSED`; its watermark never moves; status shows "Full sync only". Mutation-checked. |
+| 2026-09-27 | P5.8 status APIs | fb33188 | `sync/status`, `runs`, `errors` (VIEW_LOGS), `lease-status`; custom-field mappings (audited) and the generated UDF TDL (DR-UDF-1, DR-UDF-4). |
+| 2026-09-27 | P5.7 run bookkeeping | d98f270 | `close_run` (D-040 #1): every `sync_errors` code classified NOT_STORED / INFO, with a source-scanning test; `finish` problems; the command result closes open runs; `on_command_lost` closes runs (PARTIAL if chunks committed), records AGENT_LOST, frees leases (committed race); CHUNK_FAILED holds the watermark (AC-05); first FULL COMPLETED or PARTIAL activates default schedules, FAILED leaves them off; `INITIAL_SYNC_INCOMPLETE` warning (owner rule 2). Five mutations checked. |
+| 2026-09-27 | P5.6 stock snapshots | bfbccbf | Null-collection batches of STOCK_SNAPSHOT on the STOCK_ITEM lease, upserted per (item, date). |
+| 2026-09-27 | P5 session 2 decisions | 5263174 | D-040; CHUNK_FAILED and AGENT_LOST codes (D-030); phase-05 plan refreshed; P13.9 lists the held-back check. |
 | 2026-09-27 | P5.5 watermarks | 2de12c7 | AC-07 on the ingest side; DATE_RANGE never moves the watermark; a record edited during a date-paged FULL pull is re-pulled by the next incremental (release to the pre-pull max); no pre-pull max → no advance; release capped below failed records. Each rule mutation-checked. `docs/agent-protocol.md` documents runs, leases, batches and release. |
 | 2026-09-27 | P5.4 vouchers | a1a40ea | Per-voucher SAVEPOINT, SRS 6.9 child replacement, balance recheck, name fallback (D-002), VOUCHER_MODIFIED / VOUCHER_CANCELLED audit. TEST-3.3: a real SIGKILL mid-voucher and mid-batch leaves no partial voucher and the committed watermark (mutation-checked against a non-atomic write). Owner tests: a voucher whose ledger arrives next run is stored on retry; a permanent failure never lets the watermark pass. |
 | 2026-09-27 | P5.2/P5.3 ingest and masters | 6b7529b | Chunked ingest re-checking command RUNNING + live lease in every chunk (lost and takeover mid-batch tests, mutation-checked); replay by batch_id; stale-protected upserts for every master; openings at `books_from`; COMPANY GUID guard. |
