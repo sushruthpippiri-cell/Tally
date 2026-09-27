@@ -20,6 +20,7 @@ from tally_contract.testing import assert_logged
 from tests.races.test_crash import PARTIAL
 from tests.sync.helpers import (
     Factory,
+    data_quality_items,
     end_run,
     envelope,
     lease,
@@ -226,6 +227,12 @@ async def test_a_voucher_whose_ledger_arrives_next_run_is_stored_on_retry(
             110,
         )
         assert await held_back(s, st.company_id) == {"VOUCHER": 1}
+    unknown = await data_quality_items(committed, st.company_id, "unknown_master_references")
+    assert [i["tally_guid"] for i in unknown or []] == ["v-2"]
+    held = await data_quality_items(committed, st.company_id, "sync_held_back")
+    assert [(i["entity_type"], i["tally_guid"], i["alter_id"]) for i in held or []] == [
+        ("VOUCHER", "v-2", 110)
+    ]
     # Next run: the master pull brings the ledger, then vouchers from the watermark (109).
     await end_run(committed, st)
     retry = await setup(committed, company_id=st.company_id, name="Head Office (run 2)")
@@ -250,6 +257,8 @@ async def test_a_voucher_whose_ledger_arrives_next_run_is_stored_on_retry(
     async with committed() as s:
         assert await s.scalar(select(func.count()).select_from(Voucher)) == 3
         assert await held_back(s, st.company_id) == {}
+    for check in ("unknown_master_references", "sync_held_back"):  # stored now: nothing left
+        assert await data_quality_items(committed, st.company_id, check) == []
 
 
 async def test_a_permanent_failure_never_lets_the_watermark_pass_it(committed: Factory) -> None:
@@ -281,6 +290,8 @@ async def test_the_backend_rechecks_the_balance(committed: Factory) -> None:
     assert (result.written, result.failed) == (1, 1)
     async with committed() as s:
         assert await s.scalar(select(SyncError.error_code)) == "DEBIT_CREDIT_IMBALANCE"
+    flagged = await data_quality_items(committed, st.company_id, "imbalanced_vouchers")
+    assert [(i["tally_guid"], i["alter_id"]) for i in flagged or []] == [("v-2", 101)]
 
 
 @pytest.mark.req("DR-4.4")

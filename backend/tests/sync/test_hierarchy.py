@@ -7,13 +7,26 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core import gates
-from app.models.config import AuditLog
-from app.models.defaults import PREDEFINED_GROUPS
+from app.models.config import AuditLog, CompanySetting
+from app.models.defaults import DEFAULT_CLASSIFICATION_ALLOW_LISTS, PREDEFINED_GROUPS
 from app.models.enums import CollectionType as C
+from app.models.enums import SettingDataType
 from app.models.masters import Group, Ledger, VoucherType
+from app.sync.hierarchy import BASE_TYPES
 from app.sync.ingest import BatchResult
 from tally_contract.records import AlterIdWindow, GroupRecord, LedgerRecord, VoucherTypeRecord
-from tests.sync.helpers import Factory, Setup, envelope, lease, setup, upload
+from tests.sync.helpers import (
+    Factory,
+    Setup,
+    data_quality_items,
+    envelope,
+    lease,
+    masters,
+    sale,
+    setup,
+    sync_masters,
+    upload,
+)
 
 ASSET = {"is_revenue": False, "is_deemed_positive": True}
 
@@ -143,6 +156,29 @@ async def test_example_3_a_user_group_under_primary_anchors_to_itself(committed:
     )
     assert (gov.nature, gov.resolution_status) == ("ASSET", "RESOLVED")  # nature from Tally (G14)
     assert (await _ledger(committed, "l-solar")).classification_group_id == gov.group_id
+    unlisted = await data_quality_items(
+        committed, st.company_id, "groups_not_in_classification_list"
+    )
+    assert [(i["name"], i["nature"], i["ledgers"]) for i in unlisted or []] == [
+        ("Government Schemes", "ASSET", 1)
+    ]
+    # An Owner/Admin adds it to a list: it is classified, and leaves the check.
+    key = "classification.cash_bank_groups"
+    entry = {"type": "COMPANY_GROUP", "tally_guid": "g-gov"}
+    async with committed() as s:
+        s.add(
+            CompanySetting(
+                company_id=st.company_id,
+                setting_key=key,
+                setting_value=[*DEFAULT_CLASSIFICATION_ALLOW_LISTS[key], entry],
+                data_type=SettingDataType.JSON,
+            )
+        )
+        await s.commit()
+    assert (
+        await data_quality_items(committed, st.company_id, "groups_not_in_classification_list")
+        == []
+    )
 
 
 async def test_a_user_group_under_primary_without_its_nature_stays_unresolved(
@@ -182,6 +218,14 @@ async def test_example_4_a_broken_chain_is_unresolved_down_to_its_descendants_an
             None,
         ), guid
     assert (await _ledger(committed, "l-x")).classification_group_id is None
+    listed = await data_quality_items(committed, st.company_id, "unresolved_groups")
+    assert {i["name"] for i in listed or []} == {
+        "Project X",
+        "Project X - Phase 1",
+        "Loop A",
+        "Loop B",
+        "Loop Child",
+    }
 
     # The missing parent arrives with the next sync: the chain resolves by itself.
     await _send(committed, st, C.GROUP, [group("g-ghost", 7, "Projects", pg("Indirect Expenses"))])
@@ -192,6 +236,8 @@ async def test_example_4_a_broken_chain_is_unresolved_down_to_its_descendants_an
     }
     assert (await _ledger(committed, "l-x")).classification_group_id == expenses.group_id
     assert groups["g-a"].resolution_status == "UNRESOLVED_GROUP"  # the loop stays broken
+    listed = await data_quality_items(committed, st.company_id, "unresolved_groups")
+    assert {i["name"] for i in listed or []} == {"Loop A", "Loop B", "Loop Child"}
 
 
 @pytest.mark.parametrize("g32", ["PASSED", "NOT_TESTED"])
@@ -215,12 +261,19 @@ async def test_example_5_a_renamed_predefined_group_anchors_by_its_reserved_name
     groups = await _groups(committed)
     customers, current = groups[pg("Sundry Debtors")], groups[pg("Current Assets")]
     anchor = (await _ledger(committed, "l-sharma")).classification_group_id
+    renamed_check = await data_quality_items(
+        committed, st.company_id, "predefined_group_possibly_renamed"
+    )
     if g32 == "PASSED":
         assert (customers.is_predefined, customers.reserved_name) == (True, "Sundry Debtors")
         assert anchor == customers.group_id  # still a customer
-    else:  # before G32: not recognised, so it silently anchors one level up (the DQ check shows it)
+        assert renamed_check is None  # the check retires once G32 passes
+    else:  # before G32: not recognised, so it anchors one level up - and the check says so
         assert customers.is_predefined is False
         assert anchor == current.group_id
+        assert [(i["expected"], i["candidate"]) for i in renamed_check or []] == [
+            ("Sundry Debtors", "Customers")
+        ]
 
 
 @pytest.mark.req("ACC-7.5")
@@ -345,3 +398,38 @@ async def test_other_predefined_types_are_other_but_resolved_once_g32_names_them
         "RESOLVED",
     )
     assert types["Invoice"].base_voucher_type == "SALES"
+
+
+@pytest.mark.parametrize("g32", ["NOT_TESTED", "PASSED"])
+async def test_a_renamed_sales_voucher_type_is_flagged_before_g32(
+    committed: Factory, monkeypatch: pytest.MonkeyPatch, g32: str
+) -> None:
+    """Owner change (D-041 #9): vouchers of a renamed "Sales" would count as OTHER and sales
+    would silently read zero; before G32 the Data Quality view says so."""
+    _gate(monkeypatch, g32)
+    st = await setup(committed)
+    data = {**masters()}
+    others = [n for n in BASE_TYPES if n != "Sales"]  # every company has all eight
+    data[C.VOUCHER_TYPE] = [
+        vtype("vt-sales", 20, "Invoice", reserved_name="Sales"),  # renamed in Tally
+        *(vtype(f"vt-{n}", 21 + i, n, reserved_name=n) for i, n in enumerate(others)),
+        vtype("vt-mine", 40, "My Journal"),  # unrecognised but unused: not flagged
+    ]
+    await sync_masters(committed, st, data)
+    await lease(committed, st, C.VOUCHER)
+    batch = [sale("v-1", 100, "1180.00"), sale("v-2", 110, "590.00", number="S-2")]
+    assert isinstance(await upload(committed, st, envelope(st, C.VOUCHER, batch)), BatchResult)
+    flagged = await data_quality_items(
+        committed, st.company_id, "predefined_voucher_type_possibly_renamed"
+    )
+    invoice = (await _types(committed))["Invoice"]
+    if g32 == "PASSED":
+        assert invoice.base_voucher_type == "SALES"
+        assert flagged is None
+    else:
+        assert (invoice.base_voucher_type, invoice.resolution_status) == ("OTHER", "UNRESOLVED")
+        assert [(i["expected"], i["candidate"], i["vouchers"]) for i in flagged or []] == [
+            ("Sales", "Invoice", 2)
+        ]
+        unresolved = await data_quality_items(committed, st.company_id, "unresolved_voucher_types")
+        assert [i["name"] for i in unresolved or []] == ["Invoice"]  # "My Journal" is unused

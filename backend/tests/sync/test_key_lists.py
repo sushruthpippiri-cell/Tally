@@ -34,6 +34,7 @@ from tests.factories import make_user
 from tests.sync.helpers import (
     Factory,
     Setup,
+    data_quality_items,
     end_run,
     envelope,
     lease,
@@ -110,8 +111,7 @@ async def _vouchers(committed: Factory, st: Setup, records: list[Any]) -> None:
 # --- missing ------------------------------------------------------------------------------
 
 
-@pytest.mark.req("SYNC-5.2")
-@pytest.mark.req_partial("AC-04")  # the Data Quality half: test_data_quality.py
+@pytest.mark.req("SYNC-5.2", "AC-04")
 async def test_an_active_voucher_missing_from_the_key_list_becomes_missing_in_tally(
     committed: Factory,
 ) -> None:
@@ -128,11 +128,13 @@ async def test_an_active_voucher_missing_from_the_key_list_becomes_missing_in_ta
         "v-120": "ACTIVE",
     }
     assert await _actions(committed, "MISSING_IN_TALLY") == 1
+    listed = await data_quality_items(committed, st.company_id, "missing_vouchers")
+    assert [i["tally_guid"] for i in listed or []] == ["v-110"]
     async with committed() as s:  # staged keys are gone; the list stays as history
         assert await s.scalar(select(func.count()).select_from(SyncKeyListKey)) == 0
 
 
-@pytest.mark.req("DR-ML-1", "DR-ML-2")
+@pytest.mark.req("DR-ML-1", "DR-ML-2", "DR-ML-3")
 @pytest.mark.req_partial("AC-10")  # P10's full reconciliation is the other detector
 async def test_a_ledger_missing_from_its_key_list_keeps_its_row_and_its_vouchers(
     committed: Factory,
@@ -158,6 +160,8 @@ async def test_a_ledger_missing_from_its_key_list_keeps_its_row_and_its_vouchers
         )
         voucher = (await s.execute(select(Voucher))).scalar_one()
         assert voucher.status == "ACTIVE"  # past-period analytics are unaffected
+    review = await data_quality_items(committed, st.company_id, "missing_masters")
+    assert [(i["master_type"], i["name"]) for i in review or []] == [("LEDGER", "Sharma Traders")]
 
 
 async def test_a_cancelled_voucher_is_never_a_candidate(committed: Factory) -> None:
@@ -216,6 +220,12 @@ async def test_an_empty_key_list_marks_nothing(
     assert isinstance(out, KeyListOut) and (out.status, out.marked_missing) == ("SUSPICIOUS", 0)
     assert set((await _statuses(committed, CostCentre)).values()) == {"ACTIVE"}
     assert_logged(caplog, "key_list_suspicious", level="warning", collection="COST_CENTRE")
+    flagged = await data_quality_items(committed, st.company_id, "suspicious_key_lists")
+    assert [i["list_id"] for i in flagged or []] == [str(out.list_id)]
+    # A later list that applies clears it.
+    applied = await _key_list(committed, st, C.COST_CENTRE, [(f"cc-{i}", i) for i in range(1, 11)])
+    assert isinstance(applied, KeyListOut) and applied.status == "APPLIED"
+    assert await data_quality_items(committed, st.company_id, "suspicious_key_lists") == []
 
 
 @pytest.mark.parametrize(

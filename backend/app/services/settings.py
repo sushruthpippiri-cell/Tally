@@ -97,6 +97,18 @@ def _resolve(
     return resolved
 
 
+async def allow_list_entries(
+    session: AsyncSession, ctx: CompanyContext
+) -> dict[str, list[dict[str, Any]]]:
+    """Every allow-list, resolved to current names; `is_missing` marks a stale entry (D-001)."""
+    overrides = await _overrides(session, ctx.company_id)
+    by_reserved, by_guid = await _live_groups(session, ctx)
+    return {
+        key: _resolve(overrides.get(key, SETTINGS[key].default), by_reserved, by_guid)
+        for key in sorted(ALLOW_LIST_KEYS)
+    }
+
+
 def _company_group_error(entry: CompanyGroupEntry, by_guid: dict[str, Group]) -> str | None:
     group = by_guid.get(entry.tally_guid)
     if group is None:  # also another company's GUID: never reveal that it exists (SEC-1.7)

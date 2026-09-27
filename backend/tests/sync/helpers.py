@@ -299,3 +299,17 @@ async def sync_masters(
         await lease(committed, st, collection)
         result = await upload(committed, st, envelope(st, collection, records))
         assert isinstance(result, BatchResult) and result.failed == 0, (collection, result)
+
+
+async def data_quality_items(
+    committed: Factory, company_id: uuid.UUID, check_id: str
+) -> list[dict[str, Any]] | None:
+    """A Data Quality check's items, or None when the check is not active (e.g. retired)."""
+    from app.core.permissions import CompanyContext
+    from app.services import data_quality
+
+    async with committed() as s:
+        ctx = CompanyContext(company_id, uuid.uuid4(), frozenset())
+        if check_id not in {c.check_id for c in await data_quality.summary(s, ctx)}:
+            return None
+        return (await data_quality.items(s, ctx, check_id, 200, 0)).items

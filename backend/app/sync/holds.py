@@ -8,8 +8,9 @@ lets the watermark pass it.
 """
 
 import uuid
+from typing import Any
 
-from sqlalchemy import Integer, String, cast, func, select
+from sqlalchemy import Integer, Select, String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import CollectionType
@@ -34,9 +35,9 @@ def capped(chunk_max: int, cap: int | None) -> int:
     return chunk_max if cap is None else min(chunk_max, cap)
 
 
-async def held_back(session: AsyncSession, company_id: uuid.UUID) -> dict[str, int]:
-    """Data Quality: "sync held back by N failing records", per collection. Counts the failing
-    records of each collection's latest failing run whose hold still stops the watermark."""
+def held_back_errors(company_id: uuid.UUID) -> Select[Any]:
+    """The failing records still holding a watermark: of each collection's latest failing run,
+    those whose hold is at or above the current watermark, one row per record (D-039 #7)."""
     latest = (
         select(SyncError.entity_type, func.max(SyncError.created_at).label("at"))
         .where(SyncError.company_id == company_id, SyncError.watermark_hold.is_not(None))
@@ -53,12 +54,15 @@ async def held_back(session: AsyncSession, company_id: uuid.UUID) -> dict[str, i
         .distinct()
         .subquery()
     )
-    rows = await session.execute(
+    record = func.coalesce(SyncError.tally_guid, cast(SyncError.id, String))
+    return (
         select(
             SyncError.entity_type,
-            func.count(
-                func.distinct(func.coalesce(SyncError.tally_guid, cast(SyncError.id, String)))
-            ),
+            SyncError.tally_guid,
+            SyncError.alter_id,
+            SyncError.error_code,
+            SyncError.message,
+            SyncError.watermark_hold,
         )
         .join(
             latest_run,
@@ -75,6 +79,15 @@ async def held_back(session: AsyncSession, company_id: uuid.UUID) -> dict[str, i
             SyncError.watermark_hold.is_not(None),
             SyncError.watermark_hold >= cast(SyncWatermark.last_alter_id, Integer),
         )
-        .group_by(SyncError.entity_type)
+        .distinct(SyncError.entity_type, record)
+        .order_by(SyncError.entity_type, record, SyncError.id.desc())
+    )
+
+
+async def held_back(session: AsyncSession, company_id: uuid.UUID) -> dict[str, int]:
+    """Data Quality and sync status: "sync held back by N failing records", per collection."""
+    errors = held_back_errors(company_id).subquery()
+    rows = await session.execute(
+        select(errors.c.entity_type, func.count()).group_by(errors.c.entity_type)
     )
     return {entity: int(count) for entity, count in rows.tuples()}
