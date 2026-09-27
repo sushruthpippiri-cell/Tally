@@ -58,6 +58,7 @@ def ledger(guid: str, alter: int, name: str, parent: str = "g-sd", **kw: Any) ->
     )
 
 
+@pytest.mark.req_partial("SYNC-1.3")  # the Agent confirms the GUID each run: P7 (AGT-3.2)
 async def test_the_company_batch_stores_books_beginning_and_refuses_another_company(
     committed: Factory,
 ) -> None:
@@ -336,3 +337,25 @@ async def test_a_lease_taken_over_mid_batch_stops_every_later_chunk(
     assert await count(committed, CostCentre, st.company_id) == 1
     async with committed() as s:
         assert await s.scalar(text("SELECT count(*) FROM sync_batches")) == 0  # never COMPLETE
+
+
+@pytest.mark.req("SYNC-4.4")
+async def test_the_lease_stops_a_second_writer_and_stale_protection_stops_old_data(
+    committed: Factory,
+) -> None:
+    """Both are needed: the lease keeps B out while A writes; when B takes over later with an
+    older copy (a slow export), stale protection keeps A's newer record."""
+    a = await setup(committed)
+    b = await setup(committed, company_id=a.company_id, name="Standby")
+    await lease(committed, a, C.COST_CENTRE)
+    old = CostCentreRecord(guid="cc", alter_id=5, name="Old name")
+    assert await upload(committed, b, envelope(b, C.COST_CENTRE, [old])) == "SYNC_LOCKED"
+    new = CostCentreRecord(guid="cc", alter_id=9, name="New name")
+    assert isinstance(await upload(committed, a, envelope(a, C.COST_CENTRE, [new])), BatchResult)
+    await end_run(committed, a)
+    await lease(committed, b, C.COST_CENTRE)
+    late = await upload(committed, b, envelope(b, C.COST_CENTRE, [old]))
+    assert isinstance(late, BatchResult) and late.rejected_stale == 1
+    async with committed() as s:
+        assert await s.scalar(select(CostCentre.name)) == "New name"
+    assert await watermark(committed, a.company_id, C.COST_CENTRE) == 9

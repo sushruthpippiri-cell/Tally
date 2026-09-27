@@ -78,6 +78,7 @@ def _spec(st: Setup, records: list[Any], pause_at: int) -> dict[str, Any]:
 
 
 @pytest.mark.req("TEST-3.3", "SYNC-6.2", "DR-VE-4")
+@pytest.mark.req_partial("NFR-REL-2")  # an exception mid-voucher: test_ingest_vouchers.py
 async def test_killed_mid_voucher_leaves_nothing_of_that_chunk(
     committed: Factory, tmp_path: Path
 ) -> None:

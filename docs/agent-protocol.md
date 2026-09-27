@@ -102,7 +102,7 @@ sequenceDiagram
     Note over B: lease passed without progress -> FAILED_AGENT_LOST
 ```
 
-## Sync — runs, leases, batches (P5, D-039)
+## Sync — runs, leases, batches (P5, D-039, D-040)
 Inside a RUNNING command the Agent syncs collection by collection:
 
 | Call | Body | Answer | Refused |
@@ -110,9 +110,9 @@ Inside a RUNNING command the Agent syncs collection by collection:
 | `POST /agent/commands/{id}/runs` | — | 201 `{sync_run_id, sync_mode, date_from, date_to, collections: {TYPE: {mode, watermark, full}}}` | 409 `INVALID_COMMAND_STATE` unless the command is RUNNING |
 | `POST /agent/leases/acquire` | `{sync_run_id, collection_type}` | `{collection_type, last_alter_id, lock_expires_at}` | 409 `SYNC_LOCKED`, `details.holder` names the Agent holding it |
 | `POST /agent/leases/renew` | — | `{renewed: n}` | |
-| `POST /agent/commands/{id}/batches` | a `BatchEnvelope` | `{status: COMPLETE\|PARTIAL, written, unchanged, rejected_stale, failed, chunks_committed, watermark, error}` | 409 `INVALID_COMMAND_STATE` / `SYNC_LOCKED`, 422 (contract major version, validation) |
+| `POST /agent/commands/{id}/batches` | a `BatchEnvelope` | `{status: COMPLETE\|PARTIAL, written, unchanged, rejected_stale, failed, chunks_committed, watermark, error}` | 409 `INVALID_COMMAND_STATE` / `SYNC_LOCKED` / `GATE_NOT_PASSED`, 422 (contract major version, validation, an unclassified parse-error code) |
 | `POST /agent/leases/release` | `{sync_run_id, collection_type, complete?, start_max_alter_id?}` | `{collection_type, last_alter_id}` | 404 if not this Agent's run |
-| `POST /agent/commands/{id}/runs/{run}/finish` | `{status: COMPLETED\|FAILED, notes?}` | the run; COMPLETED with failed records becomes PARTIAL | 409, 404 |
+| `POST /agent/commands/{id}/runs/{run}/finish` | `{status: COMPLETED\|FAILED, problems?: [{collection_type?, code: SYNC_LOCKED\|TALLY_EXPORT_TIMEOUT\|TALLY_UNREACHABLE, message}], notes?}` | the run, with the status the backend decided (below) | 409, 404, 422 |
 
 **Plan.** Pull a collection in full when `full` is true (a FULL command, a FULL_ONLY collection,
 or one never synced); otherwise pull ALTERID > `watermark`. Each collection has its own
@@ -141,3 +141,15 @@ watermark never passes it.
 - A FULL pull paged by date moves it only at `release` with `complete: true`, to `start_max_alter_id`: the collection's max ALTERID read **before** the pull began. A record edited during the pull then has a higher ALTERID and is picked up by the next incremental.
 - Without `start_max_alter_id`, and for DATE_RANGE runs, it does not move.
 - The COMPANY batch comes first: LEDGER and STOCK_ITEM batches are refused until its books-beginning date is known.
+- **Full-only collections** (`mode: FULL_ONLY`, VAL-1.2): pull them in full in every run, including a scheduled INCREMENTAL one, and send them with a `DATE` window or none. An `ALTER_ID` window for such a collection is refused with 409 `GATE_NOT_PASSED` and nothing is written; their watermark never moves.
+
+**Stock snapshots.** Send Tally's closing quantities as a batch with `collection_type: null` and `STOCK_SNAPSHOT` records, while holding the `STOCK_ITEM` lease. They are upserted on (item, date); an unknown item is recorded and skipped. Closing balances and reconciliation totals come in P10.
+
+**How a run ends** (the backend decides, D-040):
+- `finish` with COMPLETED → COMPLETED, or PARTIAL if any data was not stored: a failed record or chunk, or a `problems` entry (a collection skipped with `SYNC_LOCKED`, a segment that hit `TALLY_EXPORT_TIMEOUT`, `TALLY_UNREACHABLE`). Informational errors (`STALE_ALTERID`, `UDF_NOT_FOUND`) do not make a run PARTIAL.
+- `finish` with FAILED → PARTIAL if anything was committed (resume from the watermarks next time), else FAILED. Tally unreachable before any upload is FAILED with no data changed (SYNC-6.6).
+- A command `result` closes any run the Agent left open, by the same rules.
+- If the command is lost (no progress), the backend closes its runs the same way, records `AGENT_LOST` and releases the Agent's leases.
+- A chunk that fails on the backend is recorded as `CHUNK_FAILED` and holds the watermark where it was, so its records are pulled again next run.
+
+**First FULL sync.** A new Agent's default schedules switch on when its first FULL run ends COMPLETED or PARTIAL. If it ends FAILED they stay off, and the Agents view and sync status show `INITIAL_SYNC_INCOMPLETE` (plus `NO_ACTIVE_SCHEDULE`) until a sync completes.

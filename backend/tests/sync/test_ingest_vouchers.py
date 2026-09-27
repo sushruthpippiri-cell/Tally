@@ -6,15 +6,18 @@ from typing import Any
 
 import pytest
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import DBAPIError
 
 from app.models.config import AuditLog
 from app.models.enums import CollectionType as C
 from app.models.sync import SyncError
 from app.models.vouchers import Voucher, VoucherEntry
+from app.sync import vouchers as vouchers_module
 from app.sync.holds import held_back
 from app.sync.ingest import BatchResult
 from tally_contract.records import LedgerRecord
 from tally_contract.testing import assert_logged
+from tests.races.test_crash import PARTIAL
 from tests.sync.helpers import (
     Factory,
     end_run,
@@ -326,3 +329,53 @@ async def test_replaying_a_voucher_batch_is_safe(committed: Factory) -> None:
     again = await upload(committed, st, env)
     assert isinstance(again, BatchResult) and again.replayed
     assert await _counts(committed) == state
+
+
+@pytest.mark.req_partial("NFR-REL-2")  # a killed process: tests/races/test_crash.py; Agent: P7
+@pytest.mark.parametrize("modified", [False, True])
+async def test_a_failure_mid_voucher_leaves_it_absent_or_entirely_the_previous_version(
+    committed: Factory, monkeypatch: pytest.MonkeyPatch, modified: bool
+) -> None:
+    """TEST-3.3's exception half: a database error between a voucher's entries and its bill
+    allocations rolls back that voucher only (SYNC-6.2); the rest of the chunk is stored."""
+    st = await setup(committed)
+    await sync_masters(committed, st)
+    if modified:
+        await _vouchers(committed, st, [sale("v-2", 100, "590.00", number="S-2")])
+    before = await _counts(committed)
+    real = vouchers_module._insert_allocations
+
+    async def fails_for_v2(session: Any, ctx: Any, v: Any, *args: Any) -> None:
+        if v.guid == "v-2":
+            raise DBAPIError("INSERT INTO bill_allocations", {}, Exception("disk full"))
+        await real(session, ctx, v, *args)
+
+    monkeypatch.setattr(vouchers_module, "_insert_allocations", fails_for_v2)
+    batch = [
+        sale("v-1", 110, "1180.00"),
+        sale("v-2", 120, "2360.00", number="S-2"),
+        sale("v-3", 130, "118.00", number="S-3"),
+    ]
+    result = await _vouchers(committed, st, batch)
+    assert (result.written, result.failed) == (2, 1)
+    after = await _counts(committed)
+    per_voucher = {"vouchers": 1, "voucher_entries": 3, "bill_allocations": 1}
+    assert {k: after[k] - before[k] for k in per_voucher} == {
+        k: 2 * n for k, n in per_voucher.items()
+    }
+    async with committed() as s:
+        v2 = (
+            await s.execute(select(Voucher).where(Voucher.tally_guid == "v-2"))
+        ).scalar_one_or_none()
+        if not modified:
+            assert v2 is None
+        else:  # the stored version, whole: its ALTERID, amount and children
+            assert v2 is not None and v2.alter_id == 100
+            debit = await s.scalar(
+                select(VoucherEntry.amount_absolute).where(
+                    VoucherEntry.voucher_id == v2.voucher_id,
+                    VoucherEntry.accounting_direction == "DEBIT",
+                )
+            )
+            assert debit == Decimal("590.00")
+            assert await s.scalar(text(PARTIAL)) == 0
