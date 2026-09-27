@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import gates
 from app.models.agents import AgentCommand
 from app.models.balances import LedgerOpeningBalance, OpeningBillAllocation
 from app.models.company import Company
@@ -177,7 +178,11 @@ async def test_parents_are_linked_whenever_they_arrive(committed: Factory) -> No
             True,
             "Sundry Debtors",
         )  # G32 fallback
-        assert child.resolution_status == "UNRESOLVED_GROUP"  # P6 resolves (D-039 #4)
+        # Resolved as soon as the parent arrives (D-041 #8).
+        assert (child.resolution_status, child.classification_group_id) == (
+            "RESOLVED",
+            parent.group_id,
+        )
 
 
 @pytest.mark.req_partial("SYNC-6.3")  # vouchers replayed: P5.4
@@ -234,9 +239,12 @@ async def test_chunks_commit_separately_and_the_batch_stops_at_the_first_failed_
 
 @pytest.mark.req_partial("SYNC-6.5")  # parse errors from the Agent: test_failed_records.py
 async def test_a_failing_record_is_skipped_and_holds_the_watermark_below_it(
-    committed: Factory,
+    committed: Factory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """D-039 #7: two groups claiming the same reserved name - the second cannot be stored."""
+    """D-039 #7: two groups claiming the same reserved name - the second cannot be stored.
+    Reserved names are read only once G32 has passed (D-041 #7)."""
+    passed = {g: "NOT_TESTED" for g in gates.load_gate_status()} | {"G32": "PASSED"}
+    monkeypatch.setattr(gates, "_default_statuses", lambda: passed)
     st = await setup(committed)
     await lease(committed, st, C.GROUP)
     records = [

@@ -8,14 +8,15 @@ own SAVEPOINT, so one failing record never takes its chunk with it (D-039 #7).
 """
 
 import uuid
+from collections.abc import Iterable
 from typing import Any
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
+from app.core.gates import gate_passed
 from app.models.balances import LedgerOpeningBalance, OpeningBillAllocation, StockOpeningBalance
 from app.models.company import Company
 from app.models.defaults import PREDEFINED_GROUP_NAMES
@@ -27,7 +28,7 @@ from app.models.enums import (
     VoucherTypeResolution,
 )
 from app.models.masters import CostCentre, Group, Ledger, StockItem, VoucherType
-from app.sync import lifecycle
+from app.sync import hierarchy, lifecycle
 from app.sync.context import ChunkOutcome, IngestContext, RecordFailure
 from tally_contract.errors import ErrorCode
 from tally_contract.records import (
@@ -104,11 +105,17 @@ def _common(ctx: IngestContext, record: Any) -> dict[str, Any]:
     }
 
 
+def _reserved(reserved_name: str | None, name: str, predefined_names: Iterable[str]) -> str | None:
+    """GATE-G32 (D-001, D-041 #7): the reserved name identifies a predefined record once G32
+    has passed; until then the default names, matched exactly, stand in for it."""
+    if gate_passed("G32"):
+        return reserved_name
+    return name if name in predefined_names else None
+
+
 async def _group(session: AsyncSession, ctx: IngestContext, r: GroupRecord) -> None:
     parent = r.parent_guid or await _guid_by_name(session, Group, ctx.company_id, r.parent_name)
-    # GATE-G32: the reserved name identifies a predefined group; until G32 passes the 28
-    # default names stand in for it (D-001).
-    reserved = r.reserved_name or (r.name if r.name in PREDEFINED_GROUP_NAMES else None)
+    reserved = _reserved(r.reserved_name, r.name, PREDEFINED_GROUP_NAMES)
     await _upsert(
         session,
         Group,
@@ -117,6 +124,7 @@ async def _group(session: AsyncSession, ctx: IngestContext, r: GroupRecord) -> N
             "parent_tally_guid": parent,
             "reserved_name": reserved,
             "is_predefined": reserved is not None,
+            "own_nature": hierarchy.own_nature(r.is_revenue, r.is_deemed_positive),
         },
         # D-039 #4: P6's resolver sets the anchor, nature and status after the sync.
         {"status": MasterStatus.ACTIVE, "resolution_status": GroupResolution.UNRESOLVED_GROUP},
@@ -188,7 +196,11 @@ async def _voucher_type(session: AsyncSession, ctx: IngestContext, r: VoucherTyp
     await _upsert(
         session,
         VoucherType,
-        _common(ctx, r) | {"parent_tally_guid": parent, "reserved_name": r.reserved_name},
+        _common(ctx, r)
+        | {
+            "parent_tally_guid": parent,
+            "reserved_name": _reserved(r.reserved_name, r.name, hierarchy.BASE_TYPES.keys()),
+        },
         {  # D-039 #4: P6 resolves the base type.
             "status": MasterStatus.ACTIVE,
             "base_voucher_type": BaseVoucherType.OTHER,
@@ -266,50 +278,7 @@ async def write_masters(
             )
             continue
         outcome.written += 1
-    await link_parents(session, ctx.company_id)
     return outcome
-
-
-async def link_parents(session: AsyncSession, company_id: uuid.UUID) -> None:
-    """Fill parent IDs whose parent has now arrived (in this chunk or an earlier one)."""
-    parent = aliased(Group)
-    await session.execute(
-        update(Group)
-        .where(
-            Group.company_id == company_id,
-            Group.parent_group_id.is_(None),
-            Group.parent_tally_guid.is_not(None),
-            parent.company_id == company_id,
-            parent.tally_guid == Group.parent_tally_guid,
-        )
-        .values(parent_group_id=parent.group_id)
-        .execution_options(synchronize_session=False)
-    )
-    await session.execute(
-        update(Ledger)
-        .where(
-            Ledger.company_id == company_id,
-            Ledger.group_id.is_(None),
-            Ledger.parent_group_tally_guid.is_not(None),
-            Group.company_id == company_id,
-            Group.tally_guid == Ledger.parent_group_tally_guid,
-        )
-        .values(group_id=Group.group_id)
-        .execution_options(synchronize_session=False)
-    )
-    vt_parent = aliased(VoucherType)
-    await session.execute(
-        update(VoucherType)
-        .where(
-            VoucherType.company_id == company_id,
-            VoucherType.parent_voucher_type_id.is_(None),
-            VoucherType.parent_tally_guid.is_not(None),
-            vt_parent.company_id == company_id,
-            vt_parent.tally_guid == VoucherType.parent_tally_guid,
-        )
-        .values(parent_voucher_type_id=vt_parent.voucher_type_id)
-        .execution_options(synchronize_session=False)
-    )
 
 
 async def write_company(

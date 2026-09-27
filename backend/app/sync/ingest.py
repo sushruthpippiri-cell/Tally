@@ -26,7 +26,7 @@ from app.models.enums import CollectionType
 from app.models.sync import SyncBatch, SyncError, SyncRun, SyncWatermark
 from app.services.settings import get_setting
 from app.services.sync_runs import open_run, running_command
-from app.sync import holds, leases, masters, snapshots, vouchers
+from app.sync import hierarchy, holds, leases, masters, snapshots, vouchers
 from app.sync.context import (
     SYNC_ERROR_KIND,
     ChunkOutcome,
@@ -278,6 +278,7 @@ async def ingest(
         try:
             watermark = await chunk_guard(session, agent, command_id, collection)
             outcome = await writer(session, ctx, list(chunk))
+            await hierarchy.after_chunk(session, ctx.company_id, collection)  # D-041 #8
             if index == 0:  # the Agent's parse errors: ALTERID unknown (D-039 #7)
                 outcome.failures += [
                     RecordFailure(e.guid, None, e.code, e.message) for e in env.parse_errors
