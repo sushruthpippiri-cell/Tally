@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P4 (Tally contract) — **complete on drafts, blocked on live captures (G-E)** 2026-09-27. Local suite PASS ([phase-04](test-reports/phase-04.md), 804 tests, 0 skipped); CI green (see the test report row). Every Tally fact is a GATE-tagged draft; confirming them needs the owner's captures from the Windows VM (`make capture-kit`, then the kit README). Next: P5 (sync engine) can start without the captures — it waits for the owner.
+P4 (Tally contract) — **complete on drafts, blocked on live captures (G-E)** 2026-09-27. Local suite PASS ([phase-04](test-reports/phase-04.md), 804 tests, 0 skipped); CI green (runs 36294681749 check, 36294681754 capture-kit, 36294681770 agent-windows). Every Tally fact is a GATE-tagged draft; confirming them needs the owner's captures from the Windows VM (`make capture-kit`, then the kit README). Next: P5 (sync engine) can start without the captures — it waits for the owner.
 
 P3 (Agent control plane) — **complete** 2026-09-25. Local suite PASS ([phase-03](test-reports/phase-03.md), 613 tests, 0 skipped) and CI green (run 36107675601, both `check` and `agent-windows`). Next: P4 (Tally contract) — not started; waits for the owner, and **D-002 must be confirmed before P4**.
 
@@ -106,7 +106,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
-| 04 | [phase-04.md](test-reports/phase-04.md) | PASS on drafts - 804 tests, 0 failed, 0 skipped, 90.0% coverage; CI pending |
+| 04 | [phase-04.md](test-reports/phase-04.md) | PASS on drafts - 804 tests, 0 failed, 0 skipped, 90.0% coverage; CI green: check 36294681749, capture-kit 36294681754, agent-windows 36294681770 |
 | 03 | [phase-03.md](test-reports/phase-03.md) | PASS - 613 tests, 0 failed, 0 skipped, 89.3% coverage; CI run 36107675601 green |
 | 02 | [phase-02.md](test-reports/phase-02.md) | PASS - 416 tests, 0 failed, 1 skipped (no Agent routes until P3), 90.2% coverage; CI run 36103266538 green |
 | 01 | [phase-01.md](test-reports/phase-01.md) | PASS - 183 tests, 0 failed, 0 skipped, 91.4% coverage; CI run 35887137380 green |
