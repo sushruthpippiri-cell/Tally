@@ -3,6 +3,8 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
+P6 (lifecycle, deletion detection, hierarchy, Data Quality) — **complete** 2026-09-27. Local suite PASS ([phase-06](test-reports/phase-06.md), 1020 tests, 0 skipped, 91.9% line coverage); CI: see the Done row "P6 phase report". D-041 ACCEPTED, and D-007 ACCEPTED with the guard floor lowered to 5. Not covered by design: DR-ML-5 (INACTIVE) waits for G29; SYNC-5.3 is P10; SYNC-5.5 is question 8; the metric halves of ACC-7.x/8.x are P8. Next: P7 (Sync Agent) — waits for the owner.
+
 P5 (sync engine) — **complete** 2026-09-27. Local suite PASS ([phase-05](test-reports/phase-05.md), 935 tests, 0 skipped, 90.9% line coverage); CI green (runs 36299076074 `check`, 36299076088 `agent-windows`). Decisions D-039 and D-040 ACCEPTED (D-014, D-027 superseded). Not covered by design: DR-VE-2 (per-line voucher updates) waits for GATE-G24; the Agent-side halves of AC-01/02, SYNC-1.3, FR-STK-15, NFR-REL-2 are P7. Next: P6 (lifecycle and hierarchy) — waits for the owner.
 
 P4 (Tally contract) — **complete on drafts, blocked on live captures (G-E)** 2026-09-27. Local suite PASS ([phase-04](test-reports/phase-04.md), 804 tests, 0 skipped); CI green (runs 36294681749 check, 36294681754 capture-kit, 36294681770 agent-windows). Every Tally fact is a GATE-tagged draft; confirming them needs the owner's captures from the Windows VM (`make capture-kit`, then the kit README). Next: P5 (sync engine) can start without the captures — it waits for the owner.
@@ -18,6 +20,13 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-27 | P6 phase report | (next commit) | [phase-06](test-reports/phase-06.md): 1020 passed, 0 skipped, fresh DB, `make check` PASS. |
+| 2026-09-27 | P6.8 docs | ed30437 | `docs/sync-engine.md` (key lists, lifecycle, hierarchy, Data Quality), `docs/agent-protocol.md` (key lists), traceability. |
+| 2026-09-27 | P6.7 masters endpoints | 0326927 | `/masters/groups` (anchor, predefined and primary group by current name, nature, statuses) and `/masters/voucher-types`. |
+| 2026-09-27 | P6.6 Data Quality | 10743c7 | Registry of checks, each one SQL query; 13 checks including the owner's "not in any classification list", "predefined group possibly renamed" and "predefined voucher type possibly renamed" (both retire when G32 passes). |
+| 2026-09-27 | P6.4/P6.5 hierarchy | ba77328 | Group forest and voucher-type walks per chunk with cycle detection; one test per D-001 worked example (1-5); reparenting recomputes descendants and ledgers and is audited (ACC-7.5), fixing P5's parent linking that only filled NULLs; reserved names gated on G32, own nature from G14 flags. Four mutations checked. |
+| 2026-09-27 | P6.2/P6.3 key lists | 9beb61a | Staged, windowed, guarded key lists (owner items 2 and 5, floor 5 with a small-collection test); reappearance by key list or pull whatever the ALTERID (owner item 3); missed changes lower the watermark; `key_list_due`; Owner/Admin confirmation. Five mutations checked. |
+| 2026-09-27 | P6 decisions | 35efb09 | D-041, D-007 accepted; migration 0006; `KeyListChunk`; key requests never ALTERID-windowed and differ from the data request only in the report (owner item 4, TDL and request tests). |
 | 2026-09-27 | P5 phase report | 6c884a3 | [phase-05](test-reports/phase-05.md): 935 passed, 0 skipped, fresh DB, `make check` PASS. |
 | 2026-09-27 | P5.10 closing tests and docs | c694a63 | NFR-REL-2 (an exception mid-voucher leaves a new voucher absent or a modified one entirely at its stored version), SYNC-4.4 (lease + stale protection both needed), `docs/sync-engine.md`, agent-protocol run endings. |
 | 2026-09-27 | P5.9 full-only collections | 0c8f7bc | Owner rule 1 / AC-12 / VAL-1.2: a scheduled INCREMENTAL run syncs a FULL_ONLY collection by full pull and ends COMPLETED; only ALTER_ID batches get `GATE_NOT_PASSED`; its watermark never moves; status shows "Full sync only". Mutation-checked. |
@@ -113,6 +122,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 | 5 | D-001 (before P1), D-002 (before P4), D-021 (before P8)? | Setup | Noted. Owner will confirm D-001 before P1 and D-002 before P4, and answer D-021 before P8. Do not start those phases until confirmed. |
 | 6 | Confirm D-001 (classification anchor). | P0 end | **ACCEPTED 2026-09-23.** Anchor = nearest predefined group, else the chain's own top-level group; only a broken chain is UNRESOLVED_GROUP. Allow-list entries are stored by reserved name (predefined) or GUID (company groups), never by display name, and shown by current name. P1 is unblocked. |
 | 7 | Accept the P1 plan's new schema choices (D-031) and the allow-list seeding approach? | P1 plan | **ACCEPTED 2026-09-23**, with the note that the rollback-per-test fixture must say it cannot test commit behaviour. D-032 (smaller choices made during implementation) **ACCEPTED 2026-09-23** — none changes a business rule or drops an SRS requirement. |
+| 8 | SYNC-5.5: "the reference implementation's deletion handling is reviewed before this mechanism is finalized." Which reference implementation should the key-list design (D-041) be reviewed against? | P6 | Open; the mechanism is built and tested, pending that review. |
 
 ## Owner rules added at P0 start (2026-09-23)
 Testing and logs rules (logs captured at DEBUG and saved per run, log-record assertions, per-phase full-suite report in `docs/test-reports/phase-NN.md`, no next phase on a red suite) are in `CLAUDE.md` -> "Testing and logs" and in `docs/plan/phase-00-foundation.md` (P0.12).
