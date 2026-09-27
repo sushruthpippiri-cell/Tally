@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P4 (Tally contract) — **session 1 done** 2026-09-25: decisions, P4.1–P4.4 and the capture kit (K1–K3) committed; `make check` green (711 tests); CI green (check, capture-kit on Windows PowerShell 5.1, agent-windows). Stopped as the kickoff prompt says. **Next: P4.5–P4.9 in a new session** (all buildable on drafts). **Then blocked on live captures**: gate-track step G-E needs the owner to run `dist/tally-capture-kit` in the Windows VM.
+P4 (Tally contract) — **complete on drafts, blocked on live captures (G-E)** 2026-09-27. Local suite PASS ([phase-04](test-reports/phase-04.md), 804 tests, 0 skipped); CI green (see the test report row). Every Tally fact is a GATE-tagged draft; confirming them needs the owner's captures from the Windows VM (`make capture-kit`, then the kit README). Next: P5 (sync engine) can start without the captures — it waits for the owner.
 
 P3 (Agent control plane) — **complete** 2026-09-25. Local suite PASS ([phase-03](test-reports/phase-03.md), 613 tests, 0 skipped) and CI green (run 36107675601, both `check` and `agent-windows`). Next: P4 (Tally contract) — not started; waits for the owner, and **D-002 must be confirmed before P4**.
 
@@ -16,6 +16,12 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-27 | P4.5 normalisation | 7d07f51 | Exact balance check (BALANCE_TOLERANCE = 0, GATE-G23) -> DEBIT_CREDIT_IMBALANCE via `RecordRejected`; cancellation only on an explicit Yes (G9); multi-currency amount forms rejected, never partly read; `Amount` built only in `normalize.py` (ACC-DATA-2). |
+| 2026-09-27 | P3 test fix | 1f97eac | The 02:00 schedule test polled with the wall clock, so it began failing the day after its fixed date; now runs on the scenario's clock. |
+| 2026-09-27 | P4.6 UDFs | 95f7632 | Generated TDL include (identifiers validated: no TDL injection), per-run reader, UDF_NOT_FOUND once per field per run. |
+| 2026-09-27 | P4.7 fixtures | ddac9b8 | 26 synthetic cases, each expected result read by hand. The review found two parser problems, fixed: an On Account allocation has no bill name (no longer rejects its voucher); compound quantities ("2 Box = 24 Nos") now fail their record until G27, instead of being half-read. Capture kit CHECKLIST gains a USD voucher (G35). |
+| 2026-09-27 | P4.8 harness | f0b62e0 | Every fixture compared with its reviewed expected result; TEST-1.2 case list enforced; `make update-fixtures [FORCE=1]`. |
+| 2026-09-27 | P4.9 acceptance | 8fe4146 | AC-34 (parser half), AC-66, 5,000-voucher streaming budget (transient 1.1x the XML; 4.4x without clearing, mutation-checked). **For P7:** parsed records take ~19 KB per voucher (94 MB for 5,000), so the Agent's extraction batch size affects its memory. |
 | 2026-09-25 | P4 decisions | 0510bae | D-002 and D-037 (GST out of v1) ACCEPTED; D-038 capture kit ACCEPTED; gates G34 (voucher scope) and G35 (error responses, encoding, formats) added. |
 | 2026-09-25 | P4.1 records | 8a20ba6 | Record schemas and `BatchEnvelope`; `CollectionType`, `AccountingDirection`, `AllocationType` moved into `tally_contract.enums` (backend re-exports). |
 | 2026-09-25 | P4.2 TDL drafts | c80473a | `tdl/TA_Minimal.tdl` (TA_Info only) and `tdl/TallyAnalytics.tdl`; `tally_constants.py` holds every Tally fact, GATE-tagged; static test ties TDL, version and XML tags together. |
@@ -100,6 +106,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
+| 04 | [phase-04.md](test-reports/phase-04.md) | PASS on drafts - 804 tests, 0 failed, 0 skipped, 90.0% coverage; CI pending |
 | 03 | [phase-03.md](test-reports/phase-03.md) | PASS - 613 tests, 0 failed, 0 skipped, 89.3% coverage; CI run 36107675601 green |
 | 02 | [phase-02.md](test-reports/phase-02.md) | PASS - 416 tests, 0 failed, 1 skipped (no Agent routes until P3), 90.2% coverage; CI run 36103266538 green |
 | 01 | [phase-01.md](test-reports/phase-01.md) | PASS - 183 tests, 0 failed, 0 skipped, 91.4% coverage; CI run 35887137380 green |
