@@ -14,7 +14,16 @@ from app.schemas.agents import (
     RegisterResponse,
 )
 from app.schemas.commands import AgentCommandOut, ResultRequest
-from app.services import agents, commands
+from app.schemas.sync import (
+    FinishRequest,
+    LeaseOut,
+    LeaseRequest,
+    ReleaseOut,
+    ReleaseRequest,
+    RunOut,
+    RunPlan,
+)
+from app.services import agents, commands, sync_runs
 
 router = APIRouter(prefix="/agent", tags=["agent protocol"])
 
@@ -64,3 +73,49 @@ async def result(
     session: AsyncSession = Depends(get_session),
 ) -> AgentCommandOut:
     return await commands.result(session, agent, command_id, body)
+
+
+@router.post("/commands/{command_id}/runs", status_code=201, summary="Start a sync run: the plan")
+async def start_run(
+    command_id: uuid.UUID,
+    agent: AgentContext = Depends(current_agent),
+    session: AsyncSession = Depends(get_session),
+) -> RunPlan:
+    return await sync_runs.start_run(session, agent, command_id)
+
+
+@router.post("/commands/{command_id}/runs/{sync_run_id}/finish", summary="Finish a sync run")
+async def finish_run(
+    command_id: uuid.UUID,
+    sync_run_id: uuid.UUID,
+    body: FinishRequest,
+    agent: AgentContext = Depends(current_agent),
+    session: AsyncSession = Depends(get_session),
+) -> RunOut:
+    return await sync_runs.finish_run(session, agent, command_id, sync_run_id, body)
+
+
+@router.post("/leases/acquire", summary="Acquire a collection's sync lease (SYNC-4.1)")
+async def acquire_lease(
+    body: LeaseRequest,
+    agent: AgentContext = Depends(current_agent),
+    session: AsyncSession = Depends(get_session),
+) -> LeaseOut:
+    return await sync_runs.acquire_lease(session, agent, body)
+
+
+@router.post("/leases/renew", summary="Renew every live lease (progress also does this)")
+async def renew_leases(
+    agent: AgentContext = Depends(current_agent),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, int]:
+    return {"renewed": await sync_runs.renew_leases(session, agent)}
+
+
+@router.post("/leases/release", summary="Release a lease; report a completed full pull")
+async def release_lease(
+    body: ReleaseRequest,
+    agent: AgentContext = Depends(current_agent),
+    session: AsyncSession = Depends(get_session),
+) -> ReleaseOut:
+    return await sync_runs.release_lease(session, agent, body)

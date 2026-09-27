@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.agent_credentials import new_credential, new_registration_token
+from app.core.agent_credentials import AgentContext, new_credential, new_registration_token
 from app.core.security import create_access_token
 from app.models.agents import Agent, AgentCommand, AgentRegistrationToken
 from app.models.balances import LedgerOpeningBalance
@@ -30,8 +30,10 @@ from app.models.enums import (
     Nature,
     RoleName,
     SyncMode,
+    SyncRunStatus,
 )
 from app.models.masters import CostCentre, Group, Ledger, StockItem, VoucherType
+from app.models.sync import SyncRun
 from app.models.vouchers import BillAllocation, Voucher, VoucherEntry, VoucherItem
 
 
@@ -447,3 +449,43 @@ async def make_voucher(
         )
     await session.flush()
     return voucher
+
+
+async def make_running_command(
+    session: AsyncSession, agent: Agent, sync_mode: SyncMode = SyncMode.INCREMENTAL, **fields: Any
+) -> AgentCommand:
+    """A RUNNING command with a live command lease (P3), ready to sync."""
+    now = datetime.now(UTC)
+    values: dict[str, Any] = {
+        "claimed_at": now,
+        "lease_expires_at": now + timedelta(seconds=300),
+    } | fields
+    command = AgentCommand(
+        company_id=agent.company_id,
+        agent_id=agent.agent_id,
+        command_type=CommandType.RUN_SYNC,
+        sync_mode=sync_mode,
+        status=CommandStatus.RUNNING,
+        **values,
+    )
+    session.add(command)
+    await session.flush()
+    return command
+
+
+async def make_sync_run(session: AsyncSession, command: AgentCommand) -> SyncRun:
+    run = SyncRun(
+        company_id=command.company_id,
+        agent_id=command.agent_id,
+        command_id=command.command_id,
+        sync_mode=command.sync_mode,
+        started_at=datetime.now(UTC),
+        status=SyncRunStatus.IN_PROGRESS,
+    )
+    session.add(run)
+    await session.flush()
+    return run
+
+
+def agent_context(agent: Agent) -> AgentContext:
+    return AgentContext(agent.agent_id, agent.company_id, AgentStatus(agent.status))

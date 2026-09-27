@@ -54,6 +54,11 @@ NON_COMPANY_ROUTES: dict[tuple[str, str], Access] = {
     ("POST", "/agent/commands/{command_id}/claim"): "agent",
     ("POST", "/agent/commands/{command_id}/progress"): "agent",
     ("POST", "/agent/commands/{command_id}/result"): "agent",
+    ("POST", "/agent/commands/{command_id}/runs"): "agent",
+    ("POST", "/agent/commands/{command_id}/runs/{sync_run_id}/finish"): "agent",
+    ("POST", "/agent/leases/acquire"): "agent",
+    ("POST", "/agent/leases/renew"): "agent",
+    ("POST", "/agent/leases/release"): "agent",
     ("POST", "/auth/change-password"): "user",  # acts on the caller only
     ("GET", "/companies"): "user",  # lists only the caller's companies
     ("POST", "/companies"): "user",  # D-006: the caller becomes OWNER of the new company

@@ -24,6 +24,7 @@ from app.models.company import Company
 from app.models.enums import AgentStatus, CommandStatus, CommandType
 from app.schemas.commands import AgentCommandOut, CommandStatusOut, ResultRequest, SyncRequest
 from app.services.settings import get_setting
+from app.sync import leases
 from tally_contract.errors import ErrorCode
 
 CANNOT_RECEIVE = (AgentStatus.REVOKED, AgentStatus.INCOMPATIBLE)  # D-012
@@ -273,6 +274,7 @@ async def progress(
             ),
         )
     )
+    await leases.renew_all(session, agent, now)  # D-039 #3: one timer for both
     await session.commit()
     return _agent_out(command)
 
@@ -306,5 +308,6 @@ async def result(
     ).scalar_one_or_none()
     if command is None:
         raise await _not_applicable(session, agent, command_id)
+    await leases.release_all(session, agent.company_id, agent.agent_id)  # D-039 #3
     await session.commit()
     return _agent_out(command)
