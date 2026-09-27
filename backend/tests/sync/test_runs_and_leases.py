@@ -179,15 +179,15 @@ async def test_finish_marks_the_run_and_releases_leases(
     command = await make_running_command(session, a)
     run = await make_sync_run(session, command)
     await _post(api, a_cred, "/agent/leases/acquire", **_lease(run))
-    run.records_failed = 2
-    await session.flush()
+    skipped = {"collection_type": "LEDGER", "code": "SYNC_LOCKED", "message": "held by B"}
     r = await _post(
         api,
         a_cred,
         f"/agent/commands/{command.command_id}/runs/{run.sync_run_id}/finish",
         status="COMPLETED",
+        problems=[skipped],
     )
-    assert r.json()["status"] == "PARTIAL"  # D-039 #7: failing records make it PARTIAL
+    assert r.json()["status"] == "PARTIAL"  # D-040 #1: a collection was not synced
     mark = (
         await session.execute(select(SyncWatermark).execution_options(populate_existing=True))
     ).scalar_one()

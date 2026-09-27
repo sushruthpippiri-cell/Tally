@@ -49,9 +49,21 @@ class ReleaseOut(BaseModel):
     last_alter_id: int
 
 
+class RunProblem(BaseModel):
+    """Something the Agent could not sync (D-040 #2); recorded in sync_errors."""
+
+    model_config = ConfigDict(extra="forbid")
+    collection_type: CollectionType | None = None  # None: the whole run
+    code: Literal["SYNC_LOCKED", "TALLY_EXPORT_TIMEOUT", "TALLY_UNREACHABLE"]
+    message: str = Field(max_length=1000)
+
+
 class FinishRequest(BaseModel):
+    """How the Agent saw the run end; `close_run` decides the stored status (D-040 #1)."""
+
     model_config = ConfigDict(extra="forbid")
     status: Literal["COMPLETED", "FAILED"]
+    problems: list[RunProblem] = Field(default_factory=list, max_length=200)
     notes: str | None = Field(default=None, max_length=2000)
 
 

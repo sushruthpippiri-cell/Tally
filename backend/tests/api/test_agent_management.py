@@ -1,27 +1,29 @@
 """P3.11: Agents view, rotation, revocation, Tally settings, and replacing an Agent
 (SEC-2.1/2.3, AC-16, AC-24, AGT-4.2, FR-4.4, D-036 #6)."""
 
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.jobs.schedules import fire_schedules
-from app.models.agents import SyncSchedule
+from app.models.agents import Agent, AgentCommand, SyncSchedule
 from app.models.company import Company, User
 from app.models.config import AuditLog
-from app.models.enums import AgentStatus, RoleName
+from app.models.enums import AgentStatus, RoleName, SyncMode
 from app.services.agent_admin import NO_ACTIVE_SCHEDULE
-from app.services.schedules import activate
+from app.services.sync_runs import INITIAL_SYNC_INCOMPLETE
 from tests.factories import (
     agent_header,
     auth_header,
     make_company,
     make_registered_agent,
     make_registration_token,
+    make_running_command,
     make_user,
 )
 
@@ -80,6 +82,50 @@ async def _schedules(session: AsyncSession, agent_id: str) -> list[SyncSchedule]
         .order_by(SyncSchedule.cron_expression)
     )
     return list(rows.scalars())
+
+
+async def _sync(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    agent: dict[str, Any],
+    status: str = "COMPLETED",
+    problems: list[dict[str, str]] | None = None,
+    mode: SyncMode = SyncMode.FULL,
+) -> str:
+    """One sync run through the Agent API; returns the run's stored status."""
+    row = await session.get(Agent, uuid.UUID(agent["agent_id"]))
+    assert row is not None
+    command = await make_running_command(session, row, mode)
+    base = f"/agent/commands/{command.command_id}/runs"
+    header = agent_header(agent["credential"])
+    run = await api.post(base, headers=header)
+    assert run.status_code == 201, run.text
+    r = await api.post(
+        f"{base}/{run.json()['sync_run_id']}/finish",
+        json={"status": status, "problems": problems or []},
+        headers=header,
+    )
+    assert r.status_code == 200, r.text
+    await session.execute(
+        update(AgentCommand)
+        .where(AgentCommand.command_id == command.command_id)
+        .values(status="COMPLETED")
+    )
+    result: str = r.json()["status"]
+    return result
+
+
+async def _active(session: AsyncSession, schedules: list[SyncSchedule]) -> list[bool]:
+    for s in schedules:
+        await session.refresh(s)
+    return [s.is_active and s.next_fire_at is not None for s in schedules]
+
+
+async def _warnings(api: httpx.AsyncClient, company: Company, owner: User) -> list[str]:
+    warnings: list[str] = (await api.get(_agents(company), headers=auth_header(owner))).json()[
+        "warnings"
+    ]
+    return warnings
 
 
 @pytest.mark.req("AC-16")
@@ -214,17 +260,15 @@ async def test_replacing_an_agent_keeps_scheduled_syncs_working(
     api: httpx.AsyncClient, session: AsyncSession, company: Company, owner: User
 ) -> None:
     """D-036 #6, the whole path: revoke A, register B, B's schedules fire."""
-    # 1. Agent A registers; its default schedules are activated (as P5 will do).
+    # 1. Agent A registers; its first FULL sync switches its default schedules on (D-040 #6).
     a = await _register(api, session, company, "Head Office")
     a_schedules = await _schedules(session, a["agent_id"])
     assert [(s.cron_expression, s.is_active) for s in a_schedules] == [
         ("0 * * * *", False),
         ("0 2 * * *", False),
     ]
-    now = datetime.now(UTC)
-    for s in a_schedules:
-        activate(s, company.company_timezone, now)
-    await session.flush()
+    assert await _sync(api, session, a) == "COMPLETED"
+    assert await _active(session, a_schedules) == [True, True]
     assert (await _beat(api, a["credential"])).json()["status"] == "ACTIVE"
     assert (await api.get(_agents(company), headers=auth_header(owner))).json()["warnings"] == []
 
@@ -256,15 +300,17 @@ async def test_replacing_an_agent_keeps_scheduled_syncs_working(
     view = (await api.get(_agents(company), headers=auth_header(owner))).json()
     assert view["warnings"] == [NO_ACTIVE_SCHEDULE]  # B is active, nothing scheduled yet
 
-    # 4. Activated (P5 after B's first FULL sync; here via PUT, as an Owner can).
-    for s in b_schedules:
-        r = await api.put(
-            f"/companies/{company.company_id}/sync-schedules/{s.schedule_id}",
-            json={"is_active": True},
-            headers=auth_header(owner),
-        )
-        assert r.status_code == 200, r.text
-    assert (await api.get(_agents(company), headers=auth_header(owner))).json()["warnings"] == []
+    # 4. B's first FULL sync switches B's default schedules on, audited (D-036 #6, D-040 #6).
+    assert await _sync(api, session, b) == "COMPLETED"
+    assert await _active(session, b_schedules) == [True, True]
+    activated = (
+        (await session.execute(select(AuditLog).where(AuditLog.action == "SCHEDULE_ACTIVATED")))
+        .scalars()
+        .all()
+    )
+    assert {a.entity_id for a in activated} >= {str(s.schedule_id) for s in b_schedules}
+    assert all(a.after_value == {"is_active": True, "reason": "first full sync"} for a in activated)
+    assert await _warnings(api, company, owner) == []
 
     # 5. At the next hour the schedule fires for B, and B is offered the command.
     for s in b_schedules:
@@ -277,3 +323,55 @@ async def test_replacing_an_agent_keeps_scheduled_syncs_working(
     # 6. A standby beside the working, scheduled B gets no schedules of its own.
     standby = await _register(api, session, company, "Standby")
     assert await _schedules(session, standby["agent_id"]) == []
+
+    # 7. The Owner turns B's hourly sync off on purpose; B's next FULL sync leaves it off.
+    hourly = b_schedules[0]
+    r = await api.put(
+        f"/companies/{company.company_id}/sync-schedules/{hourly.schedule_id}",
+        json={"is_active": False},
+        headers=auth_header(owner),
+    )
+    assert r.status_code == 200, r.text
+    assert await _sync(api, session, b) == "COMPLETED"
+    assert await _active(session, b_schedules) == [False, True]
+
+
+async def test_a_partial_first_full_sync_schedules_syncs_and_warns(
+    api: httpx.AsyncClient, session: AsyncSession, company: Company, owner: User
+) -> None:
+    """D-040 #6 (owner rule): a first FULL sync that ends PARTIAL still switches scheduled syncs
+    on, and the company is warned until a sync completes."""
+    a = await _register(api, session, company, "Head Office")
+    await _beat(api, a["credential"])
+    schedules = await _schedules(session, a["agent_id"])
+    locked = [{"collection_type": "VOUCHER", "code": "SYNC_LOCKED", "message": "held by B"}]
+    assert await _sync(api, session, a, problems=locked) == "PARTIAL"
+    assert await _active(session, schedules) == [True, True]
+    assert await _warnings(api, company, owner) == [INITIAL_SYNC_INCOMPLETE]
+
+    # The Owner turns the hourly sync off; the first complete FULL sync does not undo that.
+    r = await api.put(
+        f"/companies/{company.company_id}/sync-schedules/{schedules[0].schedule_id}",
+        json={"is_active": False},
+        headers=auth_header(owner),
+    )
+    assert r.status_code == 200, r.text
+    assert await _sync(api, session, a) == "COMPLETED"
+    assert await _active(session, schedules) == [False, True]
+    assert await _warnings(api, company, owner) == []
+
+
+async def test_a_failed_first_full_sync_leaves_syncs_off_and_warns(
+    api: httpx.AsyncClient, session: AsyncSession, company: Company, owner: User
+) -> None:
+    a = await _register(api, session, company, "Head Office")
+    await _beat(api, a["credential"])
+    schedules = await _schedules(session, a["agent_id"])
+    unreachable = [{"code": "TALLY_UNREACHABLE", "message": "connection refused"}]
+    assert await _sync(api, session, a, status="FAILED", problems=unreachable) == "FAILED"
+    assert await _active(session, schedules) == [False, False]
+    assert await _warnings(api, company, owner) == [NO_ACTIVE_SCHEDULE, INITIAL_SYNC_INCOMPLETE]
+    # Tally fixed, the Owner runs a FULL sync: scheduled syncs start, the warnings clear.
+    assert await _sync(api, session, a) == "COMPLETED"
+    assert await _active(session, schedules) == [True, True]
+    assert await _warnings(api, company, owner) == []

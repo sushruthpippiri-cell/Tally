@@ -134,7 +134,7 @@ async def test_a_running_command_past_its_lease_is_lost_and_never_reassigned(
 ) -> None:
     lost_hook: list[AgentCommand] = []
 
-    async def spy(_: AsyncSession, command: AgentCommand) -> None:
+    async def spy(_: AsyncSession, command: AgentCommand, now: object) -> None:
         lost_hook.append(command)
 
     monkeypatch.setattr(command_jobs, "on_command_lost", spy)

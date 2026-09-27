@@ -3,15 +3,17 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import audit
 from app.core.agent_credentials import AgentContext
 from app.core.errors import AppError
 from app.core.gates import collection_sync_mode
-from app.models.agents import AgentCommand
+from app.models.agents import AgentCommand, SyncSchedule
+from app.models.company import Company
 from app.models.enums import CollectionType, CommandStatus, SyncMode, SyncRunStatus, WatermarkStatus
-from app.models.sync import SyncRun, SyncWatermark
+from app.models.sync import SyncError, SyncRun, SyncWatermark
 from app.schemas.sync import (
     CollectionPlan,
     FinishRequest,
@@ -22,8 +24,18 @@ from app.schemas.sync import (
     RunOut,
     RunPlan,
 )
+from app.services import schedules
 from app.sync import holds, leases
+from app.sync.context import NOT_STORED, error_row
 from tally_contract.errors import ErrorCode
+from tally_contract.log import get_logger
+
+log = get_logger(__name__)
+
+INITIAL_SYNC_INCOMPLETE = (
+    "INITIAL_SYNC_INCOMPLETE: no sync has completed without errors yet, so some data may be "
+    "missing; see Sync errors"
+)
 
 
 async def running_command(
@@ -163,6 +175,115 @@ async def release_lease(
     return ReleaseOut(collection_type=body.collection_type, last_alter_id=last)
 
 
+async def close_run(
+    session: AsyncSession, run: SyncRun, reported: SyncRunStatus, now: datetime
+) -> SyncRunStatus:
+    """D-040 #1 (SYNC-6.4): reported FAILED -> PARTIAL if anything was committed, else FAILED;
+    reported COMPLETED -> PARTIAL if any data was not stored, else COMPLETED."""
+    if reported == SyncRunStatus.FAILED:
+        status = SyncRunStatus.PARTIAL if run.records_fetched else SyncRunStatus.FAILED
+    else:
+        missing = await session.scalar(
+            select(
+                exists().where(
+                    SyncError.sync_run_id == run.sync_run_id, SyncError.error_code.in_(NOT_STORED)
+                )
+            )
+        )
+        status = SyncRunStatus.PARTIAL if missing else SyncRunStatus.COMPLETED
+    run.status, run.ended_at = status, now
+    await session.flush()
+    log.info("sync_run_closed", sync_run_id=str(run.sync_run_id), status=status.value)
+    if run.sync_mode == SyncMode.FULL and status != SyncRunStatus.FAILED:
+        await _activate_first_full(session, run, now)
+    return status
+
+
+async def _activate_first_full(session: AsyncSession, run: SyncRun, now: datetime) -> None:
+    """D-036 #6, D-040 #6: the Agent's first FULL run that stored data (COMPLETED or PARTIAL)
+    switches on its inactive default schedules. Only the first, so a schedule an Owner turned
+    off stays off."""
+    earlier = await session.scalar(
+        select(
+            exists().where(
+                SyncRun.company_id == run.company_id,
+                SyncRun.agent_id == run.agent_id,
+                SyncRun.sync_mode == SyncMode.FULL,
+                SyncRun.status.in_([SyncRunStatus.COMPLETED, SyncRunStatus.PARTIAL]),
+                SyncRun.sync_run_id != run.sync_run_id,
+            )
+        )
+    )
+    if earlier:
+        return
+    company = await session.get(Company, run.company_id)
+    assert company is not None
+    defaults = await session.execute(
+        select(SyncSchedule).where(
+            SyncSchedule.company_id == run.company_id,
+            SyncSchedule.agent_id == run.agent_id,
+            SyncSchedule.is_active.is_(False),
+            SyncSchedule.created_by.is_(None),
+        )
+    )
+    for schedule in defaults.scalars():
+        schedules.activate(schedule, company.company_timezone, now)
+        await audit.record(
+            session,
+            company_id=run.company_id,
+            user_id=None,
+            action="SCHEDULE_ACTIVATED",
+            entity_type="sync_schedule",
+            entity_id=str(schedule.schedule_id),
+            before={"is_active": False},
+            after={"is_active": True, "reason": "first full sync"},
+        )
+
+
+async def close_command_runs(
+    session: AsyncSession,
+    command: AgentCommand,
+    reported: SyncRunStatus,
+    now: datetime,
+    lost_reason: str | None = None,
+) -> None:
+    """The command's result, or its loss (D-040 #3, #4), closes the runs it left open."""
+    runs = await session.execute(
+        select(SyncRun)
+        .where(
+            SyncRun.company_id == command.company_id,
+            SyncRun.command_id == command.command_id,
+            SyncRun.status == SyncRunStatus.IN_PROGRESS,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    for run in runs.scalars().all():
+        if lost_reason is not None:
+            session.add(
+                error_row(
+                    company_id=run.company_id,
+                    sync_run_id=run.sync_run_id,
+                    entity_type="RUN",
+                    code=ErrorCode.AGENT_LOST,
+                    message=lost_reason,
+                )
+            )
+        await close_run(session, run, reported, now)
+
+
+async def initial_sync_incomplete(session: AsyncSession, company_id: uuid.UUID) -> bool:
+    """D-040 #6: a run has finished but none has COMPLETED."""
+    runs = SyncRun.company_id == company_id
+    finished = await session.scalar(
+        select(exists().where(runs, SyncRun.status != SyncRunStatus.IN_PROGRESS))
+    )
+    completed = await session.scalar(
+        select(exists().where(runs, SyncRun.status == SyncRunStatus.COMPLETED))
+    )
+    return bool(finished) and not completed
+
+
 async def finish_run(
     session: AsyncSession,
     agent: AgentContext,
@@ -170,14 +291,24 @@ async def finish_run(
     sync_run_id: uuid.UUID,
     body: FinishRequest,
 ) -> RunOut:
-    """Basic bookkeeping; P5.7 adds the full PARTIAL rules and schedule activation."""
+    """The Agent's view of the run, plus what it could not sync (D-040 #1, #2)."""
     run, _ = await open_run(session, agent, sync_run_id)
     if run.command_id != command_id:
         raise AppError(ErrorCode.NOT_FOUND, "Sync run not found", 404)
-    status = SyncRunStatus(body.status)
-    if status == SyncRunStatus.COMPLETED and run.records_failed:
-        status = SyncRunStatus.PARTIAL  # D-039 #7: failing records make the run PARTIAL
-    run.status, run.ended_at = status, datetime.now(UTC)
+    for problem in body.problems:
+        entity = problem.collection_type.value if problem.collection_type else "RUN"
+        session.add(
+            error_row(
+                company_id=agent.company_id,
+                sync_run_id=run.sync_run_id,
+                entity_type=entity,
+                code=ErrorCode(problem.code),
+                message=problem.message,
+            )
+        )
+        log.warning("sync_run_problem", code=problem.code, collection=entity)
+    await session.flush()
+    await close_run(session, run, SyncRunStatus(body.status), datetime.now(UTC))
     await leases.release_all(session, agent.company_id, agent.agent_id)
     await session.commit()
     return RunOut(

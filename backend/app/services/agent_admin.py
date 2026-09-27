@@ -16,6 +16,7 @@ from app.models.enums import AgentStatus, TallyStatus
 from app.schemas.agents import AgentOut, AgentsView, RotatedCredential, TallySettingsUpdate
 from app.services.schedules import deactivate_for_agent
 from app.services.settings import get_setting
+from app.services.sync_runs import INITIAL_SYNC_INCOMPLETE, initial_sync_incomplete
 from tally_contract.errors import ErrorCode
 
 NO_ACTIVE_SCHEDULE = (
@@ -76,6 +77,8 @@ async def list_agents(session: AsyncSession, ctx: CompanyContext) -> AgentsView:
         )
         if not active_schedules:
             warnings.append(NO_ACTIVE_SCHEDULE)
+    if await initial_sync_incomplete(session, ctx.company_id):
+        warnings.append(INITIAL_SYNC_INCOMPLETE)  # D-040 #6
     return AgentsView(agents=rows, warnings=warnings)
 
 

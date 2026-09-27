@@ -26,7 +26,14 @@ from app.models.sync import SyncBatch, SyncError, SyncRun, SyncWatermark
 from app.services.settings import get_setting
 from app.services.sync_runs import open_run, running_command
 from app.sync import holds, leases, masters, snapshots, vouchers
-from app.sync.context import ChunkOutcome, IngestContext, RecordFailure
+from app.sync.context import (
+    SYNC_ERROR_KIND,
+    ChunkOutcome,
+    IngestContext,
+    RecordFailure,
+    error_row,
+    not_stored,
+)
 from tally_contract.errors import ErrorCode
 from tally_contract.log import get_logger
 from tally_contract.records import AlterIdWindow, BatchEnvelope
@@ -117,22 +124,23 @@ async def _chunk_guard(
 
 
 def _error_row(ctx: IngestContext, failure: RecordFailure, hold: int | None) -> SyncError:
-    return SyncError(
+    return error_row(
         company_id=ctx.company_id,
         sync_run_id=ctx.sync_run_id,
         entity_type=ctx.entity_type,
-        tally_guid=failure.guid,
-        alter_id=failure.alter_id,
-        error_code=failure.code.value,
+        code=failure.code,
         message=failure.message,
-        watermark_hold=hold,
+        guid=failure.guid,
+        alter_id=failure.alter_id,
+        hold=hold,
     )
 
 
 async def _record(
     session: AsyncSession, ctx: IngestContext, outcome: ChunkOutcome, pre_batch_watermark: int
-) -> None:
-    """Write this chunk's stale records and failures to sync_errors."""
+) -> int:
+    """Write this chunk's stale records and failures to sync_errors. Returns how many records
+    were not stored (D-040 #1); only those hold the watermark (D-039 #7)."""
     for guid, stored, incoming in outcome.stale:  # SYNC-3.2: logged, never an error to retry
         session.add(
             _error_row(
@@ -154,12 +162,12 @@ async def _record(
             stored_alter_id=stored,
             incoming_alter_id=incoming,
         )
+    failed = 0
     for failure in outcome.failures:  # D-039 #7: held below the failure, retried next run
-        hold: int | None = (
-            failure.alter_id - 1 if failure.alter_id is not None else pre_batch_watermark
-        )
-        if ctx.snapshots:
-            hold = None  # snapshots have no watermark to hold
+        hold: int | None = None
+        if not_stored(failure.code) and not ctx.snapshots:  # snapshots have no watermark
+            hold = failure.alter_id - 1 if failure.alter_id is not None else pre_batch_watermark
+        failed += not_stored(failure.code)
         session.add(_error_row(ctx, failure, hold))
         log.warning(
             "sync_record_failed",
@@ -170,6 +178,39 @@ async def _record(
             message=failure.message,
         )
     await session.flush()
+    return failed
+
+
+async def _chunk_failed(
+    session: AsyncSession,
+    ctx: IngestContext,
+    index: int,
+    size: int,
+    hold: int | None,
+    exc: Exception,
+) -> None:
+    """D-040 #5: in its own transaction after the rollback. The chunk's records are known only
+    as a range, so the watermark is held where it stood before the chunk."""
+    log.error("sync_chunk_failed", collection=ctx.entity_type, chunk=index, error=str(exc))
+    session.add(
+        _error_row(
+            ctx,
+            RecordFailure(
+                None,
+                None,
+                ErrorCode.CHUNK_FAILED,
+                f"chunk {index + 1} ({size} records) could not be written: {type(exc).__name__}",
+            ),
+            None if ctx.snapshots else hold,
+        )
+    )
+    await session.execute(
+        update(SyncRun)
+        .where(SyncRun.sync_run_id == ctx.sync_run_id)
+        .values(records_failed=SyncRun.records_failed + size)
+        .execution_options(synchronize_session=False)
+    )
+    await session.commit()
 
 
 async def ingest(
@@ -184,6 +225,13 @@ async def ingest(
     replay = await _replayed(session, agent, env)
     if replay is not None:
         return replay
+    unclassified = {e.code for e in env.parse_errors} - SYNC_ERROR_KIND.keys()
+    if unclassified:
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            f"Parse errors with unclassified codes: {sorted(unclassified)}",
+            422,
+        )
     is_snapshot = env.collection_type is None
     if is_snapshot:
         if any(r.record_type != "STOCK_SNAPSHOT" for r in env.records):
@@ -223,13 +271,13 @@ async def ingest(
                 outcome.failures += [
                     RecordFailure(e.guid, None, e.code, e.message) for e in env.parse_errors
                 ]
-            await _record(session, ctx, outcome, pre_batch_watermark)
+            failed = await _record(session, ctx, outcome, pre_batch_watermark)
             await session.execute(
                 update(SyncRun)
                 .where(SyncRun.sync_run_id == ctx.sync_run_id)
                 .values(
                     records_fetched=SyncRun.records_fetched + len(chunk),
-                    records_failed=SyncRun.records_failed + len(outcome.failures),
+                    records_failed=SyncRun.records_failed + failed,
                 )
                 .execution_options(synchronize_session=False)
             )
@@ -252,12 +300,13 @@ async def ingest(
             return _stopped(result, exc.message)
         except Exception as exc:  # a chunk that cannot be written stops the batch (D-026)
             await session.rollback()
-            log.error("sync_chunk_failed", collection=collection.value, chunk=index, error=str(exc))
+            held = result.watermark if result.watermark is not None else pre_batch_watermark
+            await _chunk_failed(session, ctx, index, len(chunk), held, exc)
             return _stopped(result, f"chunk {index + 1} failed: {type(exc).__name__}")
         result.written += outcome.written
         result.unchanged += outcome.unchanged
         result.rejected_stale += len(outcome.stale)
-        result.failed += len(outcome.failures)
+        result.failed += failed
         result.chunks_committed += 1
         result.watermark = watermark
     if result.failed:

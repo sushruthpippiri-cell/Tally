@@ -28,7 +28,17 @@ from tally_contract.records import (
     VoucherTypeRecord,
 )
 from tally_contract.testing import assert_logged
-from tests.sync.helpers import GUID, Factory, count, envelope, lease, setup, upload, watermark
+from tests.sync.helpers import (
+    GUID,
+    Factory,
+    count,
+    end_run,
+    envelope,
+    lease,
+    setup,
+    upload,
+    watermark,
+)
 
 
 def group(guid: str, alter: int, name: str, parent: str | None = None, **kw: Any) -> GroupRecord:
@@ -210,6 +220,14 @@ async def test_chunks_commit_separately_and_the_batch_stops_at_the_first_failed_
     rerun = await upload(committed, st, envelope(st, C.COST_CENTRE, records))
     assert isinstance(rerun, BatchResult) and rerun.status == "COMPLETE"
     assert await count(committed, CostCentre, st.company_id) == 5  # no duplicates
+    # The failed chunk holds the watermark for the rest of this run (D-040 #5) ...
+    assert await watermark(committed, st.company_id, C.COST_CENTRE) == 2
+    # ... and the next run, pulling from 2, moves it on.
+    await end_run(committed, st)
+    nxt = await setup(committed, company_id=st.company_id, name="run 2")
+    await lease(committed, nxt, C.COST_CENTRE)
+    later = await upload(committed, nxt, envelope(nxt, C.COST_CENTRE, records[2:]))
+    assert isinstance(later, BatchResult) and later.unchanged == 3
     assert await watermark(committed, st.company_id, C.COST_CENTRE) == 5
 
 

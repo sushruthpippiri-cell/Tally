@@ -21,7 +21,7 @@ from app.core.errors import AppError
 from app.core.permissions import CompanyContext, scoped
 from app.models.agents import Agent, AgentCommand
 from app.models.company import Company
-from app.models.enums import AgentStatus, CommandStatus, CommandType
+from app.models.enums import AgentStatus, CommandStatus, CommandType, SyncRunStatus
 from app.schemas.commands import AgentCommandOut, CommandStatusOut, ResultRequest, SyncRequest
 from app.services.settings import get_setting
 from app.sync import leases
@@ -308,6 +308,12 @@ async def result(
     ).scalar_one_or_none()
     if command is None:
         raise await _not_applicable(session, agent, command_id)
+    from app.services import sync_runs  # imported here: sync_runs -> schedules -> commands
+
+    reported = (
+        SyncRunStatus.COMPLETED if body.status == CommandStatus.COMPLETED else SyncRunStatus.FAILED
+    )
+    await sync_runs.close_command_runs(session, command, reported, now)  # D-040 #4
     await leases.release_all(session, agent.company_id, agent.agent_id)  # D-039 #3
     await session.commit()
     return _agent_out(command)

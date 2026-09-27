@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.jobs.agents import company_int_setting
 from app.models.agents import AgentCommand
-from app.models.enums import CommandStatus
+from app.models.enums import CommandStatus, SyncRunStatus
+from app.services import sync_runs
+from app.sync import leases
 from tally_contract.log import get_logger
 
 log = get_logger(__name__)
@@ -16,9 +18,14 @@ log = get_logger(__name__)
 LOST_REASON = "Lease expired: no progress from the Agent before the deadline"
 
 
-async def on_command_lost(session: AsyncSession, command: AgentCommand) -> None:
-    """Hook for P5: fail the command's sync run and release the leases it holds.
-    ponytail: a no-op until P5 introduces sync runs and leases."""
+async def on_command_lost(session: AsyncSession, command: AgentCommand, now: datetime) -> None:
+    """In the lost job's transaction: close the command's open runs as FAILED (PARTIAL when
+    chunks had committed, AC-05) and release every lease the Agent holds (D-040 #3). A chunk
+    in flight holds the command row FOR SHARE, so this waits for it; later chunks see it."""
+    await sync_runs.close_command_runs(
+        session, command, SyncRunStatus.FAILED, now, lost_reason=LOST_REASON
+    )
+    await leases.release_all(session, command.company_id, command.agent_id)
 
 
 async def expire_pending(session: AsyncSession, now: datetime) -> int:
@@ -67,7 +74,7 @@ async def mark_lost(session: AsyncSession, now: datetime) -> int:
             if command.lease_expires_at
             else None,
         )
-        await on_command_lost(session, command)
+        await on_command_lost(session, command, now)
     return len(lost)
 
 
