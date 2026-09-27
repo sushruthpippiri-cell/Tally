@@ -51,7 +51,7 @@ def ledger(guid: str, alter: int, name: str, parent: str = "g-sd", **kw: Any) ->
 async def test_the_company_batch_stores_books_beginning_and_refuses_another_company(
     committed: Factory,
 ) -> None:
-    st = await setup(committed, books_from=None)
+    st = await setup(committed, books_from=None, guid=GUID)
     await lease(committed, st, C.COMPANY)
     ok = CompanyRecord(guid=GUID, alter_id=1, name="Test Co", books_from=date(2023, 4, 1))
     result = await upload(committed, st, envelope(st, C.COMPANY, [ok]))

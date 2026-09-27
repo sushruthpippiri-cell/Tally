@@ -25,7 +25,7 @@ from app.models.enums import CollectionType
 from app.models.sync import SyncBatch, SyncError, SyncRun, SyncWatermark
 from app.services.settings import get_setting
 from app.services.sync_runs import open_run, running_command
-from app.sync import holds, leases, masters
+from app.sync import holds, leases, masters, vouchers
 from app.sync.context import ChunkOutcome, IngestContext, RecordFailure
 from tally_contract.errors import ErrorCode
 from tally_contract.log import get_logger
@@ -38,6 +38,7 @@ Writer = Callable[[AsyncSession, IngestContext, list[Any]], Awaitable[ChunkOutco
 WRITERS: dict[CollectionType, Writer] = {
     CollectionType.COMPANY: masters.write_company,
     **{c: masters.write_masters for c in masters.MODELS},
+    CollectionType.VOUCHER: vouchers.write_vouchers,
 }
 NEEDS_BOOKS_FROM = (CollectionType.LEDGER, CollectionType.STOCK_ITEM)
 
