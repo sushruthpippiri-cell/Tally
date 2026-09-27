@@ -24,6 +24,8 @@ from app.schemas.sync import (
     RunPlan,
 )
 from app.services import agents, commands, sync_runs
+from app.sync.ingest import BatchResult, ingest
+from tally_contract.records import BatchEnvelope
 
 router = APIRouter(prefix="/agent", tags=["agent protocol"])
 
@@ -119,3 +121,13 @@ async def release_lease(
     session: AsyncSession = Depends(get_session),
 ) -> ReleaseOut:
     return await sync_runs.release_lease(session, agent, body)
+
+
+@router.post("/commands/{command_id}/batches", summary="Upload a batch of records (SRS 6.5)")
+async def upload_batch(
+    command_id: uuid.UUID,
+    body: BatchEnvelope,
+    agent: AgentContext = Depends(current_agent),
+    session: AsyncSession = Depends(get_session),
+) -> BatchResult:
+    return await ingest(session, agent, command_id, body)
