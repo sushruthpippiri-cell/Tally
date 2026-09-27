@@ -3,6 +3,8 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
+P7 (Tally Sync Agent) — **session 1 done (P7.1–P7.4)** 2026-09-27: configuration, DPAPI machine-scope secret store, restricted data directory, TLS/CA-bundle/proxy backend client, CLI (register, set-credential, set-proxy-credentials, status, test-tally), Tally client with SRS 16 error mapping, preflight. D-042 ACCEPTED. CI: see the Done row "P7 session 1". Session 2 (P7.5–P7.7: executor, streaming queue, uploader, progress thread, heartbeat status, backend `as_of`) not started — waits for the owner.
+
 P6 (lifecycle, deletion detection, hierarchy, Data Quality) — **complete** 2026-09-27. Local suite PASS ([phase-06](test-reports/phase-06.md), 1020 tests, 0 skipped, 91.9% line coverage); CI green (runs 36310356334 `check`, 36310356314 `agent-windows`, 36310356316 `capture-kit`). D-041 ACCEPTED, and D-007 ACCEPTED with the guard floor lowered to 5. Not covered by design: DR-ML-5 (INACTIVE) waits for G29; SYNC-5.3 is P10; SYNC-5.5 reviewed (question 8, D-041); the metric halves of ACC-7.x/8.x are P8. Next: P7 (Sync Agent) — waits for the owner.
 
 P5 (sync engine) — **complete** 2026-09-27. Local suite PASS ([phase-05](test-reports/phase-05.md), 935 tests, 0 skipped, 90.9% line coverage); CI green (runs 36299076074 `check`, 36299076088 `agent-windows`). Decisions D-039 and D-040 ACCEPTED (D-014, D-027 superseded). Not covered by design: DR-VE-2 (per-line voucher updates) waits for GATE-G24; the Agent-side halves of AC-01/02, SYNC-1.3, FR-STK-15, NFR-REL-2 are P7. Next: P6 (lifecycle and hierarchy) — waits for the owner.
@@ -20,6 +22,11 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-27 | P7 session 1 | (this commit) | Progress log; CI below. |
+| 2026-09-27 | P7.2 CLI | 8393ab3 | `register` per SRS 4.2 (Tally and our TDL checked first; credential only in the secret store; never registered twice), `set-credential` / `set-proxy-credentials` at hidden prompts, `status`, `test-tally`. |
+| 2026-09-27 | P7.4 preflight | b157839 | The named company, the TDL version bundled with this Agent (D-042 #7), the registered GUID (COMPANY_MISMATCH halts before anything else is asked); closed or renamed → COMPANY_NOT_LOADED. |
+| 2026-09-27 | P7.3 Tally client | 14fc0dd | SRS 16 mapping (refused + running → TALLY_SERVER_DISABLED, not running → TALLY_UNREACHABLE), timeout logged TALLY_EXPORT_TIMEOUT, TDL_NOT_LOADED / COMPANY_NOT_LOADED, never through a proxy; uptime from the process table; the mock Tally gained delay, GUIDs, TDL version and a request log. |
+| 2026-09-27 | P7.1 foundations | 67d2c9a | D-042 (owner: DPAPI machine scope, TDL version equals the bundled one, P16 code signing). Strict `agent.toml` (no way to disable TLS checks, no secrets), DPAPI secret store and a data-dir ACL for the service account, SYSTEM and Administrators (verified on the Windows CI runner), TLS ≥ 1.2 with certifi plus a customer CA bundle, HTTP CONNECT proxy with DPAPI-stored credentials. |
 | 2026-09-27 | P6 phase report | 3cf2ee4 | [phase-06](test-reports/phase-06.md): 1020 passed, 0 skipped, fresh DB, `make check` PASS. |
 | 2026-09-27 | P6.8 docs | ed30437 | `docs/sync-engine.md` (key lists, lifecycle, hierarchy, Data Quality), `docs/agent-protocol.md` (key lists), traceability. |
 | 2026-09-27 | P6.7 masters endpoints | 0326927 | `/masters/groups` (anchor, predefined and primary group by current name, nature, statuses) and `/masters/voucher-types`. |
