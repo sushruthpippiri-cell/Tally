@@ -77,13 +77,18 @@ class SyncError(Base):
     __table_args__ = (
         tenant_fk("sync_run_id", "sync_runs.sync_run_id"),
         Index(None, "sync_run_id"),
+        Index(None, "company_id", "entity_type", "watermark_hold"),  # held-back check
     )
 
     id: Mapped[int] = bigint_pk()
     company_id: Mapped[uuid.UUID]  # D-031 (SRS 5.1-1)
     sync_run_id: Mapped[uuid.UUID]
-    entity_type: Mapped[str]
+    entity_type: Mapped[str]  # the collection for record errors
     tally_guid: Mapped[str | None]
+    alter_id: Mapped[int | None] = mapped_column(BigInteger)  # of the failing record, if known
+    # D-039 #7: the highest the watermark may be while this record keeps failing (its ALTERID
+    # - 1, or the pre-batch watermark when unknown). Null: the error does not hold it back.
+    watermark_hold: Mapped[int | None] = mapped_column(BigInteger)
     error_code: Mapped[str]  # tally_contract.errors.ErrorCode; no CHECK, the list grows
     message: Mapped[str]
     created_at: Mapped[datetime] = created_at()

@@ -133,7 +133,7 @@ Rejected at creation with 409 (`AGENT_REVOKED` / `AGENT_INCOMPATIBLE`). OFFLINE 
 ### D-013 Voucher paging by ALTERID windows — PROPOSED (IMPLEMENTATION TEST, gate G33)
 The Agent pages vouchers by ALTERID window `(from, from + extraction_batch_size]`, which bounds a request to at most N changed objects. Fallback if G33 fails: page by voucher-date windows.
 
-### D-014 Unknown master reference fails the chunk — ACCEPTED
+### D-014 Unknown master reference fails the chunk — SUPERSEDED by D-039 #7
 A voucher referencing a master GUID not yet stored rolls back its commit chunk, the watermark does not advance, and the run is PARTIAL. The Agent always syncs masters before vouchers, so the next run resolves it. The error names the missing GUID.
 
 ### D-015 Anomaly minimum sample — PROPOSED (IMPLEMENTATION TEST)
@@ -172,7 +172,7 @@ When a company's first Agent registers, create an hourly INCREMENTAL schedule an
 ### D-026 Chunk ordering — ACCEPTED
 Records in an upload are sorted by ALTERID ascending; the backend commits chunks in order and stops at the first failed chunk, so the watermark never skips an uncommitted record.
 
-### D-027 Uploads when another Agent holds the lease — ACCEPTED
+### D-027 Uploads when another Agent holds the lease — SUPERSEDED by D-039 #1
 A batch upload is accepted if the caller holds the collection lease or no unexpired lease is held (it is then re-acquired). If another Agent holds it, the upload gets 409 `SYNC_LOCKED` and stays in the local queue. Stale-record protection handles ordering (SYNC-4.4).
 
 ### D-028 Browser token storage — PROPOSED (review in P16)
@@ -314,3 +314,15 @@ into scope later needs a `tax_details` table, TDL extensions and new requirement
 | 5 | Captures come from a **dedicated test company only**, never a real business's books | Captured responses are committed to the repository. |
 | 6 | New gates (not in SRS v7.3): **G34** the voucher Collection excludes order and inventory-only vouchers (SRS 1.3); **G35** Tally's error-response text (unknown report, company not loaded), response encoding and invalid XML characters | Both are Tally facts the parser and TDL rely on; rule 15 requires them to be gated. |
 | 7 | Windows CI jobs run only when files they depend on change (path filters, separate workflow); the Linux `check` job runs on every push | Windows runners cost twice the Linux rate on a private repo; running out of minutes would stop CI and block every phase. |
+
+### D-039 Sync engine: batch acceptance, watermarks, failed records, openings — ACCEPTED (product owner, 2026-09-27)
+| # | Choice | Why |
+|---|---|---|
+| 1 | **A batch is accepted only while its command is RUNNING and the caller holds an unexpired lease on the collection** (no implicit re-acquire), its run belongs to that command and is IN_PROGRESS. Re-verified inside every chunk transaction: the chunk locks the watermark row `FOR UPDATE` and the command row `FOR SHARE`, so the lost-Agent job or a takeover waits for the chunk in flight and every later chunk sees it and stops. Supersedes D-027 | A lost Agent must never write alongside the Agent that took over; a late batch from a lost command changes nothing. |
+| 2 | **Watermarks** move only where no record can be skipped: an ALTERID-windowed batch (ascending, D-013/D-026) advances per committed chunk to `GREATEST(watermark, chunk max)`; a DATE_RANGE run never moves it (its records are still upserted); a FULL pull paged by date moves it once, when the Agent reports the collection complete, to the collection's max ALTERID **as read before the pull started** — and not at all if that pre-pull max is unavailable (G33 not passed) | Departs from SRS 6.1's wording for date ranges: moving to the highest ALTERID a date-range run saw would skip changes outside its dates, and a record edited during a long date-paged pull gets an ALTERID below the end-of-pull max. |
+| 3 | A command `progress` call also renews every sync lease the Agent holds, with TTL `agent.command_lease_seconds`; a command `result` releases them | One timer (D-035 #11): an Agent that stops sending progress loses its command and its leases together. |
+| 4 | Until P6's resolver runs, new groups are stored `UNRESOLVED_GROUP` and new voucher types `OTHER` / `UNRESOLVED`; parents by GUID, IDs filled when the parent is present | The resolver needs the whole chain; P6 re-resolves after every sync. |
+| 5 | **Opening balances (ledger and stock openings, opening bills) are stored as at the company's books-beginning date** (`companies.books_from`, taken from the COMPANY batch; tagged GATE-G16). LEDGER and STOCK_ITEM batches are refused until it is known. The `financial_year_start` column of the opening tables holds that date. **For P8:** a balance-sheet ledger's balance on any date D = its books-beginning opening + all ACTIVE movements from `books_from` to D | The opening on a Tally ledger master is as at books beginning, not the current year; a company holding several years of books then gets correct balances without a separate opening per year, instead of "opening balance unavailable" (ACC-9.6) after the first year. |
+| 6 | A COMPANY batch whose GUID is not `companies.tally_guid` is refused with `COMPANY_MISMATCH` | Defence in depth for AGT-3.2. |
+| 7 | **A record that fails never stalls its chunk and never lets the watermark pass it.** A failing record (an unknown master reference after GUID-then-exact-name resolution, a failed balance re-check, a database error on that record, or an Agent-side parse error) is skipped; the other records are stored; `sync_errors` gets its GUID and ALTERID; the run is PARTIAL; the watermark stays **below the lowest failed ALTERID** (`watermark_hold` = ALTERID − 1), or at its pre-batch value when the failing record's ALTERID is unknown, so the next run retries it. Data Quality shows "sync held back by N failing records" (errors whose hold is at or above the current watermark). Supersedes D-014 | Rolling back a whole chunk for one bad reference contradicts SYNC-6.5 and can stall a collection; skipping a record and moving past it would lose it silently. |
+| 8 | Audit rows `VOUCHER_MODIFIED` (header fields, voucher total, entry summary before/after) and `VOUCHER_CANCELLED` | LOG-1.1 (system changes to vouchers); AC-02. |

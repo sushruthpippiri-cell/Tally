@@ -43,8 +43,10 @@ def test_every_timestamp_is_timestamptz() -> None:
 
 @pytest.mark.req_partial("DR-4.6")  # model metadata; test_identity proves the database
 def test_synced_tables_are_unique_on_company_and_guid() -> None:
-    """Every table with tally_guid + alter_id has UNIQUE(company_id, tally_guid)."""
-    synced = [t for t in TABLES if "tally_guid" in t.c and "alter_id" in t.c]
+    """Every synced table (the TallySynced columns) has UNIQUE(company_id, tally_guid).
+    sync_errors also records a GUID and ALTERID, but it is a log, not a synced table."""
+    synced = [t for t in TABLES if {"tally_guid", "alter_id", "last_synced_at"} <= set(t.c.keys())]
+    assert len(synced) == 6  # groups, ledgers, voucher types, stock items, cost centres, vouchers
     for table in synced:
         uniques = {
             tuple(c.name for c in con.columns)

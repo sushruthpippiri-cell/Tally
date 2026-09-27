@@ -60,6 +60,7 @@ Walk parents to a predefined voucher type (G15, G32). Sales, Purchase, Receipt, 
 ### P6.6 Data Quality service — `app/services/data_quality.py` (FR-4.5)
 A registry of checks, each returning `{check_id, title, severity, count, items[] (paginated), how_to_fix}`, so later phases can register more. Checks in this phase: unresolved groups (broken chains only); **groups not in any classification list** (D-001 case 3, with the groups an Owner/Admin could add to an allow-list); **predefined group possibly renamed** (D-001, retires when G32 passes); unresolved voucher types; ledgers without an opening balance for the current financial year; missing masters; MISSING_IN_TALLY vouchers; imbalanced vouchers (from `sync_errors`); suspicious key lists; unknown master references. Placeholders registered by later phases: unsupported bill allocations (P11), unlinked credit/debit notes (P8), multi-unit items (P12), over-settled bills (P11).
 `GET /companies/{id}/data-quality` (VIEW_RECON_AND_DQ) and `GET /companies/{id}/data-quality/{check_id}`.
+- **Required check (D-039 #7):** "Sync held back by N failing records" per collection, from `app/sync/holds.py` (errors whose `watermark_hold` is at or above the current watermark), with each record's GUID, ALTERID and error.
 
 ### P6.7 Masters endpoints
 `GET /companies/{id}/masters/groups` (tree with predefined/primary group, nature, resolution status) and `/masters/voucher-types` (with base type, resolution status).

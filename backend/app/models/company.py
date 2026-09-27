@@ -18,6 +18,9 @@ class Company(Base):
     name: Mapped[str]
     financial_year_start: Mapped[date]
     company_timezone: Mapped[str]  # IANA name; validated by the API (P2)
+    # Tally's "books beginning from", from the COMPANY batch; openings are as at this date
+    # (D-039 #5, GATE-G16). Null until the first COMPANY batch.
+    books_from: Mapped[date | None]
     is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
     created_at: Mapped[datetime] = created_at()
 

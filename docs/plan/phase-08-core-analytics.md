@@ -38,7 +38,7 @@ Inflow = DEBIT on Cash/Bank-class ledgers in RECEIPT vouchers (+); outflow = CRE
 ### P8.7 Balances — `metrics/balances.py` (ACC-9.x)
 - Balance-sheet ledger on date D = opening balance for the financial year containing D (signed, DEBIT +) + Σ `amount_signed` of ACTIVE entries from FY start to D (ACC-9.1).
 - Income/expense ledgers (nature from primary group) report period movement only (ACC-9.2).
-- No opening row for that year → `opening_available = false`, balance `null`, label "opening balance unavailable" — never zero (ACC-9.6). If G16 shows Tally exports only the books-beginning opening, compute later-year openings as opening + net movement (balance-sheet ledgers only) and flag them `derived = true`; P10 verifies them against Tally closing balances.
+- **Balances (D-039 #5, owner decision):** openings are stored as at the company's books-beginning date (`companies.books_from`). A balance-sheet ledger's balance on any date D = its books-beginning opening + all ACTIVE movements from `books_from` to D, so a company with several years of books needs no separate opening per year. "Opening balance unavailable" (ACC-9.6, never zero) applies only when the ledger has no books-beginning opening row at all. P10 verifies the computed balances against Tally closing balances (G19).
 - Cash and bank position, total receivables (Sundry Debtors), total payables (Sundry Creditors) on D (ACC-9.3, 9.4). Display with Dr/Cr.
 
 ### P8.8 Analytics API
