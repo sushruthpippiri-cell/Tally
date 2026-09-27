@@ -1,6 +1,6 @@
 """Error codes shared by backend and Agent.
 
-15 codes come from SRS v7.3. The other 16 are additions NOT in the SRS (decision D-030);
+15 codes come from SRS v7.3. The other 18 are additions NOT in the SRS (decision D-030);
 each carries `# not in SRS v7.3`.
 """
 
@@ -41,6 +41,8 @@ class ErrorCode(StrEnum):
     CONFLICT = "CONFLICT"  # not in SRS v7.3
     RATE_LIMITED = "RATE_LIMITED"  # not in SRS v7.3
     HTTPS_REQUIRED = "HTTPS_REQUIRED"  # not in SRS v7.3
+    CHUNK_FAILED = "CHUNK_FAILED"  # not in SRS v7.3
+    AGENT_LOST = "AGENT_LOST"  # not in SRS v7.3
 
 
 SRS_CODES: tuple[ErrorCode, ...] = tuple(list(ErrorCode)[:15])

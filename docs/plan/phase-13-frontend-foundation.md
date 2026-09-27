@@ -46,6 +46,7 @@ Company profile (time zone, FY start, with validation messages); accounting sett
 
 ### P13.9 Data Quality and Reconciliation pages
 - Data Quality (FR-4.5): list of checks with counts, severity, drill into items, "how to fix" text.
+- Required (D-039 #7): "Sync held back by N failing records" per collection, from P6.6's check, drilling into each record's GUID, ALTERID and error.
 - Reconciliation: latest run table (Tally value, local value, absolute difference, percentage difference, PASS/FAIL), history, "failures only" filter, "Run reconciliation" button.
 
 ### P13.10 Home placeholder

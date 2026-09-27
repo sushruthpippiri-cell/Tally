@@ -3,7 +3,7 @@
 **Size:** L (split: P5.1–P5.5, then P5.6–P5.10) · **Depends on:** P3, P4
 **SRS:** 6.1–6.6, 6.9, 5.9, 16 (sync rows), 19.2 (sync status rows)
 **Requirements:** SYNC-1.1–1.3, SYNC-3.1–3.5, SYNC-4.1–4.4, SYNC-6.1–6.6, DR-4.1–4.6, DR-VE-2–4, VAL-1.1–1.2, NFR-REL-2
-**Acceptance:** AC-01, AC-02, AC-05, AC-06, AC-07, AC-08, AC-09, AC-12 · **Decisions:** D-006, D-014, D-024, D-026, D-027, D-029
+**Acceptance:** AC-01, AC-02, AC-05, AC-06, AC-07, AC-08, AC-09, AC-12 · **Decisions:** D-006, D-024, D-026, D-029, D-036, D-039, D-040 (D-014 and D-027 superseded by D-039)
 
 ## Goal
 The backend accepts uploaded batches and stores them exactly once, never partially, never older-over-newer, with independent per-collection watermarks and a lease that prevents two Agents writing the same collection.
@@ -22,8 +22,8 @@ The backend accepts uploaded batches and stores them exactly once, never partial
   ```
   No row → 409 `SYNC_LOCKED` with the holder's Agent name (SYNC-4.2).
 - `POST /agent/leases/renew`, `POST /agent/leases/release`; expired leases are reclaimable automatically (SYNC-4.3).
-- `POST /agent/commands/{id}/batches` (SRS 19.2) accepts a `BatchEnvelope`; lease rule per D-027.
-- `POST /agent/commands/{id}/runs/{run_id}/finish {status, notes}`.
+- `POST /agent/commands/{id}/batches` (SRS 19.2) accepts a `BatchEnvelope`; accepted only while the command is RUNNING and the Agent holds a live lease, re-checked in every chunk (D-039 #1).
+- `POST /agent/commands/{id}/runs/{run_id}/finish {status, problems, notes}` (D-040 #1-2).
 
 ### P5.2 Ingest pipeline — `app/sync/ingest.py`
 - Validate `contract_version` compatibility and collection type; replayed `batch_id` → return the stored result from `sync_batches` (D-024).
@@ -39,7 +39,7 @@ The backend accepts uploaded batches and stores them exactly once, never partial
 
 ### P5.4 Voucher writer — `app/sync/vouchers.py`
 - Each voucher inside a SAVEPOINT (SYNC-6.2, DR-VE-4).
-- Resolve `ledger_guid`, `stock_item_guid`, `cost_centre_guid`, `voucher_type_guid`. Missing → `UNKNOWN_MASTER_REFERENCE`; the whole chunk rolls back (D-014).
+- Resolve `ledger_guid`, `stock_item_guid`, `cost_centre_guid`, `voucher_type_guid`. GUID first, else exact name (D-002). Missing → `UNKNOWN_MASTER_REFERENCE`: that voucher is skipped, the rest of the chunk is stored, and the watermark is held below it (D-039 #7).
 - Re-check balance (defence in depth, D-005) → `DEBIT_CREDIT_IMBALANCE`: voucher not written, error logged, chunk continues.
 - New GUID → insert header + children, status ACTIVE (or CANCELLED if `is_cancelled`).
 - Higher ALTERID → child replacement in the SRS 6.9 order: update header; delete bill and cost-centre allocations of its entries; delete entries; delete items; insert current children. If gate G24 passed, use per-line update by `stable_line_id` instead (DR-VE-2) — implement behind a strategy switch, default replacement.
@@ -48,17 +48,17 @@ The backend accepts uploaded batches and stores them exactly once, never partial
 
 ### P5.5 Watermarks (SYNC-1.x)
 - In the same transaction as each committed chunk: `last_alter_id = GREATEST(last_alter_id, :max_alter_id_of_chunk)`, `last_successful_sync_at = now()` (SYNC-1.2).
-- DATE_RANGE runs move the watermark only for records beyond it (SRS 6.1).
+- DATE_RANGE runs never move it; a FULL pull paged by date moves it on `release(complete)` to the max ALTERID read before the pull (D-039 #2). Never past a failed record (D-039 #7).
 - Watermarks are per `(company_id, collection_type)` (SYNC-1.1, AC-07).
 
 ### P5.6 Stock snapshots
 Upsert `stock_snapshots` by `(stock_item_id, as_of_date)` with `sync_run_id` (FR-STK-15 data path; analytics in P12).
 
 ### P5.7 Run bookkeeping and recovery
-- Finish → COMPLETED, PARTIAL (any chunk failed, any segment timed out, any collection skipped with SYNC_LOCKED) or FAILED (SYNC-6.4).
-- Implement P3's `on_command_lost` hook: run → FAILED, leases held by that Agent released.
+- `close_run` (D-040 #1): COMPLETED, PARTIAL (a NOT_STORED sync error: failed record or chunk, timed-out segment, collection skipped with SYNC_LOCKED; or FAILED after commits) or FAILED (SYNC-6.4). Every `sync_errors` code is classified NOT_STORED or INFO.
+- Implement P3's `on_command_lost` hook: runs closed as FAILED (PARTIAL if chunks committed, D-040 #3), `AGENT_LOST` recorded, leases released.
 - Tally unreachable reported by the Agent → run FAILED, no data changed (SYNC-6.6).
-- **REQUIRED (D-036 #6): activate a new Agent's default schedules after its first FULL sync.** When a FULL run completes (COMPLETED) for an Agent that has no earlier COMPLETED FULL run, call `app.services.schedules.activate()` on that Agent's **inactive, system-created** schedules (`created_by IS NULL`), in the same transaction, and audit each as `SCHEDULE_ACTIVATED` (system actor, reason "first full sync"). Only on the first FULL run, so a schedule an Owner deactivated on purpose is never switched back on. P3 already creates the defaults for a company's first Agent and for a replacement after a revoke, deactivates a revoked Agent's schedules, and warns `NO_ACTIVE_SCHEDULE` in the Agents view; without this item a new company or a replaced Agent never syncs on a timer.
+- **REQUIRED (D-036 #6): activate a new Agent's default schedules after its first FULL sync.** When a FULL run ends COMPLETED or PARTIAL for an Agent with no earlier FULL run ending either way (D-040 #6), call `app.services.schedules.activate()` on that Agent's **inactive, system-created** schedules (`created_by IS NULL`), in the same transaction, and audit each as `SCHEDULE_ACTIVATED` (system actor, reason "first full sync"). Only on the first FULL run, so a schedule an Owner deactivated on purpose is never switched back on. P3 already creates the defaults for a company's first Agent and for a replacement after a revoke, deactivates a revoked Agent's schedules, and warns `NO_ACTIVE_SCHEDULE` in the Agents view; without this item a new company or a replaced Agent never syncs on a timer.
 
 ### P5.8 Sync status APIs
 - `GET /companies/{id}/sync/status`: per collection watermark, last success, mode (`INCREMENTAL` or `FULL_ONLY`, shown as "Full sync only", AC-12), lease holder.
@@ -66,7 +66,7 @@ Upsert `stock_snapshots` by `(stock_item_id, as_of_date)` with `sync_run_id` (FR
 - `GET /companies/{id}/settings/custom-fields/tdl` (P4.6 generator) and `GET/PUT /companies/{id}/settings/custom-fields` (MANAGE_CUSTOM_FIELDS, audited).
 
 ### P5.9 Full-pull-only enforcement (VAL-1.1, VAL-1.2)
-Plans for FULL_ONLY collections always request a full pull; batches claiming an incremental window for such a collection are rejected with `GATE_NOT_PASSED`.
+Plans for FULL_ONLY collections always request a full pull, in any run including a scheduled INCREMENTAL; `DATE`-windowed or unwindowed batches are accepted. Only an `ALTER_ID`-windowed batch for such a collection is rejected with `GATE_NOT_PASSED`, and its watermark never advances (D-040 #7).
 
 ### P5.10 Tests
 - AC-01: full sync of the synthetic dataset twice → identical row counts, keyed by `(company_id, GUID)`.
