@@ -10,6 +10,8 @@ Cancelled, deleted, reappearing and renamed records are handled without losing h
 
 ## Tasks
 
+Implemented per **D-041** where it differs from the text below: the guard floor is 5 (D-007 amended), missed changes lower the watermark instead of writing sync_errors rows, reappearance never depends on ALTERID, and the voucher-type "possibly renamed" check was added.
+
 ### P6.1 Cancellation (SRS 6.7)
 A voucher with a higher ALTERID and the cancellation indicator (G9) → status CANCELLED, row kept, audited. Standard analytics exclude it (enforced in P8).
 

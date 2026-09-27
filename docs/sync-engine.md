@@ -1,6 +1,6 @@
-# Sync engine (P5)
+# Sync engine (P5, P6)
 
-How the backend stores what the Agent uploads. Decisions: D-024, D-026, D-039, D-040. The Agent's side of the protocol is in `docs/agent-protocol.md`.
+How the backend stores what the Agent uploads, and what happens to records that leave Tally. Decisions: D-001, D-007, D-024, D-026, D-039, D-040, D-041. The Agent's side of the protocol is in `docs/agent-protocol.md`.
 
 ## A batch, step by step (`app/sync/ingest.py`)
 1. **Contract and replay.** The contract's major version must match. A `batch_id` already committed returns its stored result and writes nothing (SYNC-6.3).
@@ -71,3 +71,40 @@ How the backend stores what the Agent uploads. Decisions: D-024, D-026, D-039, D
 - `errors`: VIEW_LOGS, filtered by run and code.
 - `lease-status`.
 - Custom-field mappings and their generated TDL: `/settings/custom-fields[/tdl]`, MANAGE_CUSTOM_FIELDS.
+
+## Deletion detection by key list (`app/sync/keylists.py`, P6, D-007, D-041)
+- **One definition.** A key list comes from the collection's key-only report, which repeats the same named TDL Collection as the data report: same filter (G34 for vouchers), same company and date variables, never an ALTERID window. Tests pin this (`shared/tests/test_tdl.py`, `test_requests.py`).
+- **Staging.** `KeyListChunk`s (≤ 10,000 keys) go to `sync_key_list_keys`, idempotently, under the batch guard (RUNNING command and live lease). Once chunks 0..final are in, the list is evaluated in one transaction; its keys are then deleted and the `sync_key_lists` row stays as history. A run that closes first abandons its unfinished lists.
+- **Evaluation.**
+  1. **Reappeared:** every MISSING_IN_TALLY record with a key → ACTIVE, audited `REAPPEARED`, whatever its ALTERID and even if the guard fires.
+  2. **Candidates:** ACTIVE records of the collection inside the list's window (vouchers by `voucher_date`; masters all). CANCELLED records and anything outside the window are never touched.
+  3. **Guard:** an empty list with candidates, or more than `max(5, sync.keylist_max_missing_ratio × candidates)` missing → nothing marked, the list is SUSPICIOUS, `key_list_suspicious` is logged, and Data Quality shows it. An Owner/Admin confirmation (`POST /companies/{id}/sync/key-lists/{list_id}/confirm`) waives the guard once, for the next list of that collection.
+  4. **Missing:** otherwise candidates without a key → MISSING_IN_TALLY, audited. Rows are never deleted; vouchers keep their links to missing masters (DR-ML-1/2).
+  5. **Missed changes:** keys newer than the stored record but at or below the watermark lower the watermark (INCREMENTAL collections), so the next run re-pulls them.
+- **Frequency.** `key_list_due` in the run plan: every `sync.key_list_interval` incremental runs (default 1).
+- **Reappearance by a pull.** Every master and voucher chunk first restores the MISSING_IN_TALLY records it contains (`app/sync/lifecycle.py`), whatever their ALTERID: stale protection would otherwise treat an equal ALTERID as "no change" and leave them missing forever.
+- **Self-healing.** A voucher whose date moved out of the window between the pull and the key list is marked missing, then restored by the next pull.
+
+## Hierarchy (`app/sync/hierarchy.py`, P6, D-001, D-041 #7-8)
+- Recomputed in the transaction of every GROUP, LEDGER and VOUCHER_TYPE chunk, under a per-company advisory lock.
+- **Groups:** parent IDs come from parent GUIDs, so a reparent updates them. Each walk goes up to a predefined primary group (never reading its own parent) or to a group under Primary, with cycle detection. The anchor is the nearest predefined group, else the top-level group. Nature comes from the primary group, else from the top-level group's own Tally flags (G14; without them the group stays UNRESOLVED_GROUP). Only a broken chain (missing parent, loop) is UNRESOLVED_GROUP, and so is everything beneath it. Ledger caches refresh in one statement.
+- **Voucher types:** the walk stops at the first predefined type. The 8 accounting types give their base type; other predefined types give OTHER (RESOLVED); a broken chain or no predefined type gives OTHER (UNRESOLVED).
+- **Predefined records** are recognised by reserved name only once G32 has passed; before that, by exact default name. The "possibly renamed" Data Quality checks cover the gap.
+- A change to an already RESOLVED group or voucher type is audited with before/after (ACC-7.5); a new record's first resolution is not.
+
+## Data Quality (`app/services/data_quality.py`)
+- A registry of checks. Each check is one SQL query whose count and paged rows are the view: `GET /companies/{id}/data-quality[/{check_id}]`. Later phases add theirs with `register(Check(...))`.
+- P6 checks:
+  - unresolved groups
+  - groups not in any classification list
+  - predefined group possibly renamed (before G32)
+  - stale allow-list entries
+  - unresolved voucher types (used by ACTIVE vouchers)
+  - predefined voucher type possibly renamed (before G32)
+  - missing masters
+  - missing vouchers
+  - suspicious key lists
+  - imbalanced vouchers
+  - unknown master references
+  - sync held back by failing records
+  - balance-sheet ledgers without an opening

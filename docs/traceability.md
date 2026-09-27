@@ -5,9 +5,9 @@ a test marked `@pytest.mark.req` fully proves it; `@pytest.mark.req_partial` tes
 listed separately and never count as covered (CLAUDE.md).
 
 - Requirement IDs in the SRS: **356**
-- Fully covered by at least one test: **75**
-- Partially covered only: **40**
-- Not covered yet: **241**
+- Fully covered by at least one test: **83**
+- Partially covered only: **47**
+- Not covered yet: **226**
 
 ## Covered
 
@@ -55,10 +55,16 @@ listed separately and never count as covered (CLAUDE.md).
 | SYNC-6.6 | backend/tests/sync/test_run_bookkeeping.py::test_tally_unreachable_fails_the_run_and_changes_nothing |
 | DR-4.4 | backend/tests/sync/test_ingest_vouchers.py::test_voucher_numbers_repeat_across_years_and_companies_without_collision |
 | DR-4.6 | backend/tests/models/test_identity.py::test_guid_unique_per_company_not_globally |
+| SYNC-5.2 | backend/tests/sync/test_key_lists.py::test_an_active_voucher_missing_from_the_key_list_becomes_missing_in_tally |
 | DR-VE-3 | backend/tests/sync/test_ingest_vouchers.py::test_a_modified_voucher_has_its_children_replaced_with_no_orphans |
 | DR-VE-4 | backend/tests/races/test_crash.py::test_killed_mid_voucher_leaves_nothing_of_that_chunk |
-| DR-ML-1 | backend/tests/models/test_masters.py::test_masters_cannot_be_deleted |
+| DR-ML-1 | backend/tests/models/test_masters.py::test_masters_cannot_be_deleted<br>backend/tests/sync/test_key_lists.py::test_a_ledger_missing_from_its_key_list_keeps_its_row_and_its_vouchers |
+| DR-ML-2 | backend/tests/sync/test_key_lists.py::test_a_ledger_missing_from_its_key_list_keeps_its_row_and_its_vouchers |
+| DR-ML-3 | backend/tests/sync/test_key_lists.py::test_a_ledger_missing_from_its_key_list_keeps_its_row_and_its_vouchers |
+| DR-ML-4 | backend/tests/sync/test_key_lists.py::test_a_missing_ledger_listed_again_with_the_same_alter_id_is_active_again |
 | VAL-1.2 | backend/tests/sync/test_full_only.py::test_a_scheduled_incremental_run_syncs_a_full_only_collection_by_full_pull |
+| ACC-7.2 | backend/tests/sync/test_hierarchy.py::test_example_1_nested_user_groups_roll_up_to_sales_accounts |
+| ACC-7.5 | backend/tests/sync/test_hierarchy.py::test_a_reparented_group_is_recalculated_with_everything_beneath_it_and_logged |
 | RBAC-1.1 | backend/tests/api/test_route_access.py::test_user_of_another_company_gets_403_and_no_data<br>backend/tests/api/test_route_access.py::test_each_role_gets_exactly_what_srs_14_1_allows |
 | RBAC-1.2 | backend/tests/api/test_route_access.py::test_roles_are_held_per_company |
 | SEC-1.1 | backend/tests/api/test_auth.py::test_login_issues_tokens_that_expire_within_24h |
@@ -72,11 +78,13 @@ listed separately and never count as covered (CLAUDE.md).
 | TEST-3.1 | backend/tests/races/test_lease_races.py::test_two_agents_at_once_exactly_one_gets_the_lease |
 | TEST-3.2 | backend/tests/jobs/test_command_jobs.py::test_a_running_command_past_its_lease_is_lost_and_never_reassigned |
 | TEST-3.3 | backend/tests/races/test_crash.py::test_killed_mid_voucher_leaves_nothing_of_that_chunk<br>backend/tests/races/test_crash.py::test_killed_mid_batch_keeps_committed_chunks_and_their_watermark |
+| AC-04 | backend/tests/sync/test_key_lists.py::test_an_active_voucher_missing_from_the_key_list_becomes_missing_in_tally |
 | AC-05 | backend/tests/sync/test_run_bookkeeping.py::test_a_run_failing_part_way_is_partial_and_the_next_resumes_without_duplicates |
 | AC-06 | backend/tests/sync/test_ingest_vouchers.py::test_a_stale_voucher_is_ignored_and_logged |
 | AC-07 | backend/tests/sync/test_watermarks.py::test_each_collection_is_pulled_and_advanced_from_its_own_watermark |
 | AC-08 | backend/tests/sync/test_ingest_vouchers.py::test_a_modified_voucher_has_its_children_replaced_with_no_orphans |
 | AC-09 | backend/tests/races/test_lease_races.py::test_two_agents_at_once_exactly_one_gets_the_lease |
+| AC-11 | backend/tests/sync/test_key_lists.py::test_a_missing_ledger_listed_again_with_the_same_alter_id_is_active_again |
 | AC-12 | backend/tests/sync/test_full_only.py::test_a_scheduled_incremental_run_syncs_a_full_only_collection_by_full_pull |
 | AC-13 | backend/tests/api/test_agent_registration.py::test_registration_issues_a_credential_bound_to_one_company |
 | AC-14 | backend/tests/api/test_agent_registration.py::test_a_different_guid_is_rejected_and_the_token_stays_usable |
@@ -104,14 +112,20 @@ listed separately and never count as covered (CLAUDE.md).
 | SYNC-6.5 | shared/tests/parser/test_parser.py::test_one_bad_record_fails_alone_and_the_rest_parse<br>backend/tests/sync/test_ingest_masters.py::test_a_failing_record_is_skipped_and_holds_the_watermark_below_it |
 | DR-4.1 | backend/tests/models/test_identity.py::test_guid_unique_per_company_not_globally<br>backend/tests/models/test_identity.py::test_voucher_number_is_not_an_identity<br>backend/tests/sync/test_ingest_vouchers.py::test_voucher_numbers_repeat_across_years_and_companies_without_collision |
 | DR-4.2 | backend/tests/models/test_identity.py::test_guid_unique_per_company_not_globally |
+| SYNC-5.4 | backend/tests/sync/test_key_lists.py::test_a_key_list_is_due_every_n_incremental_runs |
 | FR-1.1 | shared/tests/test_tdl.py::test_every_collection_has_guid_alterid_window_and_a_key_only_report |
 | FR-1.2 | shared/tests/test_tdl.py::test_every_collection_has_guid_alterid_window_and_a_key_only_report |
 | FR-1.3 | shared/tests/test_tdl.py::test_every_collection_has_guid_alterid_window_and_a_key_only_report |
 | FR-1.4 | shared/tests/parser/test_parser.py::test_report_not_found_means_tdl_not_loaded |
 | VAL-1.1 | backend/tests/test_gates.py::test_all_passed_is_incremental<br>backend/tests/test_gates.py::test_untested_depends_on_allow_unverified_flag<br>backend/tests/test_gates.py::test_some_passed_is_not_enough_without_the_unverified_flag |
 | ACC-7.3 | backend/tests/models/test_config_audit.py::test_allow_list_entry_survives_group_rename<br>backend/tests/models/test_config_audit.py::test_company_group_entry_resolves_by_guid |
+| ACC-7.4 | backend/tests/sync/test_hierarchy.py::test_example_4_a_broken_chain_is_unresolved_down_to_its_descendants_and_recovers |
+| ACC-7.6 | backend/tests/sync/test_hierarchy.py::test_example_2_a_group_under_sundry_debtors_anchors_to_sundry_debtors |
+| ACC-8.2 | backend/tests/sync/test_hierarchy.py::test_voucher_types_resolve_through_their_chain_to_a_base_type |
+| ACC-8.3 | backend/tests/sync/test_hierarchy.py::test_voucher_types_resolve_through_their_chain_to_a_base_type |
 | FR-STK-15 | backend/tests/sync/test_snapshots.py::test_snapshots_are_stored_and_a_resend_replaces_them |
 | FR-4.4 | backend/tests/api/test_agent_management.py::test_agents_view_lists_status_versions_heartbeat_uptime_and_queue |
+| FR-4.5 | backend/tests/api/test_data_quality.py::test_every_check_runs_and_a_new_company_has_nothing_to_report |
 | SEC-1.3 | backend/tests/api/test_middleware.py::test_prod_rejects_plain_http_and_sends_hsts |
 | SEC-1.13 | backend/tests/models/test_config_audit.py::test_app_role_cannot_change_audit_logs<br>backend/tests/models/test_config_audit.py::test_even_the_owner_cannot_change_audit_logs |
 | SEC-1.14 | backend/tests/test_config.py::test_prod_missing_secrets_fails_startup<br>backend/tests/test_config.py::test_prod_with_all_secrets_ok_and_incremental_off_by_default |
@@ -126,6 +140,7 @@ listed separately and never count as covered (CLAUDE.md).
 | AC-01 | backend/tests/sync/test_ingest_vouchers.py::test_a_full_sync_twice_adds_nothing_the_second_time |
 | AC-02 | backend/tests/sync/test_ingest_vouchers.py::test_a_modified_voucher_shows_the_new_amount_and_the_audit_has_both |
 | AC-03 | backend/tests/sync/test_ingest_vouchers.py::test_a_cancelled_voucher_keeps_its_row_and_is_audited |
+| AC-10 | backend/tests/sync/test_key_lists.py::test_a_ledger_missing_from_its_key_list_keeps_its_row_and_its_vouchers |
 | AC-17 | backend/tests/api/test_command_lifecycle.py::test_sync_now_is_claimed_run_and_completed_each_state_visible |
 | AC-19 | backend/tests/jobs/test_command_jobs.py::test_offline_agent_command_waits_labelled_and_is_claimed_on_return |
 | AC-24 | backend/tests/api/test_agent_management.py::test_tally_settings_reject_batches_over_10000_and_reach_the_agent |
@@ -136,7 +151,7 @@ listed separately and never count as covered (CLAUDE.md).
 
 ## Not covered yet
 
-SEC-2.0, SEC-2, SEC-2.4, AGT-3.2, AGT-3.3, AGT-5.1, AGT-5.2, AGT-5.3, AGT-5.5, AGT-4.1, AGT-4.3, AGT-4.4, AGT-6.1, AGT-6.2, AGT-6.3, AGT-2.1, AGT-2.2, AGT-2.3, AGT-2.4, AGT-2.5, AGT-2.6, VER-1.3, ACC-DATA-1, ACC-DATA-3, SYNC-5.1, SYNC-5.2, SYNC-5.3, SYNC-5.4, SYNC-5.5, DR-VE-1, DR-VE-2, DR-ML-2, DR-ML-3, DR-ML-4, DR-ML-5, VAL-1.3, ACC-VAL-1, ACC-7.1, ACC-7.2, ACC-7.4, ACC-7.5, ACC-7.6, ACC-8.1, ACC-8.2, ACC-8.3, ACC-1.1, ACC-2.1, ACC-2.2, ACC-6.1, ACC-6.2, ACC-6.3, ACC-6.4, ACC-1.4, ACC-1.8, ACC-1.10, ACC-1.9, ACC-5.1, ACC-5.2, ACC-5.3, ACC-5.4, ACC-5.5, ACC-1.2, ACC-1.5, ACC-1.6, ACC-1.7, ACC-3.1, ACC-3.3, ACC-3.4, ACC-9.1, ACC-9.2, ACC-9.3, ACC-9.4, ACC-9.5, ACC-9.6, TOPN-1.1, TOPN-1.2, TOPN-1.3, TOPN-1.4, ACC-6, ACC-4.4, ACC-4.5, ACC-4.6, FR-2.4, FR-2.1, REC-1.1, REC-1.2, REC-1.3, REC-1.4, REC-1.5, FR-AGE-1, FR-AGE-2, AGE-BILL-1, AGE-BILL-2, AGE-BILL-3, AGE-BILL-4, AGE-BILL-5, FR-PAY-1, FR-PAY-2, FR-PAY-3, FR-PAY-4, FR-PAY-5, FR-PAY-6, FR-STK-1, FR-STK-2, FR-STK-3, FR-STK-4, FR-STK-5, FR-STK-12, FR-STK-19, FR-STK-6, FR-STK-13, FR-STK-14, FR-STK-7, FR-STK-20, FR-STK-8, FR-STK-9, FR-STK-10, FR-STK-16, FR-STK-17, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.5, FR-3.6, FR-3.7, FR-3.8, FR-3.9, FR-4.1, FR-4.2, FR-4.3, FR-4.5, FR-DD-1, FR-DD-2, FR-DD-3, FR-DD-4, FR-DD-5, EXP-1.1, EXP-1.2, EXP-1.3, EXP-1.4, EXP-1.5, EXP-1.6, SEC-1.5, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, SEC-1.11, SEC-1.12, PERF-1.1, PERF-1.2, PERF-1.3, PERF-1.4, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-2.1, TEST-2.2, TEST-4.1, TEST-4.2, TEST-5.1, TEST-5.2, AC-04, AC-10, AC-11, AC-21, AC-23, AC-26, AC-27, AC-28, AC-29, AC-30, AC-31, AC-32, AC-33, AC-35, AC-36, AC-37, AC-38, AC-39, AC-40, AC-41, AC-42, AC-43, AC-44, AC-45, AC-46, AC-47, AC-48, AC-49, AC-50, AC-51, AC-52, AC-53, AC-54, AC-55, AC-56, AC-57, AC-58, AC-61, AC-64, AC-65, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
+SEC-2.0, SEC-2, SEC-2.4, AGT-3.2, AGT-3.3, AGT-5.1, AGT-5.2, AGT-5.3, AGT-5.5, AGT-4.1, AGT-4.3, AGT-4.4, AGT-6.1, AGT-6.2, AGT-6.3, AGT-2.1, AGT-2.2, AGT-2.3, AGT-2.4, AGT-2.5, AGT-2.6, VER-1.3, ACC-DATA-1, ACC-DATA-3, SYNC-5.1, SYNC-5.3, SYNC-5.5, DR-VE-1, DR-VE-2, DR-ML-5, VAL-1.3, ACC-VAL-1, ACC-7.1, ACC-8.1, ACC-1.1, ACC-2.1, ACC-2.2, ACC-6.1, ACC-6.2, ACC-6.3, ACC-6.4, ACC-1.4, ACC-1.8, ACC-1.10, ACC-1.9, ACC-5.1, ACC-5.2, ACC-5.3, ACC-5.4, ACC-5.5, ACC-1.2, ACC-1.5, ACC-1.6, ACC-1.7, ACC-3.1, ACC-3.3, ACC-3.4, ACC-9.1, ACC-9.2, ACC-9.3, ACC-9.4, ACC-9.5, ACC-9.6, TOPN-1.1, TOPN-1.2, TOPN-1.3, TOPN-1.4, ACC-6, ACC-4.4, ACC-4.5, ACC-4.6, FR-2.4, FR-2.1, REC-1.1, REC-1.2, REC-1.3, REC-1.4, REC-1.5, FR-AGE-1, FR-AGE-2, AGE-BILL-1, AGE-BILL-2, AGE-BILL-3, AGE-BILL-4, AGE-BILL-5, FR-PAY-1, FR-PAY-2, FR-PAY-3, FR-PAY-4, FR-PAY-5, FR-PAY-6, FR-STK-1, FR-STK-2, FR-STK-3, FR-STK-4, FR-STK-5, FR-STK-12, FR-STK-19, FR-STK-6, FR-STK-13, FR-STK-14, FR-STK-7, FR-STK-20, FR-STK-8, FR-STK-9, FR-STK-10, FR-STK-16, FR-STK-17, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.5, FR-3.6, FR-3.7, FR-3.8, FR-3.9, FR-4.1, FR-4.2, FR-4.3, FR-DD-1, FR-DD-2, FR-DD-3, FR-DD-4, FR-DD-5, EXP-1.1, EXP-1.2, EXP-1.3, EXP-1.4, EXP-1.5, EXP-1.6, SEC-1.5, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, SEC-1.11, SEC-1.12, PERF-1.1, PERF-1.2, PERF-1.3, PERF-1.4, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-2.1, TEST-2.2, TEST-4.1, TEST-4.2, TEST-5.1, TEST-5.2, AC-21, AC-23, AC-26, AC-27, AC-28, AC-29, AC-30, AC-31, AC-32, AC-33, AC-35, AC-36, AC-37, AC-38, AC-39, AC-40, AC-41, AC-42, AC-43, AC-44, AC-45, AC-46, AC-47, AC-48, AC-49, AC-50, AC-51, AC-52, AC-53, AC-54, AC-55, AC-56, AC-57, AC-58, AC-61, AC-64, AC-65, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
 
 ## Marked in tests but not found in the SRS
 

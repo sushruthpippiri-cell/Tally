@@ -153,3 +153,15 @@ watermark never passes it.
 - A chunk that fails on the backend is recorded as `CHUNK_FAILED` and holds the watermark where it was, so its records are pulled again next run.
 
 **First FULL sync.** A new Agent's default schedules switch on when its first FULL run ends COMPLETED or PARTIAL. If it ends FAILED they stay off, and the Agents view and sync status show `INITIAL_SYNC_INCOMPLETE` (plus `NO_ACTIVE_SCHEDULE`) until a sync completes.
+
+## Key lists (P6, D-041)
+After syncing a collection whose plan says `key_list_due: true`, send its keys: `POST /agent/commands/{id}/key-lists` with `KeyListChunk`s.
+
+| Field | Meaning |
+|---|---|
+| `list_id` | one UUID per list, chosen by the Agent |
+| `chunk_seq`, `is_final` | chunks 0..N, in any order; resend freely |
+| `window` | a DATE window for VOUCHER (only records dated inside it can be marked missing), or null for the whole collection |
+| `keys` | up to 10,000 `{guid, alter_id}` from the collection's key-only report, requested with `requests.collection(keys_only=True)` and the same date variables as the pull; never ALTERID-windowed |
+
+The same guard as batches applies (RUNNING command, live lease on the collection). The answer is the list's state: `RECEIVING` (with `waiting_for` chunks), then `APPLIED` or `SUSPICIOUS` once evaluated. A list left unfinished when the run closes is `ABANDONED`; start a new one next run. The COMPANY collection has no key list.
