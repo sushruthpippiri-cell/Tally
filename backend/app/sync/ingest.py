@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.agent_credentials import AgentContext
 from app.core.errors import AppError
+from app.core.gates import collection_sync_mode
 from app.models.company import Company
 from app.models.enums import CollectionType
 from app.models.sync import SyncBatch, SyncError, SyncRun, SyncWatermark
@@ -251,6 +252,16 @@ async def ingest(
                 ErrorCode.VALIDATION_ERROR, f"{collection} batches are not accepted yet", 422
             )
         writer = WRITERS[collection]
+        if (
+            isinstance(env.window, AlterIdWindow)
+            and collection_sync_mode(collection.value) == "FULL_ONLY"
+        ):  # VAL-1.2, D-040 #7: a full pull (DATE window or none) is still accepted
+            raise AppError(
+                ErrorCode.GATE_NOT_PASSED,
+                f"{collection.value} is synced by full pull only until its ALTERID gates pass; "
+                "send it without an ALTER_ID window",
+                409,
+            )
 
     run, _ = await open_run(session, agent, env.sync_run_id)
     if run.command_id != command_id:

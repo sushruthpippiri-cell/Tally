@@ -148,7 +148,7 @@ async def release_lease(
 ) -> ReleaseOut:
     """With `complete` + `start_max_alter_id`, a FULL pull may move the watermark to the max
     ALTERID read before it began, never past a record that failed in this run, and never for
-    a DATE_RANGE run (D-039 #2, #7)."""
+    a DATE_RANGE run, never for a full-only collection (D-039 #2, #7, D-040 #7)."""
     run = (
         await session.execute(
             select(SyncRun).where(
@@ -165,6 +165,7 @@ async def release_lease(
         body.complete
         and body.start_max_alter_id is not None
         and run.sync_mode != SyncMode.DATE_RANGE
+        and collection_sync_mode(body.collection_type.value) != "FULL_ONLY"  # D-040 #7
     ):
         advance_to = holds.capped(
             body.start_max_alter_id,
