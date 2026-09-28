@@ -14,6 +14,12 @@ from tests.factories import Entry
 DAY = date(2025, 8, 14)
 # metric -> (voucher type, entries of one contributing voucher, the classified ledger in it)
 CASES: dict[str, tuple[str, list[Entry], str]] = {
+    # Items qualify by voucher, not by ledger (ACC-1.8): no unresolved-ledger case.
+    "product_revenue": (
+        "Sales",
+        [("Customer A", "DEBIT", "100"), ("Sales", "CREDIT", "100")],
+        "",
+    ),
     "sales": ("Sales", [("Customer A", "DEBIT", "100"), ("Sales", "CREDIT", "100")], "Sales"),
     "customer_revenue": (
         "Sales",
@@ -91,7 +97,8 @@ async def test_cancelled_missing_and_unresolved_never_count(books: Books, metric
     vtype, entries, classified = CASES[metric]
     for ledger in OPENINGS:
         await books.opening(ledger, "DEBIT", "0")
-    await books.voucher(vtype, DAY, entries)
+    items = [("Soap", "1", "100", "100")] if metric == "product_revenue" else None
+    await books.voucher(vtype, DAY, entries, items=items)
 
     async def figure(**flags: bool) -> Decimal | None:
         ctx = await books.ctx(**flags)
@@ -102,12 +109,13 @@ async def test_cancelled_missing_and_unresolved_never_count(books: Books, metric
 
     standard = await figure()
     assert standard not in (None, Decimal(0))
-    await books.voucher(vtype, DAY, entries, status="CANCELLED")
-    await books.voucher(vtype, DAY, entries, status="MISSING_IN_TALLY")
-    broken = await _unresolved_copy(books, classified)
-    await books.voucher(
-        vtype, DAY, [(broken if e[0] == classified else e[0], *e[1:]) for e in entries]
-    )  # type: ignore[misc]
+    await books.voucher(vtype, DAY, entries, items=items, status="CANCELLED")
+    await books.voucher(vtype, DAY, entries, items=items, status="MISSING_IN_TALLY")
+    if classified:
+        broken = await _unresolved_copy(books, classified)
+        await books.voucher(
+            vtype, DAY, [(broken if e[0] == classified else e[0], *e[1:]) for e in entries]
+        )  # type: ignore[misc]
     assert await figure() == standard
     assert await figure(include_cancelled=True) == 2 * standard
     assert await figure(include_cancelled=True, include_missing=True) == 3 * standard

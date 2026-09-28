@@ -14,6 +14,7 @@ from sqlalchemy import (
     ColumnElement,
     Date,
     Select,
+    String,
     and_,
     case,
     cast,
@@ -30,10 +31,11 @@ from sqlalchemy.orm import InstrumentedAttribute
 from app.analytics.context import MetricContext
 from app.models.balances import LedgerOpeningBalance
 from app.models.enums import AccountingDirection, Nature
-from app.models.masters import Group, Ledger, VoucherType
-from app.models.vouchers import Voucher, VoucherEntry
+from app.models.masters import Group, Ledger, StockItem, VoucherType
+from app.models.vouchers import Voucher, VoucherEntry, VoucherItem
 
 E, V, VT, L = VoucherEntry, Voucher, VoucherType, Ledger
+VI, SI = VoucherItem, StockItem
 
 
 def entries(
@@ -140,4 +142,37 @@ def party_bucket(ctx: MetricContext, party: Iterable[uuid.UUID]) -> Select[Any]:
         .join(L, and_(L.company_id == E.company_id, L.ledger_id == E.ledger_id))
         .where(E.company_id == ctx.company_id, in_class(party))
         .group_by(E.voucher_id)
+    )
+
+
+def items(ctx: MetricContext, sign: ColumnElement[int]) -> Select[Any]:
+    """One row per inventory line dated in the filter's range on a voucher with one of its
+    statuses: the standard detail columns (no ledger) with `amount` = sign x the line's
+    amount, and the item, `quantity` (same sign) and `unit`. Metrics add their own
+    conditions."""
+    return (
+        select(
+            V.voucher_id,
+            V.voucher_date,
+            V.voucher_number,
+            VT.name.label("voucher_type_name"),
+            VT.base_voucher_type,
+            cast(null(), UUID(as_uuid=True)).label("ledger_id"),
+            cast(null(), String).label("ledger_name"),
+            (sign * VI.amount).label("amount"),
+            VI.stock_item_id,
+            SI.name.label("stock_item_name"),
+            (sign * VI.quantity).label("quantity"),
+            VI.unit,
+        )
+        .select_from(VI)
+        .join(V, and_(V.company_id == VI.company_id, V.voucher_id == VI.voucher_id))
+        .join(VT, and_(VT.company_id == V.company_id, VT.voucher_type_id == V.voucher_type_id))
+        .join(SI, and_(SI.company_id == VI.company_id, SI.stock_item_id == VI.stock_item_id))
+        .where(
+            VI.company_id == ctx.company_id,
+            V.company_id == ctx.company_id,
+            V.status.in_(ctx.filter.statuses),
+            V.voucher_date.between(ctx.filter.date_from, ctx.filter.date_to),
+        )
     )

@@ -53,12 +53,16 @@ class MetricContext:
     taxable_value_mode: bool  # ACC-2.2
     include_journal: bool  # D-021 #2
     returns_linkable: bool  # GATE-G26: until it passes every note is unlinked (ACC-5.5)
+    # ACC-1.9, D-046 #5: product revenue is proven on Total Sales' basis only when GATE-G28
+    # has passed and taxable-value mode is on (inventory lines are before tax).
+    product_basis_verified: bool
 
 
 async def load(session: AsyncSession, ctx: CompanyContext, flt: AnalyticsFilter) -> MetricContext:
     company = await session.get(Company, ctx.company_id)
     if company is None:
         raise AppError(ErrorCode.NOT_FOUND, "Company not found", 404)
+    taxable = await get_setting(session, company.company_id, "analytics.taxable_value_mode")
     return MetricContext(
         company_id=company.company_id,
         filter=flt,
@@ -67,9 +71,8 @@ async def load(session: AsyncSession, ctx: CompanyContext, flt: AnalyticsFilter)
         books_from=company.books_from,
         company_timezone=company.company_timezone,
         quarter_mode=await get_setting(session, company.company_id, "analytics.quarter_mode"),
-        taxable_value_mode=await get_setting(
-            session, company.company_id, "analytics.taxable_value_mode"
-        ),
+        taxable_value_mode=taxable,
         include_journal=await get_setting(session, company.company_id, "cashflow.include_journal"),
         returns_linkable=gate_passed("G26"),
+        product_basis_verified=gate_passed("G28") and taxable,
     )

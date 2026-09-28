@@ -24,6 +24,7 @@ from tests.factories import (
     make_ledger,
     make_opening_balance,
     make_predefined_groups,
+    make_stock_item,
     make_voucher,
     make_voucher_type,
 )
@@ -125,4 +126,6 @@ async def make_books(session: AsyncSession, name: str = "Test Traders") -> Books
     )
     for centre in ("Retail", "Online"):
         await make_cost_centre(session, company, centre)
+    for item, unit in (("Soap", "Nos"), ("Rice", "Kgs"), ("Pen", "Nos")):
+        await make_stock_item(session, company, item, unit)
     return Books(session, company, groups, ledgers, types)

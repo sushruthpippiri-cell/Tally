@@ -33,6 +33,7 @@ from app.analytics.metrics import (
     expenses,
     ledger_balances,
     payables,
+    product_revenue,
     purchases,
     receivables,
     sales,
@@ -44,6 +45,7 @@ from app.core.periods import Granularity, period_key
 METRICS: dict[str, ModuleType] = {
     "sales": sales,
     "customer_revenue": customer_revenue,
+    "product_revenue": product_revenue,
     "purchases": purchases,
     "supplier_purchases": supplier_purchases,
     "expenses": expenses,
@@ -164,3 +166,31 @@ async def drilldown(
         .limit(limit)
     )
     return [dict(r) for r in page.mappings()], int(count or 0)
+
+
+PRODUCT_ATTRIBUTION_DIFFERENCE = "Product Attribution Difference"
+NON_PRODUCT_REVENUE = "Unattributed / Non-product Sales Revenue"
+
+
+@dataclass(frozen=True)
+class Difference:
+    """Total Sales Revenue less Product-attributed Revenue, under exactly one label
+    (ACC-VAL-1)."""
+
+    label: str
+    amount: Decimal | None
+    product_attributed: Decimal | None
+    total_sales: Decimal | None
+
+
+async def product_difference(session: AsyncSession, ctx: MetricContext) -> Difference:
+    """ACC-1.9/1.10, D-046 #5: "Unattributed / Non-product Sales Revenue" only once product
+    revenue is proven to be on Total Sales' basis (G28 passed and taxable-value mode on);
+    until then a data-quality figure, "Product Attribution Difference"."""
+    sales, product = (
+        await total(session, ctx, "sales"),
+        await total(session, ctx, "product_revenue"),
+    )
+    label = NON_PRODUCT_REVENUE if ctx.product_basis_verified else PRODUCT_ATTRIBUTION_DIFFERENCE
+    amount = None if sales is None or product is None else sales - product
+    return Difference(label, amount, product, sales)

@@ -361,7 +361,8 @@ async def make_cost_centre(session: AsyncSession, company: Company, name: str) -
 
 
 Entry = tuple[str, str, str]  # (ledger name, "DEBIT" | "CREDIT", amount)
-Item = tuple[str, str, str, str]  # (stock item name, quantity, rate, amount)
+# (stock item name, quantity, rate, amount[, unit]); the unit defaults to the item's base unit
+Item = tuple[str, str, str, str] | tuple[str, str, str, str, str]
 Bill = tuple[int, str, str, str]  # (entry index, allocation type, reference, amount)
 Centre = tuple[int, str, str]  # (entry index, cost centre name, amount)
 
@@ -452,7 +453,7 @@ async def make_voucher(
                 amount_absolute=Decimal(amount),
             )
         )
-    for item_name, quantity, rate, amount in items or []:
+    for item_name, quantity, rate, amount, *unit in items or []:
         item = await _by_name(session, StockItem, company, item_name)
         session.add(
             VoucherItem(
@@ -460,7 +461,7 @@ async def make_voucher(
                 voucher_id=voucher.voucher_id,
                 stock_item_id=item.stock_item_id,
                 quantity=Decimal(quantity),
-                unit=item.base_unit,
+                unit=unit[0] if unit else item.base_unit,
                 rate=Decimal(rate),
                 amount=Decimal(amount),
             )

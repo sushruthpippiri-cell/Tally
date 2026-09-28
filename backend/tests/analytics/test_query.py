@@ -32,6 +32,7 @@ def _ctx(fy_start: date = date(2025, 4, 1), mode: QuarterMode = "financial") -> 
         taxable_value_mode=True,
         include_journal=True,
         returns_linkable=False,
+        product_basis_verified=False,
     )
 
 
