@@ -194,3 +194,58 @@ async def product_difference(session: AsyncSession, ctx: MetricContext) -> Diffe
     label = NON_PRODUCT_REVENUE if ctx.product_basis_verified else PRODUCT_ATTRIBUTION_DIFFERENCE
     amount = None if sales is None or product is None else sales - product
     return Difference(label, amount, product, sales)
+
+
+@dataclass(frozen=True)
+class Ranking:
+    """A ranked list (TOPN-1.x). Deliberately has no total: a Top-N list is never presented as
+    adding up to anything (TOPN-1.4)."""
+
+    rows: list[dict[str, Any]]  # rank, the keys, the label, `value`, `siblings`
+    total_count: int  # entries in the full list
+    n: int | None  # the cut-off; None = View All
+
+    @property
+    def is_top_n(self) -> bool:
+        return self.n is not None
+
+
+async def ranking(
+    session: AsyncSession,
+    ctx: MetricContext,
+    metric: str,
+    keys: tuple[str, ...],
+    label: str,
+    *,
+    measure: str = "amount",
+    n: int | None = None,
+) -> Ranking:
+    """The full list, ranked by Σ `measure` (largest first, then label and keys, so ties are
+    stable), of every group of the metric's rows whose first key is known: Unattributed
+    (a NULL key) is never ranked. `n` only adds a LIMIT to that same query (TOPN-1.2).
+    `siblings` is how many groups share the first key (an item sold in two units has 2)."""
+    rows = detail(metric, ctx).subquery()
+    cols = [rows.c[k] for k in keys]
+    name = rows.c[label]
+    value = _sum(rows.c[measure])
+    ranked = (
+        select(
+            func.row_number()
+            .over(order_by=(value.desc().nulls_first(), name, *cols))
+            .label("rank"),
+            *cols,
+            name,
+            value.label("value"),
+            func.count().over().label("total_count"),
+            func.count().over(partition_by=cols[0]).label("siblings"),
+        )
+        .where(cols[0].is_not(None))
+        .group_by(*cols, name)
+        .order_by("rank")
+    )
+    result = await session.execute(ranked if n is None else ranked.limit(n))
+    found = [dict(r) for r in result.mappings()]
+    count = found[0]["total_count"] if found else 0
+    for r in found:
+        del r["total_count"]
+    return Ranking(found, int(count), n)
