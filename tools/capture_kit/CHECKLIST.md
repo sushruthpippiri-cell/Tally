@@ -72,6 +72,11 @@ list also works in TallyPrime's Educational mode.
 - [ ] **Purchase** from Kumar Wholesale with stock (Soap in Boxes, G27), Input GST, 2 Apr 2024.
 - [ ] **Payment** of Office Rent from HDFC Current **with a cost-centre allocation** (Retail
       60% / Online 40%), 31 May 2024.
+- [ ] **Journal** with a **mixed cost-centre split** (D-045a): Dr Office Rent ₹1,000 / Cr HDFC
+      Current ₹1,000, with Office Rent's ₹1,000 split as **Retail Dr ₹1,500** and **Online
+      Cr ₹500**, 2 Jun 2024. If TallyPrime refuses a credit allocation on a debit line, note
+      the exact message in the kit's notes and record Retail ₹600 / Online ₹400 instead. The
+      capture shows how an allocation's direction is exported.
 - [ ] **Journal** touching a bank ledger (e.g. HDFC Current to SBI Current transfer charge),
       1 Jul 2024.
 - [ ] **Contra**: Cash → HDFC Current, 2 Jul 2024.
