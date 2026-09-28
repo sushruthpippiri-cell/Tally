@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P7 (Tally Sync Agent) — **session 1 done (P7.1–P7.4)** 2026-09-27: configuration, DPAPI machine-scope secret store, restricted data directory, TLS/CA-bundle/proxy backend client, CLI (register, set-credential, set-proxy-credentials, status, test-tally), Tally client with SRS 16 error mapping, preflight. D-042 ACCEPTED. CI green (runs 36337268505 `check`, 36337268465 `agent-windows` with the DPAPI and ACL tests running, 36337268452 `capture-kit`). Session 2 (P7.5–P7.7: executor, streaming queue, uploader, progress thread, heartbeat status, backend `as_of`) not started — waits for the owner.
+P7 (Tally Sync Agent) — **session 2 done (P7.5–P7.7)** 2026-09-28: the executor, local queue and uploader, progress thread, service loop and heartbeat status; the owner's session-2 tests (progress on its own timer, streaming memory, dates from the backend) pass and are mutation-checked. D-042 confirmed (Administrators stay in the data-directory ACL). CI: see the Done row "P7 session 2". Session 3 (P7.8–P7.10: mock Tally modes, Windows service and build, install guide, end-to-end suite with the real backend, phase report) not started — waits for the owner.
 
 P6 (lifecycle, deletion detection, hierarchy, Data Quality) — **complete** 2026-09-27. Local suite PASS ([phase-06](test-reports/phase-06.md), 1020 tests, 0 skipped, 91.9% line coverage); CI green (runs 36310356334 `check`, 36310356314 `agent-windows`, 36310356316 `capture-kit`). D-041 ACCEPTED, and D-007 ACCEPTED with the guard floor lowered to 5. Not covered by design: DR-ML-5 (INACTIVE) waits for G29; SYNC-5.3 is P10; SYNC-5.5 reviewed (question 8, D-041); the metric halves of ACC-7.x/8.x are P8. Next: P7 (Sync Agent) — waits for the owner.
 
@@ -22,6 +22,10 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-28 | P7 session 2 | (this commit) | Progress log; CI below. |
+| 2026-09-28 | P7.5/P7.7 executor and service | 7d8d633 | Collections in dependency order under their leases; ALTERID windows (full pulls from 0) or date pages for full-only vouchers and DATE_RANGE; a timed-out window retried once as two halves, a second timeout reported as TALLY_EXPORT_TIMEOUT (AGT-4.3); key lists when due; stock snapshot as of the plan's date; uploads drained before each release and the finish. Progress on its own thread: a Tally answer 3x the lease keeps the command RUNNING (owner 1). A 5,000-voucher window peaks at 1.3x its XML, not 95 MB (owner 2; the parser now feeds XML in 64 KB slices). Dates from the plan while the PC clock says 2031 (owner 5). AC-21, AC-23, AGT-3.2/3.3, AGT-5.4, heartbeat status; six mutations checked. |
+| 2026-09-28 | P7.6 queue and uploader | bea67eb | SQLite (WAL) queue in the restricted data directory: windows staged on disk and committed whole, strict FIFO, backoff 30 s → 15 min with jitter, dead-letter cascade per run and collection, obsolete runs after a lost command, permanent refusals dead-lettered at once, pause on a rotated credential. |
+| 2026-09-28 | P7.5 groundwork | eaa0d2a | Streaming parser (`iter_parse`); the run plan carries `as_of` (today in company time) and `full_pull_from`; the backend refuses a stock snapshot dated after its today. |
 | 2026-09-27 | P7 session 1 | 92f987b | Progress log; CI green on all three workflows. |
 | 2026-09-27 | P7.2 CLI | 8393ab3 | `register` per SRS 4.2 (Tally and our TDL checked first; credential only in the secret store; never registered twice), `set-credential` / `set-proxy-credentials` at hidden prompts, `status`, `test-tally`. |
 | 2026-09-27 | P7.4 preflight | b157839 | The named company, the TDL version bundled with this Agent (D-042 #7), the registered GUID (COMPANY_MISMATCH halts before anything else is asked); closed or renamed → COMPANY_NOT_LOADED. |
