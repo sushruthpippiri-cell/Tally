@@ -44,9 +44,11 @@ async def _client(
     session: AsyncSession, peer: tuple[str, int] = STRANGER, **config: Any
 ) -> AsyncIterator[httpx.AsyncClient]:
     base_url = config.pop("base_url", "http://test")
-    async with client_for(
-        create_app(_config(**config)), session, client=peer, base_url=base_url
-    ) as client:
+    app = create_app(_config(**config))
+    # One fixed instant: a test's requests never straddle a rate-limit window (CLAUDE.md:
+    # tests never depend on the real clock).
+    app.state.rate_limiter._clock = lambda: 1_000_000.0 + 1
+    async with client_for(app, session, client=peer, base_url=base_url) as client:
         yield client
 
 

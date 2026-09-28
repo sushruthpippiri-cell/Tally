@@ -100,6 +100,7 @@ def _rate_key(request: Request, ip: str, config: Settings) -> tuple[str, int]:
 def install_middleware(app: FastAPI, config: Settings) -> None:
     proxies = [ip_network(c, strict=False) for c in config.trusted_proxies]
     limiter = RateLimiter(seconds=config.rate_limit_window_seconds)
+    app.state.rate_limiter = limiter  # tests pin its clock
     prod = config.env == "prod"
 
     @app.middleware("http")
