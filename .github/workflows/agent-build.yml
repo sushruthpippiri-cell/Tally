@@ -19,11 +19,21 @@ jobs:
       - run: uv sync --all-packages --group build
       - run: uv run pytest agent -q
       - run: uv run pyinstaller agent/packaging/tally-agent.spec --noconfirm --distpath dist --workpath build
+      - name: Add the TDL files, install scripts and guide next to the executables
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist\TallyAgent\tdl | Out-Null
+          Copy-Item tdl\TallyAnalytics.tdl, tdl\TA_Minimal.tdl dist\TallyAgent\tdl\
+          Copy-Item agent\packaging\Install-TallyAgent.ps1, agent\packaging\Uninstall-TallyAgent.ps1 dist\TallyAgent\
+          Copy-Item docs\agent-install.md dist\TallyAgent\
       - name: Smoke test the build
         shell: pwsh
         run: |
           .\dist\TallyAgent\tally-agent.exe --help
           if ($LASTEXITCODE -ne 0) { throw "tally-agent.exe --help failed" }
+          foreach ($f in "tally-agent-service.exe", "Install-TallyAgent.ps1", "Uninstall-TallyAgent.ps1", "agent-install.md", "tdl\TallyAnalytics.tdl") {
+            if (-not (Test-Path "dist\TallyAgent\$f")) { throw "missing $f" }
+          }
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path dist\TallyAgent -DestinationPath dist\TallyAgent-windows-x64.zip

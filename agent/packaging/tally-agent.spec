@@ -5,15 +5,10 @@ from pathlib import Path
 
 root = Path(SPECPATH).parents[1]  # the repository
 hidden = ["win32timezone", "tally_agent.winservice"]
-datas = [
-    (str(root / "tdl" / "TallyAnalytics.tdl"), "tdl"),
-    (str(root / "tdl" / "TA_Minimal.tdl"), "tdl"),
-    (str(root / "docs" / "agent-install.md"), "."),
-    (str(root / "agent" / "packaging" / "Install-TallyAgent.ps1"), "."),
-    (str(root / "agent" / "packaging" / "Uninstall-TallyAgent.ps1"), "."),
-]
+# The TDL files, install scripts and guide are copied next to the executables by the
+# agent-build workflow (not bundled: PyInstaller would put them under _internal\).
 
-cli = Analysis([str(root / "agent" / "packaging" / "cli_entry.py")], hiddenimports=hidden, datas=datas)
+cli = Analysis([str(root / "agent" / "packaging" / "cli_entry.py")], hiddenimports=hidden)
 svc = Analysis([str(root / "agent" / "packaging" / "service_entry.py")], hiddenimports=hidden)
 MERGE((cli, "tally-agent", "tally-agent"), (svc, "tally-agent-service", "tally-agent-service"))
 
