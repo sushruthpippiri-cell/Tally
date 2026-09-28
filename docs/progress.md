@@ -3,6 +3,8 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
+P9 (attribution and rankings) — **complete** 2026-09-28. Local suite PASS ([phase-09](test-reports/phase-09.md), 1,252 tests: 1,249 passed, 3 skipped — Windows-only; 89.5% line coverage); CI: see the P9 CI row under Done. D-046 ACCEPTED (returns follow their original's bucket; product rows; units never summed across; the "Non-product" label needs G28 **and** taxable-value mode). D-047 (custom plans for analytics) added as a performance fix. The benchmark at SRS 17.2 size found the dashboard set at 2.6 s over three years once the P9 figures were added; fixed to 1.8 s (below). Next: P10 (reconciliation) — waits for the owner.
+
 P8 (core analytics) — **complete** 2026-09-28. Local suite PASS ([phase-08](test-reports/phase-08.md), 1,204 tests: 1,201 passed, 3 skipped — the Windows-only tests; 89.5% line coverage); CI green (runs 36444202147 `check`, 36444202153 `capture-kit`; `agent-windows` not triggered, last green 36436892986). Decisions D-021, D-044, D-045 ACCEPTED (cash flow per voucher on the Cash/Bank list with the balance invariant; one detail query per metric; expenses as net movement; blank opening = zero, GATE-G16; unavailable openings named). Metrics and rules: [`docs/metrics.md`](metrics.md). Benchmark at SRS 17.2 size below: no query near PERF-1.1, nothing changed. **Pending from the owner:** the G-E captures (now including D-045a's mixed cost-centre split) and the Agent real-machine checklist. Next: P9 (attribution and rankings) — waits for the owner.
 
 P7 (Tally Sync Agent) — **complete, except the real-machine checklist (pending)** 2026-09-28. Local suite PASS ([phase-07](test-reports/phase-07.md), 1,093 tests: 1,090 passed, 3 skipped — the Windows-only tests, which run on the `agent-windows` job; 90.5% line coverage); CI green (report commit: runs 36409095092 `check`, 36409095090 `agent-windows` with the DPAPI/ACL/service tests running, 36409095106 `capture-kit`; build fix 0b10f69: 36410146682 `check`, 36410146644 `agent-windows`). D-043 ACCEPTED (per-Agent rate-limit buckets, 429 never a failure, the Windows service). **Pending:** `docs/agent-windows-checklist.md` on the owner's Windows VM (service as `NT SERVICE\TallyAgent`, encrypt-as-installer/decrypt-as-service, ACLs, real TallyPrime), then again on a real x64 PC before launch (P16.8b). The x64 build for it: `dist/agent-build/TallyAgent-windows-x64.zip` on the owner's Mac (git-ignored; `agent-build` run 36410154837 from 0b10f69, SHA-256 `0556b36e…d4e47ff0`). Next: P8 (core analytics) — waits for the owner.
@@ -24,6 +26,15 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-28 | P9 phase report | (this commit) | [phase-09](test-reports/phase-09.md): 1,249 passed, 3 skipped (Windows-only), fresh DB, `make check` PASS. |
+| 2026-09-28 | P9.6 benchmark, docs | 0206009 | The benchmark dataset gains 94,005 seeded inventory lines (some items sold by the Box); rankings and the product difference are timed; `docs/metrics.md` covers attribution, the return-bucket rule, the label and units. |
+| 2026-09-28 | P9.6 performance fix | 0abeab9 | Found by the benchmark: the 3-year dashboard set had reached 2.6 s. (1) The customer bucket aggregate ran twice over every voucher; now one CTE over origin-type vouchers. (2) The planner (estimating 555 rows for 89k) nested-looped every sales row against the returns' origin buckets; sales rows and return rows are now joined to their buckets separately (UNION ALL). (3) asyncpg's prepared statements let PostgreSQL reuse a generic plan made for another date range (~60% slower): analytics set `plan_cache_mode = force_custom_plan` for the request's transaction (D-047). Top-10 customers over 3 years: 871 → 375 ms; dashboard set 2.6 s → 1.8 s; P8's receivables and payables also dropped (203 → 75, 186 → 60 ms). |
+| 2026-09-28 | P9.5 ranking endpoints | 566fe05 | `GET …/analytics/customers`, `/suppliers`, `/products` (`rank_by=revenue|quantity`, `top_n`, `view_all`): "Top N" or "All", `total_count`, Unattributed apart, the reference total, no Top-N sum and a note saying so; quantity rows carry the unit and `multiple_units`; products carry `product_attributed` and one `difference` label. AC-33, TOPN-1.1, TOPN-1.4, FR-2.4, ACC-VAL-1 (four gate/mode states; the other label's text appears nowhere in the body). |
+| 2026-09-28 | P9.4 rankings | 3b38df4 | `query.ranking`: the full list's query, `n` only adds a LIMIT; `total_count` and the per-item `siblings` come from window functions over the whole list. Tested: Top-N rows == first N of the full list for every N with ties (TOPN-1.2); Unattributed never ranked; quantities per (item, unit), Soap in Nos and Box flagged, never summed. |
+| 2026-09-28 | P9.3 product attribution | c9090ef | `blocks.items`, `metrics/product_revenue.py` (sales lines +, linked credit notes' lines −), `query.product_difference` with one label: "Unattributed / Non-product Sales Revenue" only when G28 passed and taxable-value mode is on (owner). AC-32, ACC-1.8, ACC-1.9, ACC-1.10. |
+| 2026-09-28 | P9.2 supplier attribution | d2be03b | `metrics/supplier_purchases.py`, the mirror (ACC-1.4). |
+| 2026-09-28 | P9.1 customer attribution | 6e0c43b | `blocks.party_bucket`, `returns.note_origins`, `returns.attributed`, `metrics/customer_revenue.py`. AC-30, AC-31, ACC-6.1–6.3; ACC-6.4 over four periods on a mixed dataset (returns against single- and two-customer sales, a note against both, unlinked and cancelled-origin notes), each return's bucket checked directly, and a hypothesis test against a Python model of every bucket. |
+| 2026-09-28 | P9.0 decisions | 973d428 | D-046 ACCEPTED; D-019 customer half superseded; the Phase 9 file updated. |
 | 2026-09-28 | P8 CI | 5647cba | Green: `check` 36444202147 and `capture-kit` 36444202153. `agent-windows` was not triggered (nothing under `agent/`, `shared/` or the lockfile changed in P8 session 2); its last run, 36436892986 on f4e5b63, is green. |
 | 2026-09-28 | P8 phase report | (this commit) | [phase-08](test-reports/phase-08.md): 1,201 passed, 3 skipped (Windows-only), fresh DB, `make check` PASS; hand-added notes list the SRS IDs superseded by D-021 / D-044 #5 / D-039 #5. |
 | 2026-09-28 | P8.10 every metric, docs | 74e84a4 | A registry-wide test: every metric leaves out cancelled, missing and unresolved-ledger vouchers unless asked (ACC-4.5), and a new metric must add its case. `docs/metrics.md`. |
@@ -165,12 +176,35 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
+| 09 | [phase-09.md](test-reports/phase-09.md) | PASS - 1,252 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI: see Done |
 | 08 | [phase-08.md](test-reports/phase-08.md) | PASS - 1,204 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI green: check 36444202147, capture-kit 36444202153 |
 | 04 | [phase-04.md](test-reports/phase-04.md) | PASS on drafts - 804 tests, 0 failed, 0 skipped, 90.0% coverage; CI green: check 36294681749, capture-kit 36294681754, agent-windows 36294681770 |
 | 03 | [phase-03.md](test-reports/phase-03.md) | PASS - 613 tests, 0 failed, 0 skipped, 89.3% coverage; CI run 36107675601 green |
 | 02 | [phase-02.md](test-reports/phase-02.md) | PASS - 416 tests, 0 failed, 1 skipped (no Agent routes until P3), 90.2% coverage; CI run 36103266538 green |
 | 01 | [phase-01.md](test-reports/phase-01.md) | PASS - 183 tests, 0 failed, 0 skipped, 91.4% coverage; CI run 35887137380 green |
 | 00 | [phase-00.md](test-reports/phase-00.md) | PASS - 78 tests, 0 failed, 0 skipped, 83% coverage; CI run 35881605525 green |
+
+## Benchmark (P9, 2026-09-28)
+Same machine and method as P8. The dataset now also has 94,005 inventory lines. The P9 metrics and rankings are included, and the dashboard set adds the top 10 customers, the top 10 products and the product difference. Full plans: [docs/benchmarks/p8-analytics.md](benchmarks/p8-analytics.md) (now "P8, P9").
+
+| | current FY (ms) | 3 years (ms) |
+|---|---|---|
+| customer_revenue total / drill-down | 301 / 586 | 348 / 685 |
+| supplier_purchases total / drill-down | 221 / 423 | 246 / 480 |
+| product_revenue total / drill-down | 74 / 113 | 102 / 133 |
+| top 10 customers | 328 | 375 |
+| top 10 products (revenue / quantity) | 86 / 97 | 121 / 129 |
+| product difference | 274 | 306 |
+| **dashboard set** (P8 figures + top customers, top products, difference) | **1,540** | **1,780** |
+
+**Before the fix, the three-year numbers were:**
+- the dashboard set: 2,623 ms;
+- the top 10 customers: 847 ms (871 ms when run on its own);
+- the customer drill-down: 1,122 ms (1,501 ms when run on its own).
+
+**The causes and fixes** are in the P9.6 performance row above and in D-047. **Still to watch for P16's PERF-VAL-1 run:**
+- the customer figures (~350 ms) do the attribution work on every call;
+- a materialized per-voucher bucket, kept up to date by sync, is the upgrade if 10 concurrent users on the 17.2 hardware need it.
 
 ## Benchmark (P8, 2026-09-28)
 SRS 17.2 dataset size (100,000 vouchers, 500,000 entries, 5,000 ledgers, 10,000 stock items; seed 8) in `tally_bench`, on this Mac (Apple M4, 16 GB, PostgreSQL 16.15 in Docker), one user. **Not PERF-VAL-1 evidence** (PERF-VAL-2): a design check before P9–P14 build on it. Median of 5 after a warm-up, as `tally_app`, through `app.analytics.query` exactly as the API calls it, with G26 treated as passed so return linking runs. "Series" is monthly; for balances the by-ledger breakdown. Full EXPLAIN (ANALYZE, BUFFERS) plans for the 3-year range: [docs/benchmarks/p8-analytics.md](benchmarks/p8-analytics.md).
