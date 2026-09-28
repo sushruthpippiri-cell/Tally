@@ -89,16 +89,22 @@ class BackendClient:
         path: str,
         body: dict[str, Any] | None = None,
         *,
-        rate_limit_retries: int = 0,
+        patience: int = 0,
     ) -> Any:
-        """One request. A 429 raises RateLimited, unless `rate_limit_retries` allows waiting
-        out its Retry-After and trying again (D-043)."""
-        for _ in range(rate_limit_retries):
+        """One request. With `patience`, a 429 (after its Retry-After, D-043) or a brief outage
+        (after 1, 2, 4 ... 16 s) is retried up to that many times before it is raised; a TLS
+        failure never is."""
+        for attempt in range(patience):
             try:
                 return self._call(method, path, body)
             except RateLimited as exc:
                 log.warning("backend_rate_limited", path=path, retry_after=exc.retry_after)
                 time.sleep(exc.retry_after)
+            except TlsVerificationFailed:
+                raise
+            except BackendUnavailable as exc:
+                log.warning("backend_unavailable_retrying", path=path, error=str(exc))
+                time.sleep(min(16.0, 2.0**attempt))
         return self._call(method, path, body)
 
     def _call(self, method: str, path: str, body: dict[str, Any] | None) -> Any:

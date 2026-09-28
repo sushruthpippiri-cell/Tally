@@ -247,7 +247,7 @@ def test_control_calls_wait_out_a_429(tmp_path: Path, fake_backend: Any) -> None
         "POST",
         "/agent/leases/acquire",
         {"sync_run_id": "r", "collection_type": "GROUP"},
-        rate_limit_retries=5,
+        patience=5,
     )
     assert answer["collection_type"] == "GROUP"
     assert time.monotonic() - started >= 1.0  # honoured Retry-After: 1

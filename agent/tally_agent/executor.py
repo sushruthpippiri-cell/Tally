@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from tally_agent.backend_client import BackendClient, BackendError
+from tally_agent.backend_client import BackendClient, BackendError, BackendUnavailable
 from tally_agent.config import AgentSettings
 from tally_agent.preflight import preflight
 from tally_agent.protocol import AgentConfig
@@ -103,10 +103,10 @@ class Executor:
             return Outcome("FAILED", exc.code.value, exc.message)
         try:
             self.plan = self.backend.call(
-                "POST", f"/agent/commands/{command['command_id']}/runs", rate_limit_retries=5
+                "POST", f"/agent/commands/{command['command_id']}/runs", patience=5
             )
-        except BackendError as exc:
-            log.warning("run_not_started", status=exc.status, code=exc.code)
+        except (BackendError, BackendUnavailable) as exc:
+            log.warning("run_not_started", error=str(exc))
             return Outcome(None)
         self.run_id = self.plan["sync_run_id"]
         self.batch_seq = 0
@@ -135,16 +135,19 @@ class Executor:
         except CommandLost:
             self.queue.drop_run(self.run_id, "command lost")
             return Outcome(None)
+        except BackendUnavailable as exc:  # longer than our patience: the lease will lapse
+            log.warning("backend_unreachable_mid_run", error=str(exc))
+            return Outcome(None)
         status = "FAILED" if failure else "COMPLETED"
         try:
             self.backend.call(
                 "POST",
                 f"/agent/commands/{command['command_id']}/runs/{self.run_id}/finish",
                 {"status": status, "problems": self.problems},
-                rate_limit_retries=5,
+                patience=5,
             )
-        except BackendError as exc:
-            log.warning("run_finish_refused", status=exc.status, code=exc.code)
+        except (BackendError, BackendUnavailable) as exc:
+            log.warning("run_finish_refused", error=str(exc))
             return Outcome(None)
         if failure is not None:
             return Outcome("FAILED", failure.code.value, failure.message)
@@ -163,7 +166,7 @@ class Executor:
                 "POST",
                 "/agent/leases/acquire",
                 {"sync_run_id": self.run_id, "collection_type": collection.value},
-                rate_limit_retries=5,
+                patience=5,
             )
         except BackendError as exc:
             if exc.code == "SYNC_LOCKED":  # SYNC-4.2: skip it, note it, carry on
@@ -195,7 +198,7 @@ class Executor:
             "POST",
             "/agent/leases/release",
             {"sync_run_id": self.run_id, "collection_type": collection.value},
-            rate_limit_retries=5,
+            patience=5,
         )
 
     def _date_range(self) -> tuple[date, date]:

@@ -5,6 +5,7 @@ with the backend, store the credential with DPAPI (D-042 #3). Secrets are typed 
 prompt and never printed.
 """
 
+import logging
 from pathlib import Path
 from typing import NoReturn
 
@@ -28,7 +29,8 @@ CA_BUNDLE = typer.Option(None, help="CA certificate(s) your office network uses 
 
 @app.callback()
 def _main() -> None:
-    configure_logging("dev", "WARNING")
+    if not logging.getLogger().handlers:  # unless a host (a service, a test run) already has
+        configure_logging("dev", "WARNING")
 
 
 def _fail(message: str) -> NoReturn:

@@ -141,9 +141,9 @@ class Agent:
         backend = self.backend()
         try:
             try:
-                backend.call("POST", f"/agent/commands/{command_id}/claim", rate_limit_retries=5)
-            except BackendError as exc:  # someone else, expired, or one in progress
-                log.info("command_not_claimed", command_id=command_id, code=exc.code)
+                backend.call("POST", f"/agent/commands/{command_id}/claim", patience=5)
+            except (BackendError, BackendUnavailable) as exc:  # someone else, expired, down
+                log.info("command_not_claimed", command_id=command_id, error=str(exc))
                 return None
             lost = threading.Event()
             self._current_lost = lost
@@ -174,11 +174,9 @@ class Agent:
             if outcome.status == "FAILED":
                 body |= {"error_code": outcome.error_code, "error_message": outcome.message}
             try:
-                backend.call(
-                    "POST", f"/agent/commands/{command_id}/result", body, rate_limit_retries=5
-                )
-            except BackendError as exc:
-                log.warning("result_refused", command_id=command_id, code=exc.code)
+                backend.call("POST", f"/agent/commands/{command_id}/result", body, patience=5)
+            except (BackendError, BackendUnavailable) as exc:
+                log.warning("result_refused", command_id=command_id, error=str(exc))
             return outcome
         finally:
             backend.close()
