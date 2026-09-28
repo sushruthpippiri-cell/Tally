@@ -47,7 +47,7 @@ LATE_ON_THE_15TH = datetime(2026, 3, 15, 18, 28, tzinfo=UTC)
 EARLY_ON_THE_16TH = datetime(2026, 3, 15, 19, 0, tzinfo=UTC)
 
 
-@pytest.mark.req_partial("AC-62")  # the daily series in the API: P8.8
+@pytest.mark.req_partial("AC-62")  # in full through the API: tests/api/test_analytics.py
 @pytest.mark.parametrize("server_zone", ["UTC", "America/New_York", "Pacific/Kiritimati"])
 async def test_a_timestamp_is_grouped_by_the_company_day_whatever_the_server_zone(
     session: AsyncSession, server_zone: str

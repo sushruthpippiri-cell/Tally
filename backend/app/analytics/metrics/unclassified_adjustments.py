@@ -11,6 +11,11 @@ from app.analytics.blocks import VT, E
 from app.analytics.context import MetricContext
 from app.analytics.returns import CREDIT_NOTE, DEBIT_NOTE, UNLINKED
 
+GROUP_BY = {
+    "type": ("adjustment_type", "adjustment_type"),
+    "ledger": ("ledger_id", "ledger_name"),
+}
+
 
 def detail_query(ctx: MetricContext) -> Select[Any]:
     kind = case(

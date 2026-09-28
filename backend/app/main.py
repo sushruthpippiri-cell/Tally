@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from app.api import (
     agent_protocol,
     agents,
+    analytics,
     auth,
     commands,
     companies,
@@ -55,6 +56,7 @@ def create_app(config: Settings | None = None) -> FastAPI:
         sync,
         data_quality,
         masters,
+        analytics,
     ):
         app.include_router(module.router)
     get_logger(__name__).info("app_started", env=config.env)
