@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P8 (core analytics) — **session 1 of 2 done** 2026-09-28: P8.0–P8.4 (P8.2's building blocks landed in P8.1's `blocks.py`). Full suite 1,138 passed, 3 skipped (Windows-only), `make check` green. D-021 ACCEPTED (cash flow = every movement on Cash/Bank-list ledgers, per-voucher net, journals on by default, invariant with the Cash/Bank balance); D-044 ACCEPTED (one detail query per metric, SQL period bucketing in company time, expenses as net movement, blank opening = zero under GATE-G16). **Next session: P8.5–P8.10** (purchases and expenses, cash flow with the invariant tests, balances, the API, `docs/metrics.md`, phase report) — waits for the owner.
+P8 (core analytics) — **complete** 2026-09-28. Local suite PASS ([phase-08](test-reports/phase-08.md), 1,204 tests: 1,201 passed, 3 skipped — the Windows-only tests; 89.5% line coverage); CI: see the P8 CI row under Done. Decisions D-021, D-044, D-045 ACCEPTED (cash flow per voucher on the Cash/Bank list with the balance invariant; one detail query per metric; expenses as net movement; blank opening = zero, GATE-G16; unavailable openings named). Metrics and rules: [`docs/metrics.md`](metrics.md). Benchmark at SRS 17.2 size below: no query near PERF-1.1, nothing changed. **Pending from the owner:** the G-E captures (now including D-045a's mixed cost-centre split) and the Agent real-machine checklist. Next: P9 (attribution and rankings) — waits for the owner.
 
 P7 (Tally Sync Agent) — **complete, except the real-machine checklist (pending)** 2026-09-28. Local suite PASS ([phase-07](test-reports/phase-07.md), 1,093 tests: 1,090 passed, 3 skipped — the Windows-only tests, which run on the `agent-windows` job; 90.5% line coverage); CI green (report commit: runs 36409095092 `check`, 36409095090 `agent-windows` with the DPAPI/ACL/service tests running, 36409095106 `capture-kit`; build fix 0b10f69: 36410146682 `check`, 36410146644 `agent-windows`). D-043 ACCEPTED (per-Agent rate-limit buckets, 429 never a failure, the Windows service). **Pending:** `docs/agent-windows-checklist.md` on the owner's Windows VM (service as `NT SERVICE\TallyAgent`, encrypt-as-installer/decrypt-as-service, ACLs, real TallyPrime), then again on a real x64 PC before launch (P16.8b). The x64 build for it: `dist/agent-build/TallyAgent-windows-x64.zip` on the owner's Mac (git-ignored; `agent-build` run 36410154837 from 0b10f69, SHA-256 `0556b36e…d4e47ff0`). Next: P8 (core analytics) — waits for the owner.
 
@@ -24,6 +24,14 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-28 | P8 phase report | (this commit) | [phase-08](test-reports/phase-08.md): 1,201 passed, 3 skipped (Windows-only), fresh DB, `make check` PASS; hand-added notes list the SRS IDs superseded by D-021 / D-044 #5 / D-039 #5. |
+| 2026-09-28 | P8.10 every metric, docs | 74e84a4 | A registry-wide test: every metric leaves out cancelled, missing and unresolved-ledger vouchers unless asked (ACC-4.5), and a new metric must add its case. `docs/metrics.md`. |
+| 2026-09-28 | P8.8 analytics API | bc40b59 | `GET /companies/{id}/analytics/{metric}` and `/drilldown` for all nine metrics, through `query.py` only; FY-to-date default in company time; `group_by` per metric; balances as amount + Dr/Cr, or unavailable with the ledgers named and a pointer to Data Quality (D-045 #3). Tests: every view of every metric agrees to the paisa (summary = Σ series = Σ breakdown = Σ all drill-down pages); AC-62 in full ("today" and daily grouping at 23:58 IST and 00:30 IST under a UTC+14 database session); money as JSON strings; 422s; another company → 403. |
+| 2026-09-28 | P8 benchmark | 81f3070 | `make bench-data` (seeded 100k vouchers / 500k entries / 5k ledgers / 10k items into `tally_bench`, 12 s) and `make bench-analytics` → [docs/benchmarks/p8-analytics.md](benchmarks/p8-analytics.md). Results in "Benchmark (P8)" below. |
+| 2026-09-28 | P8.6 cash flow | 8193ccc | `metrics/cash_flow.py` per D-021. The invariant (net = change in Cash/Bank position) on a mixed dataset over 7 periods (from books-beginning, a month, a quarter with a contra to an unlisted OD, across the FY boundary, one day, an empty month, everything) and as a hypothesis property over random vouchers, types and statuses. Restricting to Receipt/Payment (the old wording) breaks it. |
+| 2026-09-28 | P8.7 balances | 00735b0 | `blocks.balance_rows` (books-beginning opening row per ledger + entries since `books_from`); `cash_bank_position`, `receivables`, `payables`, `ledger_balances` (income/expense = period movement). A NULL opening makes totals and breakdowns unavailable; `query.unavailable` names the ledgers. AC-38 computed part, two-year carry, ACC-9.2/9.3/9.4/9.6. |
+| 2026-09-28 | P8.5 purchases, expenses | e1f229f | `returns.gross_less_returns` shared by sales and purchases; ACC-1.2 in one test; expenses as net movement at cost-centre grain with a "(No cost centre)" remainder: a crediting journal and a refund reduce it, a reclassification moves only the breakdown. |
+| 2026-09-28 | P8 D-045 | 4fca1e8 | D-045 ACCEPTED; capture-kit CHECKLIST gains a Journal with a mixed (Dr and Cr) cost-centre split (D-045a); Phase 8 file's ACC-9.1 bullet replaced. |
 | 2026-09-28 | P8.4 Total Sales Revenue | 968517f | `metrics/sales.py`: CREDIT entries on Sales-class ledgers in SALES-base vouchers, minus linked credit notes; tax only when taxable-value mode is off. AC-26, 28, 29, 35, 36 and ACC-1.1 (every clause in one test); hypothesis property (random balanced vouchers with noise on non-class ledgers: total = Σ sales credits). Five mutations of the rule each caught. |
 | 2026-09-28 | P8.3 returns | a06cbbb | `analytics/returns.py`: a note is linked only via AGST_REF = a NEW_REF (same ledger and reference) from an ACTIVE SALES/PURCHASE voucher, and only once G26 passes (ACC-5.1, 5.2, 5.5). `metrics/unclassified_adjustments.py` (ACC-5.3) and Data Quality check `unlinked_notes`. Four mutations of the link rule each caught. |
 | 2026-09-28 | P8.1 architecture (+P8.2) | 0822b57 | `app/analytics/`: `context.py` (filter, `MetricContext` from `CompanyContext`, G26), `classification.py` (allow-lists → anchor ids, customer/supplier), `blocks.py` (entries of the filter's statuses and dates), `query.py` (the only caller of `detail_query`: total, series, breakdown, drilldown; `bucket` in SQL, `timezone(company_tz, ts)`, financial quarters). Guards: no `amount_raw` under analytics/exports/reconciliation/anomaly (AC-34 half); one public `detail_query` per metric module, no other `select()`, no async; money tables imported only by approved modules; every metric module registered. Each guard is also run against bad source. SQL buckets equal Python's `financial_quarter_of` for every day of 2024–2026 under four FY starts; AC-62 SQL half under UTC, New York and Kiritimati session zones. |
@@ -156,11 +164,41 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
+| 08 | [phase-08.md](test-reports/phase-08.md) | PASS - 1,204 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI: see Done |
 | 04 | [phase-04.md](test-reports/phase-04.md) | PASS on drafts - 804 tests, 0 failed, 0 skipped, 90.0% coverage; CI green: check 36294681749, capture-kit 36294681754, agent-windows 36294681770 |
 | 03 | [phase-03.md](test-reports/phase-03.md) | PASS - 613 tests, 0 failed, 0 skipped, 89.3% coverage; CI run 36107675601 green |
 | 02 | [phase-02.md](test-reports/phase-02.md) | PASS - 416 tests, 0 failed, 1 skipped (no Agent routes until P3), 90.2% coverage; CI run 36103266538 green |
 | 01 | [phase-01.md](test-reports/phase-01.md) | PASS - 183 tests, 0 failed, 0 skipped, 91.4% coverage; CI run 35887137380 green |
 | 00 | [phase-00.md](test-reports/phase-00.md) | PASS - 78 tests, 0 failed, 0 skipped, 83% coverage; CI run 35881605525 green |
+
+## Benchmark (P8, 2026-09-28)
+SRS 17.2 dataset size (100,000 vouchers, 500,000 entries, 5,000 ledgers, 10,000 stock items; seed 8) in `tally_bench`, on this Mac (Apple M4, 16 GB, PostgreSQL 16.15 in Docker), one user. **Not PERF-VAL-1 evidence** (PERF-VAL-2): a design check before P9–P14 build on it. Median of 5 after a warm-up, as `tally_app`, through `app.analytics.query` exactly as the API calls it, with G26 treated as passed so return linking runs. "Series" is monthly; for balances the by-ledger breakdown. Full EXPLAIN (ANALYZE, BUFFERS) plans for the 3-year range: [docs/benchmarks/p8-analytics.md](benchmarks/p8-analytics.md).
+
+| Metric | total FY / 3y (ms) | series FY / 3y | first drill-down page (50) FY / 3y |
+|---|---|---|---|
+| sales | 149 / 216 | 150 / 237 | 291 / 510 |
+| purchases | 139 / 153 | 141 / 160 | 279 / 331 |
+| expenses | 49 / 102 | 52 / 119 | 97 / 198 |
+| cash_flow | 51 / 67 | 55 / 72 | 107 / 132 |
+| cash_bank_position | 53 / 54 | 56 / 57 | 106 / 104 |
+| receivables | 75 / 192 | 107 / 234 | 145 / 384 |
+| payables | 184 / 187 | 194 / 195 | 367 / 369 |
+| ledger_balances | 230 / 431 | 387 / 507 | 460 / 848 |
+| unclassified_adjustments | 309 / 293 | 316 / 296 | 662 / 577 |
+| **Dashboard summary** (sales total + series, purchases, expenses, cash-flow total + series, the three positions) | **905 / 1,279** against PERF-1.1's 3,000 | | |
+
+**Condensed plans (3-year totals, from the EXPLAIN output):**
+- sales 177 ms: a sequential scan of `voucher_entries` (500k rows; 280k kept by direction), a hash join to ledgers (90k in class), index lookups into `vouchers` by primary key, and a hashed subplan for linked credit notes (a parallel scan of `bill_allocations` for AGST_REF, then an index probe on `(company_id, ledger_id, reference_name)` per note).
+- purchases 178 ms: the same shape.
+- expenses 93 ms: parallel sequential scans of entries and vouchers; two scans of `cost_centre_allocations` (the parts and the remainder).
+- cash_flow 72 ms and cash_bank_position 65 ms: index scan `ix_voucher_entries_company_id_ledger_id` (the list has 20 ledgers), then primary-key lookups into vouchers; openings by sequential scan (4,304 rows).
+- receivables 106 ms and payables 82 ms: sequential scans of entries and vouchers (3,000 / 1,200 party ledgers make the index less useful than a scan).
+- ledger_balances 409 ms: both halves; every ledger.
+- unclassified_adjustments 350 ms: the linked-note subplan twice (credit and debit notes).
+
+**Decision:** nothing is near 3 s. The slowest call is 848 ms: the 3-year ledger-balances first drill-down page, where the count and the sort cover every entry. It is not a dashboard call. The whole dashboard set is 1.3 s over 3 years and 0.9 s for the current FY, so **no index or query change was made**. Watch items for P16's PERF-VAL-1 run (10 concurrent users, 4 vCPU managed PostgreSQL):
+- the drill-down counts every row: consider an estimated count or keyset paging if needed;
+- the sales/purchases row estimates are off (558 estimated vs 89k actual). The plans are still sound, but extended statistics on `(accounting_direction, ledger_id)` are the first thing to try if a plan flips.
 
 ## Environment (recorded 2026-09-23, macOS arm64)
 | Tool | Version |
