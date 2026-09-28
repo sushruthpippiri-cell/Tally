@@ -356,8 +356,8 @@ async def _sync_held_back(session: AsyncSession, ctx: CompanyContext) -> Select[
 
 
 async def _ledgers_without_opening(session: AsyncSession, ctx: CompanyContext) -> Select[Any]:
-    """Balance-sheet ledgers with no books-beginning opening row (D-039 #5). GATE-G16: an
-    empty opening in the export may simply mean zero."""
+    """Balance-sheet ledgers with no books-beginning opening row (D-039 #5): the export had no
+    opening field at all. GATE-G16: a blank one is stored as zero (D-044 #6)."""
     books_from = select(Company.books_from).where(Company.company_id == ctx.company_id)
     anchor = aliased(Group)
     return (
@@ -485,8 +485,9 @@ for _check in (
         "ledgers_without_opening_balance",
         "Balance-sheet ledgers with no opening balance",
         "INFO",
-        "No opening balance was received for these ledgers. Until the opening-balance gate "
-        "(G16) passes this may simply mean it is zero.",
+        "No opening balance was received for these ledgers, so their balances show "
+        '"opening balance unavailable". Sync them again; if it persists, check that the '
+        "TDL loaded in TallyPrime is this version.",
         _ledgers_without_opening,
     ),
 ):
