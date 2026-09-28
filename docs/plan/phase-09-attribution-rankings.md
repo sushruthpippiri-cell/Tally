@@ -3,7 +3,7 @@
 **Size:** M · **Depends on:** P8
 **SRS:** 8.5, 8.6, 8.11, 8.12, 8.13
 **Requirements:** ACC-6.1–6.4, ACC-1.4, ACC-1.8–1.10, ACC-VAL-1, TOPN-1.1–1.4, FR-2.4
-**Acceptance:** AC-30, AC-31, AC-32, AC-33 · **Gates:** G27 (quantities), G28 (label) · **Decisions:** D-019
+**Acceptance:** AC-30, AC-31, AC-32, AC-33 · **Gates:** G27 (quantities), G28 (label) · **Decisions:** D-019 (customer half superseded), D-046
 
 ## Goal
 Honest attribution: revenue is assigned to a customer or product only when the data proves it, the remainder is shown under the correct label, and rankings never pretend to add up to totals.
@@ -12,7 +12,7 @@ Honest attribution: revenue is assigned to a customer or product only when the d
 
 ### P9.1 Customer attribution — `metrics/customer_revenue.py` (ACC-6.1–6.4)
 - For each qualifying SALES voucher, count distinct customer ledgers (Sundry Debtors class) among its entries: exactly one → that customer; zero (cash sale) or more than one → Unattributed Customer Revenue. Never split by guesswork (ACC-6.3).
-- Detail rows = the Total Sales detail rows (P8.4) joined with the voucher's `customer_id` or NULL. Linked returns follow D-019.
+- Detail rows = the Total Sales detail rows (`returns.gross_less_returns`) plus the bucket (`returns.attributed`). A linked return takes its **original sale's** bucket (D-046 #1).
 - Because the rows are identical, Σ customer-attributed + unattributed = Total Sales Revenue for the same period and filters (ACC-6.4) holds by construction — and is still tested.
 
 ### P9.2 Supplier equivalents (ACC-1.4)
@@ -20,7 +20,7 @@ Same pattern with Purchase Value and Sundry Creditors.
 
 ### P9.3 Product attribution — `metrics/product_revenue.py` (ACC-1.8–1.10, ACC-VAL-1)
 - Product-attributed Revenue = Σ `voucher_items.amount` on vouchers qualifying under ACC-1.1, minus linked-return items (D-019).
-- Difference = Total Sales Revenue − Product-attributed Revenue. `difference_label` = "Product Attribution Difference" unless gate G28 is PASSED, then "Unattributed / Non-product Sales Revenue". The API returns exactly one label field; there is no code path that returns both (ACC-VAL-1).
+- Difference = Total Sales Revenue − Product-attributed Revenue (`query.product_difference`). Label "Unattributed / Non-product Sales Revenue" only when G28 is PASSED **and** taxable-value mode is on (D-046 #5); otherwise "Product Attribution Difference". The API returns exactly one label field; there is no code path that returns both (ACC-VAL-1).
 - Difference drill-down (FR-DD-4, built in P14) = per voucher: voucher sales total − voucher item total, non-zero rows only.
 
 ### P9.4 Top-N — `app/analytics/ranking.py` (TOPN-1.x)
@@ -29,7 +29,7 @@ Same pattern with Purchase Value and Sundry Creditors.
 ### P9.5 Customer and product endpoints (FR-2.4)
 - `GET /analytics/customers`: ranked by customer-attributed revenue; the Unattributed line is shown separately, never ranked among customers.
 - `GET /analytics/suppliers`.
-- `GET /analytics/products`: ranked by product-attributed revenue and, with `rank_by=quantity`, by quantity sold. Quantities use base-unit conversion when G27 passed; otherwise raw quantities with each item's multi-unit flag (hook for P12).
+- `GET /analytics/products`: ranked by product-attributed revenue and, with `rank_by=quantity`, by quantity sold. Quantities at (item, unit) grain with the unit beside each and a multi-unit flag (D-046 #4); base-unit conversion is P12 (G27).
 
 ### P9.6 Tests
 - AC-30: single-customer Sales voucher ₹50,000 → ₹50,000 to that customer.

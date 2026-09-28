@@ -148,7 +148,7 @@ Scheduled jobs take a PostgreSQL advisory lock so multiple backend replicas neve
 ### D-018 Frontend stack additions — ACCEPTED
 TypeScript (strict), Vite, React Router, TanStack Query, openapi-typescript, Vitest + Testing Library, Playwright. (SRS 21 fixes React, Tailwind, Recharts.)
 
-### D-019 Returns follow their own party and items — PROPOSED
+### D-019 Returns follow their own party and items — SUPERSEDED in part by D-046 (customer half); product half ACCEPTED as D-046 #2
 A linked Sales Return is attributed to the customer on the credit note (same one-customer rule as ACC-6.1) and its inventory lines reduce product revenue and quantity. Keeps ACC-6.4 and FR-STK-6 consistent.
 
 ### D-020 Voucher dates are DATEs — ACCEPTED
@@ -424,4 +424,13 @@ How ours compares:
 | 2 | **Metric grains.** `purchases` mirrors `sales`. `expenses` has one row per cost-centre allocation (plus the remainder). `cash_flow` has one row per voucher: the net of its Cash/Bank-list entries, with `flow` INFLOW/OUTFLOW. The P8 file's `balances` is four metrics, `cash_bank_position`, `receivables`, `payables` and `ledger_balances`, built on one block: an opening row per ledger (books-beginning, D-039 #5) plus the ACTIVE entries from `books_from` to D. Balance metrics have no period series | One detail query per metric (D-044 #1) at the grain each breakdown needs. |
 | 3 | **"Opening balance unavailable" propagates.** A ledger with no opening row gives an opening row with a NULL amount; any total or breakdown that includes a NULL is unavailable, never a partial sum (ACC-9.6). **The response names the ledgers without an opening** (up to 20, with the count and a pointer to the Data Quality check "Balance-sheet ledgers with no opening balance") | Owner: one ledger missing its opening must not make Cash & Bank or Receivables vanish without saying why. |
 | 4 | ACC-1.5, 1.6, 1.7, 3.3 and 3.4 are superseded as worded (D-044 #5, D-021). Tests of the owner's rules tag them `req_partial` with a "superseded" comment, and the phase report lists them | Traceability must not claim the SRS wording is implemented. |
+
+### D-046 Attribution of returns, product rows, units, the difference label — ACCEPTED (product owner, 2026-09-28)
+| # | Choice | Why |
+|---|---|---|
+| 1 | **A linked return is attributed to the bucket its original sale was counted in**: that customer, or Unattributed Customer Revenue. Suppliers mirror it. The original is the ACTIVE SALES (PURCHASE) voucher whose NEW_REF the note's AGST_REF names (G26). A note linked to originals in **different** buckets goes to Unattributed; it is never split. Supersedes D-019's "the customer on the credit note" | Owner: ACC-6.4 must hold with returns, and a return must come off the bucket its sale went into. |
+| 2 | A linked credit note's inventory lines reduce product revenue and quantity (D-019's product half) | Keeps product revenue on the same return treatment as Total Sales (ACC-1.9). |
+| 3 | Product rows use `voucher_items.amount` (stored absolute): + on ACTIVE SALES-base vouchers, − on linked credit notes; quantity carries the same sign | ACC-1.8. |
+| 4 | **Quantities are never summed across units.** Quantity rankings are at (item, unit) grain; every quantity carries its unit; an item sold in more than one unit in the period is flagged on each of its rows, and the response says quantities are in each item's own unit. Base-unit conversion (FR-STK-9) waits for G27 and P12 (the conversion factor is not stored yet) | Owner: don't silently rank unlike units as if comparable (FR-STK-10). |
+| 5 | **The difference label.** "Unattributed / Non-product Sales Revenue" only when gate G28 has passed **and** `analytics.taxable_value_mode` is on; otherwise "Product Attribution Difference". Exactly one label is ever returned (ACC-VAL-1) | Owner: inventory-line amounts are before tax, so with taxable-value mode off Total Sales includes tax and the difference would be mostly tax: not the same basis (ACC-1.9). |
 
