@@ -22,6 +22,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-28 | CI flake fix | 1e58d30 | Run 36412736302 failed: the forged-token rate-limit test's 101 requests straddled a real one-minute window (the limiter ran on the real monotonic clock). The middleware tests now pin the limiter's clock (`app.state.rate_limiter`); green again in run 36414645512. |
 | 2026-09-28 | P7 agent build | 0b10f69 | `agent-build` run 36410154837 (x64, windows-latest): `TallyAgent-windows-x64.zip` with `tally-agent.exe`, `tally-agent-service.exe`, `tdl\`, the install scripts and guide at the top level (the first build had put them under `_internal\`; fixed and smoke-tested). Downloaded to `dist/agent-build/`. |
 | 2026-09-28 | P7 phase report | 7bc6de2 | [phase-07](test-reports/phase-07.md): 1,090 passed, 3 skipped (Windows-only, run on `agent-windows`), fresh DB, `make check` PASS. |
 | 2026-09-28 | P7.10 end-to-end | cef0ff4, cdfbd38 | Real Agent, real backend (uvicorn subprocess on the test clock), mock TallyPrime: register → FULL twice (AC-01) → edit (AC-02, old and new audited) → delete (AC-04, in Data Quality); backend SIGKILLed mid-upload and restarted: nothing lost or duplicated; the owner's drain test: 200 queued batches through the Agent's own bucket (100 per 5 s) with 429s, none dead-lettered, anonymous traffic from the same IP untouched (mutation-checked). Control calls ride out brief outages. |
