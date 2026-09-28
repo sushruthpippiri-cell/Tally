@@ -15,6 +15,11 @@ DAY = date(2025, 8, 14)
 # metric -> (voucher type, entries of one contributing voucher, the classified ledger in it)
 CASES: dict[str, tuple[str, list[Entry], str]] = {
     "sales": ("Sales", [("Customer A", "DEBIT", "100"), ("Sales", "CREDIT", "100")], "Sales"),
+    "customer_revenue": (
+        "Sales",
+        [("Customer A", "DEBIT", "100"), ("Sales", "CREDIT", "100")],
+        "Sales",
+    ),
     "purchases": (
         "Purchase",
         [("Purchases", "DEBIT", "100"), ("Supplier S", "CREDIT", "100")],

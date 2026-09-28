@@ -9,10 +9,11 @@ note is linked and every note is unclassified (ACC-5.5).
 import uuid
 from typing import Any
 
-from sqlalchemy import ColumnElement, Select, and_, case, exists, false, or_, select
+from sqlalchemy import ColumnElement, Select, and_, case, false, func, or_, select
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import aliased
 
-from app.analytics.blocks import VT, E, V, entries, in_class
+from app.analytics.blocks import VT, E, L, V, entries, in_class, party_bucket
 from app.analytics.context import MetricContext
 from app.models.enums import (
     AccountingDirection,
@@ -27,16 +28,29 @@ ORIGIN = {CREDIT_NOTE: BaseVoucherType.SALES, DEBIT_NOTE: BaseVoucherType.PURCHA
 UNLINKED = {CREDIT_NOTE: "UNLINKED_CREDIT_NOTE", DEBIT_NOTE: "UNLINKED_DEBIT_NOTE"}  # ACC-5.3
 
 
-def linked_notes(
-    company_id: uuid.UUID, linkable: bool, note: BaseVoucherType
-) -> Select[tuple[uuid.UUID]]:
-    """Voucher ids of the notes of this kind that are linked (ACC-5.1, 5.2)."""
+def note_origins(company_id: uuid.UUID, linkable: bool, note: BaseVoucherType) -> Select[Any]:
+    """(note_id, origin_id): each note of this kind and the original voucher it is linked to,
+    through an AGST_REF naming the same `(ledger, reference)` as a NEW_REF on an ACTIVE SALES
+    (PURCHASE) voucher (ACC-5.1, 5.2). Empty until gate G26 passes (ACC-5.5)."""
     if not linkable:  # GATE-G26
-        return select(V.voucher_id).where(false())
+        return select(V.voucher_id.label("note_id"), V.voucher_id.label("origin_id")).where(false())
     agst, ref = aliased(BillAllocation), aliased(BillAllocation)
     ref_entry, ref_voucher, ref_type = aliased(E), aliased(V), aliased(VT)
-    original_bill = (
-        select(ref.id)
+    return (
+        select(V.voucher_id.label("note_id"), ref_voucher.voucher_id.label("origin_id"))
+        .select_from(agst)
+        .join(E, and_(E.company_id == agst.company_id, E.voucher_entry_id == agst.voucher_entry_id))
+        .join(V, and_(V.company_id == E.company_id, V.voucher_id == E.voucher_id))
+        .join(VT, and_(VT.company_id == V.company_id, VT.voucher_type_id == V.voucher_type_id))
+        .join(
+            ref,
+            and_(
+                ref.company_id == agst.company_id,
+                ref.ledger_id == agst.ledger_id,
+                ref.reference_name == agst.reference_name,
+                ref.allocation_type == AllocationType.NEW_REF,
+            ),
+        )
         .join(
             ref_entry,
             and_(
@@ -59,28 +73,22 @@ def linked_notes(
             ),
         )
         .where(
-            ref.company_id == company_id,
-            ref.allocation_type == AllocationType.NEW_REF,
-            ref.ledger_id == agst.ledger_id,
-            ref.reference_name == agst.reference_name,
-            ref_voucher.status == VoucherStatus.ACTIVE,
-            ref_type.base_voucher_type == ORIGIN[note],
-        )
-    )
-    return (
-        select(V.voucher_id)
-        .select_from(agst)
-        .join(E, and_(E.company_id == agst.company_id, E.voucher_entry_id == agst.voucher_entry_id))
-        .join(V, and_(V.company_id == E.company_id, V.voucher_id == E.voucher_id))
-        .join(VT, and_(VT.company_id == V.company_id, VT.voucher_type_id == V.voucher_type_id))
-        .where(
             agst.company_id == company_id,
             agst.allocation_type == AllocationType.AGST_REF,
             VT.base_voucher_type == note,
-            exists(original_bill),
+            ref_voucher.status == VoucherStatus.ACTIVE,
+            ref_type.base_voucher_type == ORIGIN[note],
         )
         .distinct()
     )
+
+
+def linked_notes(
+    company_id: uuid.UUID, linkable: bool, note: BaseVoucherType
+) -> Select[tuple[uuid.UUID]]:
+    """Voucher ids of the notes of this kind that are linked (ACC-5.1, 5.2)."""
+    origins = note_origins(company_id, linkable, note).subquery()
+    return select(origins.c.note_id).distinct()
 
 
 def return_entries(ctx: MetricContext, note: BaseVoucherType) -> ColumnElement[bool]:
@@ -119,3 +127,38 @@ def gross_less_returns(ctx: MetricContext, note: BaseVoucherType) -> Select[Any]
     reversed_ = and_(return_entries(ctx, note), is_linked(ctx, note))
     amount = case((VT.base_voucher_type == origin, E.amount_absolute), else_=-E.amount_absolute)
     return entries(ctx, amount).where(or_(original, reversed_))
+
+
+def attributed(ctx: MetricContext, note: BaseVoucherType) -> Select[Any]:
+    """The rows of `gross_less_returns`, each with its party bucket (ACC-6.1-6.4, ACC-1.4):
+    `party_id` / `party_name`, or NULL for Unattributed. A sale or purchase is attributed to
+    the one customer (supplier) among its entries, else Unattributed. A linked return takes
+    its original's bucket; a note whose originals are in different buckets is Unattributed,
+    never split (D-046 #1). The rows are exactly those of sales (purchases), so the buckets
+    always total the metric."""
+    party = ctx.classes.customer if note is CREDIT_NOTE else ctx.classes.supplier
+    rows = gross_less_returns(ctx, note).subquery()
+    bucket = party_bucket(ctx, party).subquery()
+    origins = note_origins(ctx.company_id, ctx.returns_linkable, note).subquery()
+    theirs = aliased(bucket)
+    agreed = func.array_agg(theirs.c.party_id.distinct(), type_=ARRAY(UUID(as_uuid=True)))
+    origin_bucket = (
+        select(
+            origins.c.note_id,
+            case((func.cardinality(agreed) == 1, agreed[1])).label("party_id"),
+        )
+        .outerjoin(theirs, theirs.c.voucher_id == origins.c.origin_id)
+        .group_by(origins.c.note_id)
+        .subquery()
+    )
+    party_id = case(
+        (rows.c.base_voucher_type == ORIGIN[note], bucket.c.party_id),
+        else_=origin_bucket.c.party_id,
+    )
+    ledger = aliased(L)
+    return (
+        select(rows, party_id.label("party_id"), ledger.name.label("party_name"))
+        .outerjoin(bucket, bucket.c.voucher_id == rows.c.voucher_id)
+        .outerjoin(origin_bucket, origin_bucket.c.note_id == rows.c.voucher_id)
+        .outerjoin(ledger, and_(ledger.company_id == ctx.company_id, ledger.ledger_id == party_id))
+    )

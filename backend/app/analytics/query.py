@@ -29,6 +29,7 @@ from app.analytics.context import MetricContext
 from app.analytics.metrics import (
     cash_bank_position,
     cash_flow,
+    customer_revenue,
     expenses,
     ledger_balances,
     payables,
@@ -41,6 +42,7 @@ from app.core.periods import Granularity, period_key
 
 METRICS: dict[str, ModuleType] = {
     "sales": sales,
+    "customer_revenue": customer_revenue,
     "purchases": purchases,
     "expenses": expenses,
     "cash_flow": cash_flow,

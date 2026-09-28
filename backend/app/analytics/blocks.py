@@ -18,12 +18,13 @@ from sqlalchemy import (
     case,
     cast,
     false,
+    func,
     literal,
     null,
     select,
     union_all,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.analytics.context import MetricContext
@@ -124,3 +125,19 @@ def balance_rows(ctx: MetricContext, ledgers: ColumnElement[bool]) -> Select[Any
     moved = entries(ctx, E.amount_signed, since=ctx.books_from or date.min).where(ledgers)
     rows = union_all(openings(ctx, ledgers), moved).subquery()
     return select(rows)
+
+
+def party_bucket(ctx: MetricContext, party: Iterable[uuid.UUID]) -> Select[Any]:
+    """(voucher_id, party_id) for every voucher with an entry on a ledger in `party` (the
+    customer or supplier class): the one such ledger, or NULL when there are several
+    (ACC-6.3). A voucher with none has no row, which also means Unattributed (ACC-6.2)."""
+    found = func.array_agg(E.ledger_id.distinct(), type_=ARRAY(UUID(as_uuid=True)))
+    return (
+        select(
+            E.voucher_id,
+            case((func.cardinality(found) == 1, found[1])).label("party_id"),
+        )
+        .join(L, and_(L.company_id == E.company_id, L.ledger_id == E.ledger_id))
+        .where(E.company_id == ctx.company_id, in_class(party))
+        .group_by(E.voucher_id)
+    )
