@@ -199,8 +199,7 @@ FIXTURE = {
 }  # fmt: skip
 
 
-@pytest.mark.req("AC-01")
-@pytest.mark.req_partial("AC-02", "AC-04")  # AC-02/04 fully: with the backend tests they cite
+@pytest.mark.req("AC-01", "AC-02", "AC-04")
 async def test_register_sync_edit_and_delete_end_to_end(
     committed: Factory, start_server: Any, tally: tuple[MockConfig, int], tmp_path: Path
 ) -> None:
@@ -232,10 +231,14 @@ async def test_register_sync_edit_and_delete_end_to_end(
                     VoucherEntry.voucher_id == voucher.voucher_id
                 )
             )
-            modified = await s.scalar(
-                select(func.count()).where(AuditLog.action == "VOUCHER_MODIFIED")
+            [audit] = (
+                (await s.execute(select(AuditLog).where(AuditLog.action == "VOUCHER_MODIFIED")))
+                .scalars()
+                .all()
             )
-        assert (voucher.alter_id, debit, modified) == (edited.alter_id, Decimal("2360.00"), 1)
+        assert (voucher.alter_id, debit) == (edited.alter_id, Decimal("2360.00"))
+        assert Decimal(audit.before_value["total"]) == Decimal("1180")  # old and new, audited
+        assert Decimal(audit.after_value["total"]) == Decimal("2360")
 
         # AC-04: deleted in Tally; the key list after the next INCREMENTAL marks it missing.
         delete(mock.data, "TA_Vouchers", "v-5")
@@ -245,6 +248,12 @@ async def test_register_sync_edit_and_delete_end_to_end(
             status = await s.scalar(select(Voucher.status).where(Voucher.tally_guid == "v-5"))
         assert status == "MISSING_IN_TALLY"
         assert (await _counts(committed))["vouchers"] == 12  # the row is kept
+        listed = httpx.get(
+            f"{server.url}/companies/{company.company_id}/data-quality/missing_vouchers",
+            headers=auth_header(owner),
+            trust_env=False,
+        ).json()["items"]
+        assert [item["tally_guid"] for item in listed] == ["v-5"]  # in the Data Quality view
     finally:
         uploading.close()
 
