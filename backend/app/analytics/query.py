@@ -26,13 +26,26 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analytics.context import MetricContext
-from app.analytics.metrics import expenses, purchases, sales, unclassified_adjustments
+from app.analytics.metrics import (
+    cash_bank_position,
+    expenses,
+    ledger_balances,
+    payables,
+    purchases,
+    receivables,
+    sales,
+    unclassified_adjustments,
+)
 from app.core.periods import Granularity, period_key
 
 METRICS: dict[str, ModuleType] = {
     "sales": sales,
     "purchases": purchases,
     "expenses": expenses,
+    "cash_bank_position": cash_bank_position,
+    "receivables": receivables,
+    "payables": payables,
+    "ledger_balances": ledger_balances,
     "unclassified_adjustments": unclassified_adjustments,
 }
 
@@ -66,17 +79,41 @@ def bucket(
     return func.make_date(start // 12, start % 12 + 1, fy.day, type_=Date)
 
 
+def _sum(amount: ColumnElement[Any]) -> ColumnElement[Any]:
+    """Σ amount, or NULL if any row's amount is NULL: a balance with an unknown opening is
+    "opening balance unavailable", never a partial sum (ACC-9.6, D-045 #3)."""
+    return case(
+        (func.count() > func.count(amount), None),
+        else_=func.coalesce(func.sum(amount), 0),
+    )
+
+
 @dataclass(frozen=True)
 class Point:
     period: str  # label, as app.core.periods.period_key
     start: date
-    amount: Decimal
+    amount: Decimal | None
 
 
-async def total(session: AsyncSession, ctx: MetricContext, metric: str) -> Decimal:
+async def total(session: AsyncSession, ctx: MetricContext, metric: str) -> Decimal | None:
+    """The figure; None when it is unavailable (see `unavailable`)."""
     rows = detail(metric, ctx).subquery()
-    value = await session.scalar(select(func.coalesce(func.sum(rows.c.amount), 0)))
-    return Decimal(value or 0)
+    return await session.scalar(select(_sum(rows.c.amount)))
+
+
+async def unavailable(
+    session: AsyncSession, ctx: MetricContext, metric: str, limit: int = 20
+) -> tuple[int, list[str]]:
+    """How many ledgers make the figure unavailable (no opening row), and the first names
+    (D-045 #3)."""
+    rows = detail(metric, ctx).subquery()
+    missing = select(rows.c.ledger_id, rows.c.ledger_name).where(rows.c.amount.is_(None)).distinct()
+    found = missing.subquery()
+    count = await session.scalar(select(func.count()).select_from(found))
+    names = await session.scalars(
+        select(found.c.ledger_name).order_by(found.c.ledger_name).limit(limit)
+    )
+    return int(count or 0), list(names)
 
 
 async def series(
@@ -86,7 +123,7 @@ async def series(
     rows = detail(metric, ctx).subquery()
     start = bucket(rows.c.voucher_date, granularity, ctx).label("start")
     result = await session.execute(
-        select(start, func.sum(rows.c.amount)).group_by(start).order_by(start)
+        select(start, _sum(rows.c.amount)).group_by(start).order_by(start)
     )
     return [
         Point(period_key(s, granularity, ctx.fy_start, ctx.quarter_mode), s, amount)
@@ -96,13 +133,14 @@ async def series(
 
 async def breakdown(
     session: AsyncSession, ctx: MetricContext, metric: str, key: str, label: str
-) -> list[tuple[Any, Any, Decimal]]:
-    """(key, label, amount) per value of a detail column, largest first."""
+) -> list[tuple[Any, Any, Decimal | None]]:
+    """(key, label, amount) per value of a detail column, largest first; an unavailable
+    amount (None) first of all."""
     rows = detail(metric, ctx).subquery()
     k, name = rows.c[key], rows.c[label]
-    amount = func.sum(rows.c.amount)
+    amount = _sum(rows.c.amount)
     result = await session.execute(
-        select(k, name, amount).group_by(k, name).order_by(amount.desc(), name, k)
+        select(k, name, amount).group_by(k, name).order_by(amount.desc().nulls_first(), name, k)
     )
     return list(result.tuples())
 

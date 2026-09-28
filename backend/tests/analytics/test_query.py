@@ -26,6 +26,7 @@ def _ctx(fy_start: date = date(2025, 4, 1), mode: QuarterMode = "financial") -> 
         filter=AnalyticsFilter(date(2025, 4, 1), date(2026, 3, 31)),
         classes=Classes(none, none, none, none, none, none, none),
         fy_start=fy_start,
+        books_from=None,
         company_timezone="Asia/Kolkata",
         quarter_mode=mode,
         taxable_value_mode=True,

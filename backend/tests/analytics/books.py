@@ -22,6 +22,7 @@ from tests.factories import (
     make_cost_centre,
     make_group,
     make_ledger,
+    make_opening_balance,
     make_predefined_groups,
     make_voucher,
     make_voucher_type,
@@ -86,6 +87,12 @@ class Books:
     async def ledger(self, name: str, group: Group) -> Ledger:
         self.ledgers[name] = await make_ledger(self.session, self.company, name, group)
         return self.ledgers[name]
+
+    async def opening(self, ledger: str, direction: str, amount: str) -> None:
+        """A books-beginning opening (D-039 #5)."""
+        await make_opening_balance(
+            self.session, self.company, self.ledgers[ledger], direction, amount, FY_START
+        )
 
     async def group(self, name: str, parent: Group | None, **kw: Any) -> Group:
         self.groups[name] = await make_group(self.session, self.company, name, parent, **kw)

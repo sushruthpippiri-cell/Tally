@@ -47,6 +47,7 @@ class MetricContext:
     filter: AnalyticsFilter
     classes: Classes
     fy_start: date
+    books_from: date | None  # openings are as at this date (D-039 #5)
     company_timezone: str
     quarter_mode: QuarterMode
     taxable_value_mode: bool  # ACC-2.2
@@ -63,6 +64,7 @@ async def load(session: AsyncSession, ctx: CompanyContext, flt: AnalyticsFilter)
         filter=flt,
         classes=await load_classes(session, company.company_id),
         fy_start=company.financial_year_start,
+        books_from=company.books_from,
         company_timezone=company.company_timezone,
         quarter_mode=await get_setting(session, company.company_id, "analytics.quarter_mode"),
         taxable_value_mode=await get_setting(
