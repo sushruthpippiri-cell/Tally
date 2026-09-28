@@ -15,6 +15,7 @@ from sqlalchemy import (
     Select,
     String,
     and_,
+    case,
     column,
     exists,
     false,
@@ -29,6 +30,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.analytics.returns import CREDIT_NOTE, DEBIT_NOTE, UNLINKED, linked_notes
 from app.core.errors import AppError
 from app.core.gates import gate_passed
 from app.core.permissions import CompanyContext
@@ -377,6 +379,46 @@ async def _ledgers_without_opening(session: AsyncSession, ctx: CompanyContext) -
     )
 
 
+async def _unlinked_notes(session: AsyncSession, ctx: CompanyContext) -> Select[Any]:
+    """ACC-5.3/5.4: ACTIVE credit and debit notes not linked to an original bill; GATE-G26:
+    until it passes, that is every note (ACC-5.5)."""
+    linkable = gate_passed("G26")
+    kind = case(
+        (VoucherType.base_voucher_type == CREDIT_NOTE, UNLINKED[CREDIT_NOTE]),
+        else_=UNLINKED[DEBIT_NOTE],
+    )
+    return (
+        select(
+            Voucher.voucher_id,
+            Voucher.voucher_date,
+            Voucher.voucher_number,
+            VoucherType.name.label("voucher_type_name"),
+            kind.label("adjustment_type"),
+        )
+        .join(
+            VoucherType,
+            and_(
+                VoucherType.company_id == Voucher.company_id,
+                VoucherType.voucher_type_id == Voucher.voucher_type_id,
+            ),
+        )
+        .where(
+            Voucher.company_id == ctx.company_id,
+            Voucher.status == VoucherStatus.ACTIVE,
+            or_(
+                *(
+                    and_(
+                        VoucherType.base_voucher_type == note,
+                        Voucher.voucher_id.not_in(linked_notes(ctx.company_id, linkable, note)),
+                    )
+                    for note in (CREDIT_NOTE, DEBIT_NOTE)
+                )
+            ),
+        )
+        .order_by(Voucher.voucher_date, Voucher.voucher_number, Voucher.voucher_id)
+    )
+
+
 def _before_g32() -> bool:
     return not gate_passed("G32")
 
@@ -489,6 +531,15 @@ for _check in (
         '"opening balance unavailable". Sync them again; if it persists, check that the '
         "TDL loaded in TallyPrime is this version.",
         _ledgers_without_opening,
+    ),
+    Check(
+        "unlinked_notes",
+        "Credit and debit notes not linked to a bill",
+        "INFO",
+        "These notes are not linked to an original sales or purchase bill, so they are not "
+        "subtracted from sales or purchases and are listed under Unclassified Adjustments. "
+        "Until the return-link gate (G26) passes, every note is listed here.",
+        _unlinked_notes,
     ),
 ):
     register(_check)

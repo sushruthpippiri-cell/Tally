@@ -26,9 +26,12 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analytics.context import MetricContext
+from app.analytics.metrics import unclassified_adjustments
 from app.core.periods import Granularity, period_key
 
-METRICS: dict[str, ModuleType] = {}
+METRICS: dict[str, ModuleType] = {
+    "unclassified_adjustments": unclassified_adjustments,
+}
 
 
 def detail(metric: str, ctx: MetricContext) -> Select[Any]:

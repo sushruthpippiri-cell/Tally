@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import ColumnElement, Select, and_, false, select
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.analytics.context import MetricContext
 from app.models.masters import Ledger, VoucherType
@@ -18,7 +19,9 @@ from app.models.vouchers import Voucher, VoucherEntry
 E, V, VT, L = VoucherEntry, Voucher, VoucherType, Ledger
 
 
-def entries(ctx: MetricContext, amount: ColumnElement[Decimal]) -> Select[Any]:
+def entries(
+    ctx: MetricContext, amount: ColumnElement[Decimal] | InstrumentedAttribute[Decimal]
+) -> Select[Any]:
     """One row per voucher entry dated in the filter's range on a voucher with one of its
     statuses (ACTIVE unless widened, ACC-4.5), with the standard detail columns and `amount`,
     the metric's signed contribution. Metrics add their own conditions."""
