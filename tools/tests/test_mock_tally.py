@@ -1,6 +1,8 @@
 """The mock Tally answers our real requests in the shape our parser reads (K1)."""
 
 import urllib.request
+from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -60,3 +62,25 @@ def test_utf16_answers_decode_and_failing_reports_are_http_500() -> None:
 def test_builtin_company_list_names_every_open_company() -> None:
     _, body = answer(MockConfig(companies=["A & B", "C"]), rq.builtin_company_list())
     assert b"A &amp; B" in body and b"<NAME>C</NAME>" in body
+
+
+def test_edits_between_runs_raise_the_alter_id_as_tally_does() -> None:
+    from tally_contract.parser import parse_collection
+    from tally_tools.mock_tally import cancel_voucher, delete, edit_voucher, sample_company
+
+    data = sample_company(vouchers=3)
+    edited = edit_voucher(data, "v-2", "2360.00")
+    cancelled = cancel_voucher(data, "v-3")
+    delete(data, "TA_Vouchers", "v-1")
+    assert (edited.alter_id, cancelled.alter_id) == (4, 5)
+
+    def parsed(report: str, collection: CollectionType) -> list[Any]:
+        xml = "".join(r.xml for r in data[report])
+        return parse_collection(f"<ENVELOPE><X>{xml}</X></ENVELOPE>".encode(), collection).records
+
+    vouchers = {v.guid: v for v in parsed("TA_Vouchers", CollectionType.VOUCHER)}
+    assert set(vouchers) == {"v-2", "v-3"}
+    assert max(e.amount.amount_absolute for e in vouchers["v-2"].entries) == Decimal("2360.00")
+    assert vouchers["v-3"].is_cancelled is True
+    [company] = parsed("TA_Company", CollectionType.COMPANY)
+    assert company.last_voucher_alter_id == 5

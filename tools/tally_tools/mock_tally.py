@@ -8,6 +8,7 @@ the Agent), never Tally's behaviour: only live captures do that (docs/validation
 """
 
 import argparse
+import re
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -198,18 +199,17 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--no-tdl", action="store_true")
     parser.add_argument("--fail-report", action="append", default=[])
     parser.add_argument("--utf16", action="store_true")
+    parser.add_argument("--sample", action="store_true", help="serve sample_company() data")
     args = parser.parse_args(argv)
+    companies = args.company or ["Test Co"]
     config = MockConfig(
-        companies=args.company or ["Test Co"],
+        companies=companies,
         tdl_loaded=not args.no_tdl,
         fail_reports=set(args.fail_report),
         utf16=args.utf16,
+        data=sample_company(companies[0]) if args.sample else {},
     )
     server(config, args.port).serve_forever()
-
-
-if __name__ == "__main__":
-    main()
 
 
 # --- a small, consistent company (P7): masters, vouchers across months, stock ---------------
@@ -326,3 +326,57 @@ def voucher_row(i: int, alter: int, day: date, amount: str = "1180.00") -> Row:
         f"<AMOUNT>{tax}</AMOUNT><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE></LEDGERENTRY></VOUCHER>",
         day,
     )
+
+
+# --- edits between runs (P7.8): Tally raises the ALTERID of what it changes -------------------
+
+
+def _last_voucher_alter_id(data: dict[str, list[Row]]) -> int:
+    return max((r.alter_id for r in data["TA_Vouchers"]), default=0)
+
+
+def _replace(data: dict[str, list[Row]], report: str, row: Row) -> None:
+    data[report] = [row if r.guid == row.guid else r for r in data[report]]
+    company = data["TA_Company"][0]
+    xml = re.sub(
+        r"<LASTVOUCHERALTERID>\d+</LASTVOUCHERALTERID>",
+        f"<LASTVOUCHERALTERID>{_last_voucher_alter_id(data)}</LASTVOUCHERALTERID>",
+        company.xml,
+    )
+    data["TA_Company"] = [Row(company.guid, company.alter_id, xml, company.day)]
+
+
+def _voucher(data: dict[str, list[Row]], guid: str) -> Row:
+    return next(r for r in data["TA_Vouchers"] if r.guid == guid)
+
+
+def edit_voucher(data: dict[str, list[Row]], guid: str, amount: str) -> Row:
+    """The voucher's amount changes and it gets the next ALTERID, as a Tally edit does."""
+    old = _voucher(data, guid)
+    assert old.day is not None
+    row = voucher_row(
+        int(guid.removeprefix("v-")), _last_voucher_alter_id(data) + 1, old.day, amount
+    )
+    _replace(data, "TA_Vouchers", row)
+    return row
+
+
+def cancel_voucher(data: dict[str, list[Row]], guid: str) -> Row:
+    """Cancelled in Tally: kept, flagged, with a new ALTERID (GATE-G9)."""
+    old = _voucher(data, guid)
+    alter = _last_voucher_alter_id(data) + 1
+    xml = re.sub(r"<ALTERID>\d+</ALTERID>", f"<ALTERID>{alter}</ALTERID>", old.xml, count=1)
+    row = Row(
+        guid, alter, xml.replace("</VOUCHER>", "<ISCANCELLED>Yes</ISCANCELLED></VOUCHER>"), old.day
+    )
+    _replace(data, "TA_Vouchers", row)
+    return row
+
+
+def delete(data: dict[str, list[Row]], report: str, guid: str) -> None:
+    """Deleted in Tally: gone from every pull and key list, with no ALTERID signal (G11)."""
+    data[report] = [r for r in data[report] if r.guid != guid]
+
+
+if __name__ == "__main__":
+    main()
