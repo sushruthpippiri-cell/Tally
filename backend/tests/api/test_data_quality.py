@@ -49,7 +49,7 @@ async def _items(
     return await api.get(_url(company, f"/{check}"), params=params, headers=auth_header(user))
 
 
-@pytest.mark.req_partial("FR-4.5")  # unsupported allocations (P11), unlinked notes (P8)
+@pytest.mark.req_partial("FR-4.5")  # unsupported allocations: P11
 async def test_every_check_runs_and_a_new_company_has_nothing_to_report(
     api: httpx.AsyncClient, company: Company, accountant: User
 ) -> None:
