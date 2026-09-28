@@ -1,0 +1,34 @@
+name: agent-build
+
+# The Windows Agent's x64 build (D-043 #3): PyInstaller one-folder app with tally-agent.exe and
+# tally-agent-service.exe, the TDL files, the install scripts and docs/agent-install.md.
+# Manual only (Windows minutes, D-038 #7): Actions -> agent-build -> Run workflow, or
+# `gh workflow run agent-build.yml`. The zip is the artifact `tally-agent-windows-x64`.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest  # x64: what customers' PCs run
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --group build
+      - run: uv run pytest agent -q
+      - run: uv run pyinstaller agent/packaging/tally-agent.spec --noconfirm --distpath dist --workpath build
+      - name: Smoke test the build
+        shell: pwsh
+        run: |
+          .\dist\TallyAgent\tally-agent.exe --help
+          if ($LASTEXITCODE -ne 0) { throw "tally-agent.exe --help failed" }
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist\TallyAgent -DestinationPath dist\TallyAgent-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tally-agent-windows-x64
+          path: dist/TallyAgent-windows-x64.zip
+          retention-days: 30

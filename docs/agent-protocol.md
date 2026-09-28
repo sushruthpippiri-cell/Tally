@@ -165,3 +165,8 @@ After syncing a collection whose plan says `key_list_due: true`, send its keys: 
 | `keys` | up to 10,000 `{guid, alter_id}` from the collection's key-only report, requested with `requests.collection(keys_only=True)` and the same date variables as the pull; never ALTERID-windowed |
 
 The same guard as batches applies (RUNNING command, live lease on the collection). The answer is the list's state: `RECEIVING` (with `waiting_for` chunks), then `APPLIED` or `SUSPICIOUS` once evaluated. A list left unfinished when the run closes is `ABANDONED`; start a new one next run. The COMPANY collection has no key list.
+
+## Rate limits and retries (D-043)
+- Each Agent has its own bucket, `agent:<agent_id>`: 1,000 requests per minute. It applies from the second request of a credential: the first, which verifies it, counts against the office IP's anonymous bucket (100/min), and so does any token that does not verify. So an Agent draining its queue never starves other traffic behind the same IP.
+- A **429** carries `Retry-After`. The uploader waits that long (plus up to 20% jitter) and tries the same item again; a 429 is never counted as a failed attempt and never dead-letters a batch.
+- Control calls (claim, runs, leases, finish, result) wait out a 429 or a brief outage (1, 2, 4 … 16 s) up to five times before giving up. A run that cannot finish is abandoned; its lease lapses and the backend closes it (D-040).

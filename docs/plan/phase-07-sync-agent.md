@@ -3,7 +3,7 @@
 **Size:** L (split: P7.1–P7.4, P7.5–P7.7, P7.8–P7.10) · **Depends on:** P3, P4, P5, P6
 **SRS:** 4 (all), 3.2, 16 (Agent and Tally rows), 21 (Agent rows)
 **Requirements:** AGT-1.1, 1.7, AGT-2.1–2.6, AGT-3.1–3.4, AGT-4.1–4.4, AGT-5.1–5.5, AGT-6.1–6.4, VER-1.1, FR-1.4, SEC-2.0
-**Acceptance:** AC-21, AC-23, AC-24, AC-25, plus end-to-end AC-01, AC-02, AC-04 · **Decisions:** D-005, D-013, D-026, D-039 (supersedes D-027), D-040, D-041, D-042
+**Acceptance:** AC-21, AC-23, AC-24, AC-25, plus end-to-end AC-01, AC-02, AC-04 · **Decisions:** D-005, D-013, D-026, D-039 (supersedes D-027), D-040, D-041, D-042, D-043
 
 ## Goal
 A Windows service that registers once, heartbeats and polls, runs sync commands against TallyPrime with the project TDL, survives Tally being closed and the internet dropping without losing data, and reports its own and Tally's health.

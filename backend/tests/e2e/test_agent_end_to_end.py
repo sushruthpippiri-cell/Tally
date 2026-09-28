@@ -254,7 +254,8 @@ async def test_the_backend_killed_mid_upload_loses_and_duplicates_nothing(
 ) -> None:
     """The queue holds while the backend is down; after a restart it drains, replays are safe
     (SYNC-6.3), and the run completes with exactly the fixture stored."""
-    _, tally_port = tally
+    mock, tally_port = tally
+    mock.data = sample_company(SHARMA, vouchers=200)  # 200 one-voucher uploads: a wide window
     server = start_server()
     company, owner, token = await _seed(committed)
     await _register(server, tally_port, token, tmp_path / "agent")
@@ -263,18 +264,19 @@ async def test_the_backend_killed_mid_upload_loses_and_duplicates_nothing(
     try:
         _sync_now(server, company, owner, "FULL")
         running_sync = asyncio.create_task(_run(agent))
-        for _ in range(300):  # until a few batches are in
+        for _ in range(1200):  # until some of the vouchers are in
             async with committed() as s:
-                if (await s.scalar(text("SELECT count(*) FROM sync_batches")) or 0) >= 3:
-                    break
+                stored = await s.scalar(text("SELECT count(*) FROM vouchers")) or 0
+            if stored >= 20:
+                break
             await asyncio.sleep(0.05)
         server.kill()
         await asyncio.sleep(2)
         assert agent.queue.status().records > 0  # holding what could not be uploaded
         server.start()
-        outcome = await asyncio.wait_for(running_sync, 120)
+        outcome = await asyncio.wait_for(running_sync, 180)
         assert outcome.status == "COMPLETED"
-        assert await _counts(committed) == FIXTURE
+        assert await _counts(committed) == FIXTURE | {"vouchers": 200}
     finally:
         uploading.close()
 
@@ -344,3 +346,76 @@ async def test_a_large_queue_drains_after_an_outage_through_the_agents_own_rate_
     assert (status.records, status.dead_letter_count, status.obsolete_dropped) == (0, 0, 0)
     assert (await _counts(committed))["cost_centres"] == 200
     assert_logged(caplog, "upload_rate_limited", level="info")  # the limit was really hit
+
+
+def test_the_dev_certificate_is_trusted_only_through_its_ca(tmp_path: Path) -> None:
+    """tally_tools.dev_backend: the throwaway CA the Windows checklist hands to the Agent."""
+    import ssl
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from tally_tools import dev_backend
+
+    dev_backend.OUT = tmp_path / "dev-https"
+    ca = dev_backend.make_tls(["192.0.2.10"], dev_backend.OUT)
+
+    class Ok(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, format: str, *args: Any) -> None:
+            pass
+
+    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    context.load_cert_chain(dev_backend.OUT / "server.pem", dev_backend.OUT / "server-key.pem")
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Ok)
+    httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        url = f"https://127.0.0.1:{httpd.server_address[1]}/"
+        trusting = ssl.create_default_context(cafile=str(ca))
+        assert httpx.get(url, verify=trusting, trust_env=False).status_code == 200
+        with pytest.raises(httpx.ConnectError):
+            httpx.get(url, trust_env=False)  # the public roots do not trust it
+    finally:
+        httpd.shutdown()
+
+
+async def test_the_dev_setup_creates_a_company_a_token_and_a_sync(
+    committed: Factory, start_server: Any, tally: tuple[MockConfig, int], tmp_path: Path
+) -> None:
+    """tally_tools.dev_backend setup/sync, as the Windows checklist uses them."""
+    from app.cli import create_owner
+    from tally_tools import dev_backend
+
+    dev_backend.OUT = tmp_path / "dev-https"
+    _, tally_port = tally
+    server = start_server()
+    async with committed() as s:
+        await create_owner(s, "owner@example.com", "Owner", "a-long-dev-password-1")
+        await s.commit()
+    made = await asyncio.to_thread(
+        dev_backend.setup, server.url, None, "owner@example.com", "a-long-dev-password-1", SHARMA
+    )
+    await _register(server, tally_port, made["registration_token"], tmp_path / "agent")
+    answer = await asyncio.to_thread(
+        dev_backend.sync,
+        server.url,
+        None,
+        "owner@example.com",
+        "a-long-dev-password-1",
+        made["company_id"],
+        "FULL",
+    )
+    assert answer["status"] == "PENDING"
+    view = await asyncio.to_thread(
+        dev_backend.call,
+        server.url,
+        None,
+        "owner@example.com",
+        "a-long-dev-password-1",
+        "GET",
+        "/companies/{company}/agents",
+    )
+    assert [a["agent_name"] for a in view["agents"]] == ["Head Office"]

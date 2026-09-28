@@ -2,7 +2,7 @@
 name = "tally-tools"
 version = "0.0.0"
 requires-python = ">=3.12,<3.13"
-dependencies = ["tally-contract"]
+dependencies = ["tally-contract", "httpx", "trustme"]  # trustme: dev_backend TLS only
 
 [build-system]
 requires = ["hatchling"]

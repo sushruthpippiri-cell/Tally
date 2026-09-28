@@ -14,6 +14,8 @@ tally-agent = { workspace = true }
 tally-tools = { workspace = true }
 
 [dependency-groups]
+# The Windows Agent build only (agent-build workflow, D-043 #3); not installed by default.
+build = ["pyinstaller"]
 dev = [
   "ruff",
   "mypy",

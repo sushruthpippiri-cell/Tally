@@ -3,7 +3,7 @@ COMPOSE := docker compose -f deploy/docker-compose.yml
 PHASE ?= dev
 TEST_DB_URL ?= postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally_test
 
-.PHONY: up down migrate test test-backend test-agent lint format typecheck importlint check \
+.PHONY: up down migrate test test-backend test-agent lint format typecheck importlint check dev-tls dev-https \
         traceability phase-report hooks capture-kit update-fixtures
 
 hooks:  ## Install the git pre-commit hook (ruff + mypy); once per clone
@@ -49,6 +49,17 @@ traceability:
 phase-report:  ## Fresh DB + full suite + check, then docs/test-reports/phase-NN.md
 	@test -n "$(PHASE)" || (echo "usage: make phase-report PHASE=00" && exit 1)
 	uv run python -m tally_tools.phase_report --phase $(PHASE)
+
+dev-tls:  ## A throwaway CA + certificate for HOST (this Mac's LAN address), in dev-https/
+	uv run python -m tally_tools.dev_backend tls --host $(HOST)
+
+dev-https:  ## The dev backend over HTTPS on :8443 for a Windows Agent (docs/agent-windows-checklist.md)
+	cd backend && ENV=dev \
+	DATABASE_URL=postgresql+asyncpg://tally_app:tally_app_dev@localhost:5432/tally \
+	DATABASE_MIGRATION_URL=postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally \
+	JWT_SECRET=dev-only-jwt-secret-change-me-in-prod \
+	uv run uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8443 \
+	  --ssl-keyfile ../dev-https/server-key.pem --ssl-certfile ../dev-https/server.pem
 
 capture-kit:  ## Build the PowerShell capture kit into dist/tally-capture-kit/ (+ .zip), D-038
 	uv run python -m tally_tools.capture_kit build --out dist

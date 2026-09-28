@@ -45,6 +45,9 @@ PyInstaller build on `windows-latest` in CI; Inno Setup installer that installs 
 ### P16.8a Code signing — REQUIRED (owner, D-042 #8)
 Sign the Agent's PyInstaller build (every `.exe` and `.dll` we ship) and its installer with an Authenticode code-signing certificate (an EV certificate builds SmartScreen reputation fastest), timestamped so signatures outlive the certificate. Unsigned executables are routinely blocked by Windows SmartScreen and office antivirus, which would stop installs at customer sites. CI verifies every shipped binary with `signtool verify /pa`; the signing key lives in a hardware token or a cloud HSM, never in the repository or a CI secret file.
 
+### P16.8b Agent on a real x64 PC — REQUIRED before launch (owner, D-043 #3)
+Repeat `docs/agent-windows-checklist.md` in full on a real x64 Windows PC (P7 ran it in the Windows 11 ARM VM under x64 emulation), alongside the PERF-VAL-1 benchmark, which needs such a machine anyway. Record the results in the checklist and `docs/progress.md`.
+
 ### P16.9 Traceability (SRS 25)
 Finalize `tools/traceability.py`: every requirement ID in the SRS maps to at least one test or to an entry in `docs/manual-verification.md` with reason and evidence. Make the CI job blocking.
 
