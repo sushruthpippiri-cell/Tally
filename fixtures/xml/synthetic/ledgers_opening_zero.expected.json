@@ -1,0 +1,30 @@
+{
+  "parse": "collection:LEDGER",
+  "note": "GATE-G16 (D-044 #6): OPENINGBALANCE present and zero -> a zero opening",
+  "expected": {
+    "records": [
+      {
+        "guid": "l-hdfc",
+        "alter_id": 33,
+        "name": "HDFC Bank",
+        "record_type": "LEDGER",
+        "parent_group_guid": null,
+        "parent_group_name": "Bank Accounts",
+        "is_bill_wise": null,
+        "opening_balance": {
+          "amount_raw": "0.00",
+          "is_debit": false,
+          "amount_absolute": "0.00",
+          "amount_signed": "0.00",
+          "accounting_direction": "CREDIT"
+        },
+        "opening_bills": [],
+        "is_inactive": null,
+        "custom_fields": {}
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

@@ -21,7 +21,7 @@ How the probe tool and test company are set up: `docs/plan/gate-track.md`.
 | G13 | Primary group resolution | Every group's chain reaches a predefined group | NOT TESTED | | | | Classification (ACC-7, D-001) |
 | G14 | Group nature | Nature identifiable from export or fixed mapping | NOT TESTED | | | | Balances ACC-9.2 |
 | G15 | Voucher type parent | Each voucher type's parent is identifiable | NOT TESTED | | | | ACC-8 |
-| G16 | Ledger opening balance | Exportable with debit/credit direction (also: are zero openings exported explicitly? per-FY or books-beginning only?) | NOT TESTED | | | | Balances ACC-9 |
+| G16 | Ledger opening balance | Exportable with debit/credit direction (also: are zero openings exported explicitly? per-FY or books-beginning only?). **Assumed until captured (D-044 #6):** a zero opening comes out blank, and our TDL emits `OPENINGBALANCE` for every ledger, so blank = zero and absent = unavailable (`BLANK_OPENING_IS_ZERO`) | NOT TESTED | | | | Balances ACC-9 |
 | G17 | Stock opening balance | Opening quantity and value exportable | NOT TESTED | | | | stock_opening_balances |
 | G18 | Stock closing quantity as of a date | Returned for a given date | NOT TESTED | | | | Stock analytics, reconciliation |
 | G19 | Ledger closing balance as of a date | Returned for a given date | NOT TESTED | | | | Reconciliation, ACC-9.5 |

@@ -19,6 +19,8 @@ from app.models.sync import SyncError, SyncWatermark
 from app.sync import ingest as ingest_module
 from app.sync.ingest import BatchResult
 from tally_contract import normalize
+from tally_contract.enums import CollectionType as TallyCollection
+from tally_contract.parser import parse_collection
 from tally_contract.records import (
     CompanyRecord,
     CostCentreRecord,
@@ -29,6 +31,7 @@ from tally_contract.records import (
     VoucherTypeRecord,
 )
 from tally_contract.testing import assert_logged
+from tally_tools.fixtures import SYNTHETIC
 from tests.sync.helpers import (
     GUID,
     Factory,
@@ -367,3 +370,31 @@ async def test_the_lease_stops_a_second_writer_and_stale_protection_stops_old_da
     async with committed() as s:
         assert await s.scalar(select(CostCentre.name)) == "New name"
     assert await watermark(committed, a.company_id, C.COST_CENTRE) == 9
+
+
+@pytest.mark.req_partial("ACC-9.6")  # the "unavailable" balance itself: P8.7
+async def test_blank_and_zero_openings_are_stored_as_zero_and_an_absent_one_is_not(
+    committed: Factory,
+) -> None:
+    """GATE-G16 (D-044 #6), end to end from the fixtures through the real parser: a present but
+    blank or zero OPENINGBALANCE stores a zero opening; an absent one stores no row."""
+    records = [
+        r
+        for name in ("ledgers_opening_blank", "ledgers_opening_zero", "ledgers_opening_absent")
+        for r in parse_collection(
+            (SYNTHETIC / f"{name}.xml").read_bytes(), TallyCollection.LEDGER
+        ).records
+    ]
+    st = await setup(committed, books_from=date(2022, 4, 1))
+    await lease(committed, st, C.LEDGER)
+    result = await upload(committed, st, envelope(st, C.LEDGER, records))
+    assert isinstance(result, BatchResult) and result.written == 4
+    async with committed() as s:
+        openings = (
+            await s.execute(
+                select(Ledger.tally_guid, LedgerOpeningBalance.amount_absolute).join(
+                    LedgerOpeningBalance, LedgerOpeningBalance.ledger_id == Ledger.ledger_id
+                )
+            )
+        ).all()
+    assert sorted(openings) == [("l-hdfc", 0), ("l-power", 0), ("l-rent", 0)]  # no l-loan

@@ -1,0 +1,24 @@
+{
+  "parse": "collection:LEDGER",
+  "note": "GATE-G16 (D-044 #6): OPENINGBALANCE absent -> no opening (\"unavailable\")",
+  "expected": {
+    "records": [
+      {
+        "guid": "l-loan",
+        "alter_id": 34,
+        "name": "Term Loan",
+        "record_type": "LEDGER",
+        "parent_group_guid": null,
+        "parent_group_name": "Secured Loans",
+        "is_bill_wise": null,
+        "opening_balance": null,
+        "opening_bills": [],
+        "is_inactive": null,
+        "custom_fields": {}
+      }
+    ],
+    "errors": [],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

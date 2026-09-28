@@ -92,7 +92,13 @@
         "parent_group_guid": null,
         "parent_group_name": "Sundry Debtors",
         "is_bill_wise": false,
-        "opening_balance": null,
+        "opening_balance": {
+          "amount_raw": "",
+          "is_debit": false,
+          "amount_absolute": "0",
+          "amount_signed": "0",
+          "accounting_direction": "CREDIT"
+        },
         "opening_bills": [],
         "is_inactive": null,
         "custom_fields": {}

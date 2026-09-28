@@ -32,7 +32,13 @@ TEST_1_2 = {
     "a group with a missing parent": ["group_missing_parent"],
     "a custom voucher type derived from Sales": ["voucher_types_custom_and_unresolvable"],
     "an unresolvable voucher type": ["voucher_types_custom_and_unresolvable"],
-    "opening balances": ["ledgers_opening_balances", "stock_items_opening"],
+    "opening balances": [
+        "ledgers_opening_balances",
+        "ledgers_opening_blank",  # GATE-G16 (D-044 #6): blank = zero
+        "ledgers_opening_zero",
+        "ledgers_opening_absent",  # absent = unavailable
+        "stock_items_opening",
+    ],
     "stock snapshots": ["stock_snapshots"],
     "debit and credit entries on sales, purchase, receipt, payment and tax ledgers": [
         "debit_credit_by_ledger_kind"

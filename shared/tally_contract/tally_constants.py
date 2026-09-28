@@ -86,6 +86,10 @@ TOP_LEVEL_PARENT_NAMES: Final = ("", "Primary")
 DEBIT_SUFFIX: Final = "Dr"
 CREDIT_SUFFIX: Final = "Cr"
 
+# GATE-G16 (D-044 #6): Tally leaves a zero opening balance blank, and our TDL always emits the
+# OPENINGBALANCE tag, so a blank one is a zero opening. Absent still means "unavailable".
+BLANK_OPENING_IS_ZERO: Final = True
+
 # --- recognising Tally's own answers (GATE-G35) ---------------------------------------------
 SERVER_RUNNING_TEXT: Final = "TallyPrime Server is Running"  # GET / on the XML port
 ERROR_TAG: Final = "LINEERROR"

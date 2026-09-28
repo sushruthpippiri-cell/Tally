@@ -7,6 +7,7 @@ from tally_contract import normalize
 from tally_contract import tally_constants as tc
 from tally_contract.enums import AllocationType
 from tally_contract.records import (
+    Amount,
     BillAllocation,
     CompanyRecord,
     CostCentreAllocation,
@@ -100,15 +101,26 @@ def _opening_bill(e: ET.Element) -> OpeningBill:
     )
 
 
+def _opening_balance(e: ET.Element) -> Amount | None:
+    """GATE-G16 (D-044 #6): our TDL always emits OPENINGBALANCE and Tally leaves a zero opening
+    blank, so present-but-blank is a zero opening; absent means none is known ("unavailable")."""
+    field = e.find("OPENINGBALANCE")
+    if field is None:
+        return None
+    raw = text(field.text)
+    if raw is None and tc.BLANK_OPENING_IS_ZERO:
+        return normalize.to_amount("0").model_copy(update={"amount_raw": field.text or ""})
+    return None if raw is None else normalize.to_amount(raw)
+
+
 def ledger(e: ET.Element) -> LedgerRecord:
-    opening = _get(e, "OPENINGBALANCE")
     return LedgerRecord.model_validate(
         _synced(e)
         | {
             "parent_group_name": _parent(e) or "",
             "parent_group_guid": _get(e, "PARENTGUID"),
             "is_bill_wise": parse_bool(_get(e, "ISBILLWISE")),
-            "opening_balance": None if opening is None else normalize.to_amount(opening),
+            "opening_balance": _opening_balance(e),
             "opening_bills": [_opening_bill(b) for b in e.iter("OPENINGBILL")],
             "is_inactive": parse_bool(_get(e, "ISINACTIVE")),  # GATE-G29
         }
