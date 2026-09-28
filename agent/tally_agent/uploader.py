@@ -7,6 +7,7 @@
   obsolete and the run's lost-flag is raised so the executor stops too
 - other 4xx: the item can never be accepted; dead-lettered at once with the rest of its run
   and collection (retrying would hold the whole queue for hours)
+- 429: deferred until Retry-After, never counted (D-043)
 - network trouble or 5xx: backoff, then dead-letter after `max_attempts`
 """
 
@@ -19,6 +20,7 @@ from tally_agent.backend_client import (
     BackendError,
     BackendUnavailable,
     CredentialInvalid,
+    RateLimited,
 )
 from tally_agent.queue import BATCH, Item, Queue
 from tally_contract.log import get_logger
@@ -75,6 +77,9 @@ class Uploader:
         except BackendError as exc:
             self._refused(item, exc)
             return True
+        except RateLimited as exc:  # D-043: slow down; never counted, never dead-lettered
+            self._queue.defer(item, exc.retry_after, str(exc))
+            return False
         except BackendUnavailable as exc:
             self._queue.failed(item, str(exc))
             return False

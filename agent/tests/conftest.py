@@ -243,6 +243,7 @@ class FakeBackend:
         self.upload_delay = 0.0
         self.lose_after_batches = 0
         self.heartbeat_error: tuple[int, dict[str, Any]] | None = None
+        self.next_answers: list[tuple[int, dict[str, Any]]] = []
         backend = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -253,8 +254,11 @@ class FakeBackend:
                     backend.calls.append(("POST", self.path, body, dict(self.headers)))
                     backend.times.append((time.monotonic(), self.path))
                 status, payload = backend.answer(self.path, body)
+                extra = payload.pop("_headers", {})
                 data = json.dumps(payload).encode()
                 self.send_response(status)
+                for name, value in extra.items():
+                    self.send_header(name, str(value))
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
@@ -306,6 +310,9 @@ class FakeBackend:
 
     def answer(self, path: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         gone = (409, {"code": "INVALID_COMMAND_STATE", "message": "The command is over"})
+        if self.next_answers:  # whatever the path: e.g. a 429 before the real answer
+            status, payload = self.next_answers.pop(0)
+            return status, dict(payload)
         parts = path.strip("/").split("/")
         with self.lock:
             if path == "/agent/register":
@@ -333,7 +340,8 @@ class FakeBackend:
                 command_id, action = parts[2], parts[3]
                 command = self.commands.get(command_id)
                 if action in ("batches", "key-lists") and self.upload_failures:
-                    return self.upload_failures.pop(0)
+                    status, payload = self.upload_failures.pop(0)
+                    return status, dict(payload)
                 if action == "claim":
                     if command is None or command["status"] != "PENDING":
                         return gone

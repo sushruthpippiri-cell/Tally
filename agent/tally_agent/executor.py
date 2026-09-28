@@ -102,7 +102,9 @@ class Executor:
         except TallyError as exc:
             return Outcome("FAILED", exc.code.value, exc.message)
         try:
-            self.plan = self.backend.call("POST", f"/agent/commands/{command['command_id']}/runs")
+            self.plan = self.backend.call(
+                "POST", f"/agent/commands/{command['command_id']}/runs", rate_limit_retries=5
+            )
         except BackendError as exc:
             log.warning("run_not_started", status=exc.status, code=exc.code)
             return Outcome(None)
@@ -139,6 +141,7 @@ class Executor:
                 "POST",
                 f"/agent/commands/{command['command_id']}/runs/{self.run_id}/finish",
                 {"status": status, "problems": self.problems},
+                rate_limit_retries=5,
             )
         except BackendError as exc:
             log.warning("run_finish_refused", status=exc.status, code=exc.code)
@@ -160,6 +163,7 @@ class Executor:
                 "POST",
                 "/agent/leases/acquire",
                 {"sync_run_id": self.run_id, "collection_type": collection.value},
+                rate_limit_retries=5,
             )
         except BackendError as exc:
             if exc.code == "SYNC_LOCKED":  # SYNC-4.2: skip it, note it, carry on
@@ -191,6 +195,7 @@ class Executor:
             "POST",
             "/agent/leases/release",
             {"sync_run_id": self.run_id, "collection_type": collection.value},
+            rate_limit_retries=5,
         )
 
     def _date_range(self) -> tuple[date, date]:

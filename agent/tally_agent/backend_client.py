@@ -6,6 +6,7 @@ only when configured; the environment is ignored, so a service behaves the same 
 """
 
 import ssl
+import time
 from typing import Any
 
 import certifi
@@ -33,6 +34,14 @@ class AgentRevoked(BackendError):
 
 class BackendUnavailable(Exception):
     """Network trouble or a 5xx: retry later."""
+
+
+class RateLimited(BackendUnavailable):
+    """429: slow down, never a failure (D-043). `retry_after` is the backend's Retry-After."""
+
+    def __init__(self, retry_after: float) -> None:
+        super().__init__(f"rate limited; retry after {retry_after:g} s")
+        self.retry_after = retry_after
 
 
 class TlsVerificationFailed(BackendUnavailable):
@@ -74,7 +83,25 @@ class BackendClient:
     def close(self) -> None:
         self._http.close()
 
-    def call(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+    def call(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        *,
+        rate_limit_retries: int = 0,
+    ) -> Any:
+        """One request. A 429 raises RateLimited, unless `rate_limit_retries` allows waiting
+        out its Retry-After and trying again (D-043)."""
+        for _ in range(rate_limit_retries):
+            try:
+                return self._call(method, path, body)
+            except RateLimited as exc:
+                log.warning("backend_rate_limited", path=path, retry_after=exc.retry_after)
+                time.sleep(exc.retry_after)
+        return self._call(method, path, body)
+
+    def _call(self, method: str, path: str, body: dict[str, Any] | None) -> Any:
         try:
             response = self._http.request(method, path, json=body)
         except httpx.ConnectError as exc:
@@ -89,6 +116,12 @@ class BackendClient:
             raise BackendUnavailable(str(exc)) from exc
         except httpx.HTTPError as exc:
             raise BackendUnavailable(str(exc)) from exc
+        if response.status_code == 429:
+            try:
+                retry_after = max(1.0, float(response.headers.get("Retry-After", "5")))
+            except ValueError:
+                retry_after = 5.0
+            raise RateLimited(retry_after)
         if response.status_code >= 500:
             raise BackendUnavailable(f"{response.status_code} from the backend")
         if response.status_code >= 400:

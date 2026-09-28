@@ -239,6 +239,16 @@ class Queue:
             "upload_retry_scheduled", attempts=attempts, wait_seconds=round(wait), error=error
         )
 
+    def defer(self, item: Item, seconds: float, reason: str) -> None:
+        """D-043: wait `seconds` (the backend's Retry-After, plus up to 20% jitter) without
+        counting an attempt: being told to slow down is not a failure."""
+        wait = seconds * (1 + 0.2 * random.random())
+        self._connect().execute(
+            "UPDATE items SET next_attempt_at = ?, last_error = ? WHERE id = ?",
+            (self._clock() + wait, reason[:1000], item.id),
+        )
+        log.info("upload_rate_limited", retry_after=round(seconds, 1), sync_run_id=item.sync_run_id)
+
     def dead_letter(self, item: Item, reason: str) -> int:
         """AGT-2.5, D-042 #6: the item and every later item of its run and collection go to the
         dead-letter file, so the watermark cannot pass the gap; the next run re-pulls them."""

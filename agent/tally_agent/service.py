@@ -141,7 +141,7 @@ class Agent:
         backend = self.backend()
         try:
             try:
-                backend.call("POST", f"/agent/commands/{command_id}/claim")
+                backend.call("POST", f"/agent/commands/{command_id}/claim", rate_limit_retries=5)
             except BackendError as exc:  # someone else, expired, or one in progress
                 log.info("command_not_claimed", command_id=command_id, code=exc.code)
                 return None
@@ -174,7 +174,9 @@ class Agent:
             if outcome.status == "FAILED":
                 body |= {"error_code": outcome.error_code, "error_message": outcome.message}
             try:
-                backend.call("POST", f"/agent/commands/{command_id}/result", body)
+                backend.call(
+                    "POST", f"/agent/commands/{command_id}/result", body, rate_limit_retries=5
+                )
             except BackendError as exc:
                 log.warning("result_refused", command_id=command_id, code=exc.code)
             return outcome

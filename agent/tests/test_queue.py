@@ -191,3 +191,63 @@ def test_a_window_that_fails_leaves_nothing_behind(tmp_path: Path) -> None:
     assert q.head() is None
     with q.window() as staged:
         assert list(staged.sorted_records()) == []
+
+
+RATE_LIMITED = (
+    429,
+    {"code": "RATE_LIMITED", "message": "slow down", "_headers": {"Retry-After": 1}},
+)
+
+
+def test_a_rate_limited_batch_is_retried_and_never_dead_lettered(
+    tmp_path: Path, fake_backend: Any, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Owner (D-043): 30 answers of 429 in a row, far more than max_attempts; the batch waits
+    each time, is never counted as a failure, and uploads in the end."""
+    clock = Clock()
+    q = queue(tmp_path, clock, max_attempts=3)
+    add(q, "v1", "VOUCHER")
+    fake_backend.upload_failures = [RATE_LIMITED] * 30
+    backend = client(fake_backend, tmp_path)
+    up = uploader(q, backend)
+    for _ in range(30):
+        assert up.step(backend) is False
+        head = q._connect().execute("SELECT attempts FROM items").fetchone()
+        assert head == (0,)  # never counted
+        clock.now += 2  # past Retry-After (1 s plus up to 20% jitter)
+    assert up.step(backend) is True
+    assert q.head() is None and q.status().dead_letter_count == 0
+    assert len(fake_backend.batches) == 1
+    assert_logged(caplog, "upload_rate_limited", level="info")
+
+
+def test_a_rate_limited_batch_waits_for_retry_after(tmp_path: Path, fake_backend: Any) -> None:
+    clock = Clock()
+    q = queue(tmp_path, clock)
+    add(q, "v1", "VOUCHER")
+    fake_backend.upload_failures = [
+        (429, {"code": "RATE_LIMITED", "message": "x", "_headers": {"Retry-After": 7}})
+    ]
+    backend = client(fake_backend, tmp_path)
+    uploader(q, backend).step(backend)
+    clock.now += 6.9
+    assert q.head() is None  # still waiting
+    clock.now += 1.6  # 7 s plus the most jitter (20%) has passed
+    assert q.head() is not None
+
+
+def test_control_calls_wait_out_a_429(tmp_path: Path, fake_backend: Any) -> None:
+    """The executor's lease, run and finish calls wait Retry-After and try again (D-043)."""
+    import time
+
+    backend = client(fake_backend, tmp_path)
+    fake_backend.next_answers = [RATE_LIMITED]
+    started = time.monotonic()
+    answer = backend.call(
+        "POST",
+        "/agent/leases/acquire",
+        {"sync_run_id": "r", "collection_type": "GROUP"},
+        rate_limit_retries=5,
+    )
+    assert answer["collection_type"] == "GROUP"
+    assert time.monotonic() - started >= 1.0  # honoured Retry-After: 1
