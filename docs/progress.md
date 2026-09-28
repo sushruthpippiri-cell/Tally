@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P9 (attribution and rankings) — **complete** 2026-09-28. Local suite PASS ([phase-09](test-reports/phase-09.md), 1,252 tests: 1,249 passed, 3 skipped — Windows-only; 89.5% line coverage); CI: see the P9 CI row under Done. D-046 ACCEPTED (returns follow their original's bucket; product rows; units never summed across; the "Non-product" label needs G28 **and** taxable-value mode). D-047 (custom plans for analytics) added as a performance fix. The benchmark at SRS 17.2 size found the dashboard set at 2.6 s over three years once the P9 figures were added; fixed to 1.8 s (below). Next: P10 (reconciliation) — waits for the owner.
+P9 (attribution and rankings) — **complete** 2026-09-28. Local suite PASS ([phase-09](test-reports/phase-09.md), 1,252 tests: 1,249 passed, 3 skipped — Windows-only; 89.5% line coverage); CI green (`check` 36460856648; `capture-kit` and `agent-windows` not triggered, last green 36444202153 / 36436892986). D-046 ACCEPTED (returns follow their original's bucket; product rows; units never summed across; the "Non-product" label needs G28 **and** taxable-value mode). D-047 (custom plans for analytics) added as a performance fix. The benchmark at SRS 17.2 size found the dashboard set at 2.6 s over three years once the P9 figures were added; fixed to 1.8 s (below). Next: P10 (reconciliation) — waits for the owner.
 
 P8 (core analytics) — **complete** 2026-09-28. Local suite PASS ([phase-08](test-reports/phase-08.md), 1,204 tests: 1,201 passed, 3 skipped — the Windows-only tests; 89.5% line coverage); CI green (runs 36444202147 `check`, 36444202153 `capture-kit`; `agent-windows` not triggered, last green 36436892986). Decisions D-021, D-044, D-045 ACCEPTED (cash flow per voucher on the Cash/Bank list with the balance invariant; one detail query per metric; expenses as net movement; blank opening = zero, GATE-G16; unavailable openings named). Metrics and rules: [`docs/metrics.md`](metrics.md). Benchmark at SRS 17.2 size below: no query near PERF-1.1, nothing changed. **Pending from the owner:** the G-E captures (now including D-045a's mixed cost-centre split) and the Agent real-machine checklist. Next: P9 (attribution and rankings) — waits for the owner.
 
@@ -26,6 +26,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-28 | P9 CI | 7d321d0 | Green: `check` 36460856648. `capture-kit` and `agent-windows` were not triggered (none of their paths changed in P9); their last runs are green (36444202153, 36436892986). |
 | 2026-09-28 | P9 phase report | (this commit) | [phase-09](test-reports/phase-09.md): 1,249 passed, 3 skipped (Windows-only), fresh DB, `make check` PASS. |
 | 2026-09-28 | P9.6 benchmark, docs | 0206009 | The benchmark dataset gains 94,005 seeded inventory lines (some items sold by the Box); rankings and the product difference are timed; `docs/metrics.md` covers attribution, the return-bucket rule, the label and units. |
 | 2026-09-28 | P9.6 performance fix | 0abeab9 | Found by the benchmark: the 3-year dashboard set had reached 2.6 s. (1) The customer bucket aggregate ran twice over every voucher; now one CTE over origin-type vouchers. (2) The planner (estimating 555 rows for 89k) nested-looped every sales row against the returns' origin buckets; sales rows and return rows are now joined to their buckets separately (UNION ALL). (3) asyncpg's prepared statements let PostgreSQL reuse a generic plan made for another date range (~60% slower): analytics set `plan_cache_mode = force_custom_plan` for the request's transaction (D-047). Top-10 customers over 3 years: 871 → 375 ms; dashboard set 2.6 s → 1.8 s; P8's receivables and payables also dropped (203 → 75, 186 → 60 ms). |
@@ -176,7 +177,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
-| 09 | [phase-09.md](test-reports/phase-09.md) | PASS - 1,252 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI: see Done |
+| 09 | [phase-09.md](test-reports/phase-09.md) | PASS - 1,252 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI green: check 36460856648 |
 | 08 | [phase-08.md](test-reports/phase-08.md) | PASS - 1,204 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI green: check 36444202147, capture-kit 36444202153 |
 | 04 | [phase-04.md](test-reports/phase-04.md) | PASS on drafts - 804 tests, 0 failed, 0 skipped, 90.0% coverage; CI green: check 36294681749, capture-kit 36294681754, agent-windows 36294681770 |
 | 03 | [phase-03.md](test-reports/phase-03.md) | PASS - 613 tests, 0 failed, 0 skipped, 89.3% coverage; CI run 36107675601 green |
