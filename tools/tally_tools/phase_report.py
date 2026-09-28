@@ -11,6 +11,7 @@ import argparse
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,8 +45,9 @@ def assert_test_database(url: str) -> str:
     return name
 
 
-def reset_database(url: str) -> str:
-    name = assert_test_database(url)
+def reset_database(url: str, guard: Callable[[str], str] = assert_test_database) -> str:
+    """Drops and recreates the database `guard` accepts (by default only a `_test` one)."""
+    name = guard(url)
     admin = make_url(url).set(database="postgres").render_as_string(hide_password=False)
     admin_dsn = admin.replace("postgresql+psycopg://", "postgresql://")
     with psycopg.connect(admin_dsn, autocommit=True) as conn:
