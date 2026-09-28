@@ -14,6 +14,7 @@ from fastapi import FastAPI, Request, Response
 from starlette.middleware.cors import CORSMiddleware
 from structlog.contextvars import bound_contextvars
 
+from app.core.agent_credentials import CREDENTIAL_PREFIX, verified_agent
 from app.core.config import Settings
 from app.core.errors import AppError, error_response
 from app.core.security import decode_token
@@ -65,24 +66,29 @@ class RateLimiter:
     Postgres or Redis before running more than one replica: required task P16.11 (D-033 #3).
     """
 
-    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
-        self._clock = clock
+    def __init__(self, clock: Callable[[], float] = time.monotonic, seconds: int = 60) -> None:
+        self._clock, self._seconds = clock, seconds
         self._counts: dict[str, tuple[int, int]] = {}  # key -> (window, count)
 
     def hit(self, key: str, limit: int) -> int | None:
         """Count one request; seconds until the window resets if over the limit, else None."""
         now = self._clock()
-        window = int(now // 60)
+        window = int(now // self._seconds)
         if len(self._counts) > 50_000:  # drop keys from finished windows
             self._counts = {k: v for k, v in self._counts.items() if v[0] == window}
         seen_window, count = self._counts.get(key, (window, 0))
         count = count + 1 if seen_window == window else 1
         self._counts[key] = (window, count)
-        return None if count <= limit else max(1, 60 - int(now % 60))
+        return None if count <= limit else max(1, self._seconds - int(now % self._seconds))
 
 
-def _rate_key(request: Request, ip: str) -> tuple[str, int]:
+def _rate_key(request: Request, ip: str, config: Settings) -> tuple[str, int]:
     auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer ") and auth[7:].startswith(CREDENTIAL_PREFIX):
+        agent_id = verified_agent(auth[7:])  # D-043: only a credential that verified
+        if agent_id is not None:
+            return f"agent:{agent_id}", config.agent_rate_limit
+        return f"ip:{ip}", ANONYMOUS_PER_MINUTE
     if auth.lower().startswith("bearer "):
         try:
             return f"user:{decode_token(auth[7:], 'access')['sub']}", USER_PER_MINUTE
@@ -93,7 +99,7 @@ def _rate_key(request: Request, ip: str) -> tuple[str, int]:
 
 def install_middleware(app: FastAPI, config: Settings) -> None:
     proxies = [ip_network(c, strict=False) for c in config.trusted_proxies]
-    limiter = RateLimiter()
+    limiter = RateLimiter(seconds=config.rate_limit_window_seconds)
     prod = config.env == "prod"
 
     @app.middleware("http")
@@ -119,7 +125,7 @@ def install_middleware(app: FastAPI, config: Settings) -> None:
             if effective_scheme(request.url.scheme, peer, proto, proxies) != "https":
                 return error_response(ErrorCode.HTTPS_REQUIRED, "HTTPS is required", 400)
         ip = client_ip(peer, request.headers.get("x-forwarded-for"), proxies)
-        key, limit = _rate_key(request, ip)
+        key, limit = _rate_key(request, ip, config)
         retry_after = limiter.hit(key, limit)
         if retry_after is not None:
             return error_response(

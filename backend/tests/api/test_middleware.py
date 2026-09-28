@@ -14,7 +14,13 @@ from app.core.middleware import RateLimiter, client_ip, effective_scheme
 from app.main import create_app
 from tally_contract.testing import assert_logged
 from tests.conftest import client_for
-from tests.factories import auth_header, make_user
+from tests.factories import (
+    agent_header,
+    auth_header,
+    make_company,
+    make_registered_agent,
+    make_user,
+)
 
 PROXIES = [ip_network("10.0.0.0/8")]
 LB = ("10.0.0.5", 5000)  # a trusted proxy
@@ -137,6 +143,63 @@ async def test_an_invalid_token_counts_against_the_ip(session: AsyncSession) -> 
         for _ in range(100):
             await client.get("/health", headers=bad)
         assert (await client.get("/health", headers=bad)).status_code == 429
+
+
+# --- Agents' own buckets (D-043) --------------------------------------------------------
+
+RENEW = "/agent/leases/renew"  # an authenticated Agent call with no body
+
+
+async def _agents(session: AsyncSession, n: int) -> list[dict[str, str]]:
+    company = await make_company(session)
+    return [
+        agent_header((await make_registered_agent(session, company, f"agent-{i}"))[1])
+        for i in range(n)
+    ]
+
+
+async def test_each_agent_has_its_own_bucket_even_behind_one_office_ip(
+    session: AsyncSession,
+) -> None:
+    a, b = await _agents(session, 2)
+    async with _client(session, agent_rate_limit=3) as client:
+        assert (await client.post(RENEW, headers=a)).status_code == 200  # verifies: IP bucket
+        for _ in range(3):
+            assert (await client.post(RENEW, headers=a)).status_code == 200
+        blocked = await client.post(RENEW, headers=a)
+        assert blocked.status_code == 429 and blocked.json()["code"] == "RATE_LIMITED"
+        assert int(blocked.headers["Retry-After"]) >= 1
+        for _ in range(4):  # Agent B, same IP, untouched by A
+            assert (await client.post(RENEW, headers=b)).status_code == 200
+        # A user and an anonymous caller behind the same IP are not starved either.
+        user = auth_header(await make_user(session))
+        assert (await client.get("/health", headers=user)).status_code == 200
+        assert (await client.get("/health")).status_code == 200
+
+
+async def test_forged_agent_tokens_count_against_the_ip(session: AsyncSession) -> None:
+    """Only a credential that verified gets its own bucket: forging `agt_<id>` tokens cannot
+    mint fresh ones."""
+    import uuid
+
+    async with _client(session) as client:
+        for _ in range(100):
+            forged = {"Authorization": f"Bearer agt_{uuid.uuid4()}.not-the-secret"}
+            assert (await client.post(RENEW, headers=forged)).status_code == 401
+        forged = {"Authorization": f"Bearer agt_{uuid.uuid4()}.not-the-secret"}
+        assert (await client.post(RENEW, headers=forged)).status_code == 429
+
+
+async def test_a_cached_bucket_never_authenticates_a_revoked_agent(session: AsyncSession) -> None:
+    company = await make_company(session)
+    agent, credential = await make_registered_agent(session, company)
+    headers = agent_header(credential)
+    async with _client(session) as client:
+        assert (await client.post(RENEW, headers=headers)).status_code == 200
+        agent.status = "REVOKED"
+        await session.flush()
+        refused = await client.post(RENEW, headers=headers)
+        assert (refused.status_code, refused.json()["code"]) == (401, "AGENT_REVOKED")
 
 
 # --- HTTPS (SEC-1.3) ------------------------------------------------------------------

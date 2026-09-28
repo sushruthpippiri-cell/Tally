@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     cors_origins: Annotated[list[str], NoDecode] = []
     # D-033 #5-6: X-Forwarded-For/-Proto are honoured only from these peers (CIDRs).
     trusted_proxies: Annotated[list[str], NoDecode] = []
+    # D-043: each verified Agent has its own bucket (SEC-1.9's user limit); the window is a
+    # setting only so tests can shrink it.
+    agent_rate_limit: int = 1000
+    rate_limit_window_seconds: int = 60
     min_agent_version: str = "0.0.0"
     min_tdl_version: str = "0.0.0"
     allow_unverified_incremental: bool | None = None  # D-029: true in dev/test, false in prod

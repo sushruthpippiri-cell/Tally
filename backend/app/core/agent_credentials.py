@@ -8,6 +8,7 @@ request signing (SEC-2.4).
 import hashlib
 import hmac
 import secrets
+import time
 import uuid
 from dataclasses import dataclass
 
@@ -51,6 +52,36 @@ def parse(credential: str) -> tuple[uuid.UUID, str] | None:
         return uuid.UUID(agent_part), secret
     except ValueError:
         return None
+
+
+# D-043: credentials that verified recently, so the rate limiter can give that Agent its own
+# bucket. Only a credential that passed `current_agent` gets one: a forged `agt_<id>` token
+# stays in its IP's bucket. Process-local, like the limiter (P16.11).
+VERIFIED_TTL_SECONDS = 600
+_VERIFIED: dict[str, tuple[uuid.UUID, float]] = {}
+
+
+def _digest(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def remember_verified(token: str, agent_id: uuid.UUID) -> None:
+    now = time.monotonic()
+    if len(_VERIFIED) > 10_000:
+        for key in [k for k, (_, until) in _VERIFIED.items() if until <= now]:
+            del _VERIFIED[key]
+        if len(_VERIFIED) > 10_000:
+            _VERIFIED.clear()
+    _VERIFIED[_digest(token)] = (agent_id, now + VERIFIED_TTL_SECONDS)
+
+
+def verified_agent(token: str) -> uuid.UUID | None:
+    """The Agent this bearer verified as recently, else None. Rate limiting only: every
+    request is still authenticated by `current_agent`."""
+    found = _VERIFIED.get(_digest(token))
+    if found is None or found[1] <= time.monotonic():
+        return None
+    return found[0]
 
 
 def verify(secret: str, salt: bytes, stored_hash: str) -> bool:
@@ -105,4 +136,5 @@ async def current_agent(
         raise AppError(
             ErrorCode.AGENT_REVOKED, "This Agent has been revoked; register it again", 401
         )
+    remember_verified(credentials.credentials, agent.agent_id)  # type: ignore[union-attr]
     return AgentContext(agent.agent_id, agent.company_id, AgentStatus(agent.status))
