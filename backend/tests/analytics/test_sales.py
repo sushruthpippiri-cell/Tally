@@ -10,7 +10,6 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analytics import query
-from app.core import gates
 from app.models.enums import Nature, SettingDataType
 from app.models.masters import Ledger
 from tests.analytics.books import Books, make_books
@@ -26,12 +25,6 @@ async def sale(books: Books, amount: str = "10000", vtype: str = "Sales", **kw: 
     await books.voucher(
         vtype, DAY, [("Customer A", "DEBIT", amount), ("Sales", "CREDIT", amount)], **kw
     )
-
-
-@pytest.fixture
-def g26_passed(monkeypatch: pytest.MonkeyPatch) -> None:
-    statuses = {g: "NOT_TESTED" for g in gates.load_gate_status()} | {"G26": "PASSED"}
-    monkeypatch.setattr(gates, "_default_statuses", lambda: statuses)
 
 
 @pytest.mark.req("AC-26")

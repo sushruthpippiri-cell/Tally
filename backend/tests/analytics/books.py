@@ -19,6 +19,7 @@ from tests.factories import (
     Bill,
     Entry,
     make_company,
+    make_cost_centre,
     make_group,
     make_ledger,
     make_predefined_groups,
@@ -115,4 +116,6 @@ async def make_books(session: AsyncSession, name: str = "Test Traders") -> Books
     types["Memorandum"] = await make_voucher_type(
         session, company, "Memorandum", BaseVoucherType.OTHER
     )
+    for centre in ("Retail", "Online"):
+        await make_cost_centre(session, company, centre)
     return Books(session, company, groups, ledgers, types)

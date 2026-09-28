@@ -18,12 +18,6 @@ SALE_DAY, NOTE_DAY = date(2025, 5, 10), date(2025, 6, 2)
 METRIC = "unclassified_adjustments"
 
 
-@pytest.fixture
-def g26_passed(monkeypatch: pytest.MonkeyPatch) -> None:
-    statuses = {g: "NOT_TESTED" for g in gates.load_gate_status()} | {"G26": "PASSED"}
-    monkeypatch.setattr(gates, "_default_statuses", lambda: statuses)
-
-
 async def _sale(books: Books, ref: str = "INV-1", status: str = "ACTIVE") -> None:
     await books.voucher(
         "Sales",

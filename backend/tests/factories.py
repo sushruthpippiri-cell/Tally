@@ -34,7 +34,13 @@ from app.models.enums import (
 )
 from app.models.masters import CostCentre, Group, Ledger, StockItem, VoucherType
 from app.models.sync import SyncRun
-from app.models.vouchers import BillAllocation, Voucher, VoucherEntry, VoucherItem
+from app.models.vouchers import (
+    BillAllocation,
+    CostCentreAllocation,
+    Voucher,
+    VoucherEntry,
+    VoucherItem,
+)
 
 
 @asynccontextmanager
@@ -357,11 +363,12 @@ async def make_cost_centre(session: AsyncSession, company: Company, name: str) -
 Entry = tuple[str, str, str]  # (ledger name, "DEBIT" | "CREDIT", amount)
 Item = tuple[str, str, str, str]  # (stock item name, quantity, rate, amount)
 Bill = tuple[int, str, str, str]  # (entry index, allocation type, reference, amount)
+Centre = tuple[int, str, str]  # (entry index, cost centre name, amount)
 
 DEFAULT_ENTRIES: list[Entry] = [("Customer A", "DEBIT", "10000"), ("Sales", "CREDIT", "10000")]
 
 
-async def _by_name[M: (Ledger, StockItem)](
+async def _by_name[M: (Ledger, StockItem, CostCentre)](
     session: AsyncSession, model: type[M], company: Company, name: str
 ) -> M:
     found = await session.scalar(
@@ -382,6 +389,7 @@ async def make_voucher(
     bills: list[Bill] | None = None,
     status: str = "ACTIVE",
     number: str | None = None,
+    centres: list[Centre] | None = None,
 ) -> Voucher:
     """A voucher with normalized entries. Ledgers and stock items are looked up by name in the
     company (create them first). Refuses unbalanced input: debits must equal credits."""
@@ -432,6 +440,16 @@ async def make_voucher(
                 reference_name=reference,
                 amount_absolute=Decimal(amount),
                 accounting_direction=entry.accounting_direction,
+            )
+        )
+    for entry_idx, centre_name, amount in centres or []:
+        centre = await _by_name(session, CostCentre, company, centre_name)
+        session.add(
+            CostCentreAllocation(
+                company_id=company.company_id,
+                voucher_entry_id=rows[entry_idx].voucher_entry_id,
+                cost_centre_id=centre.cost_centre_id,
+                amount_absolute=Decimal(amount),
             )
         )
     for item_name, quantity, rate, amount in items or []:

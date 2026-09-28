@@ -26,11 +26,13 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analytics.context import MetricContext
-from app.analytics.metrics import sales, unclassified_adjustments
+from app.analytics.metrics import expenses, purchases, sales, unclassified_adjustments
 from app.core.periods import Granularity, period_key
 
 METRICS: dict[str, ModuleType] = {
     "sales": sales,
+    "purchases": purchases,
+    "expenses": expenses,
     "unclassified_adjustments": unclassified_adjustments,
 }
 

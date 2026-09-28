@@ -9,10 +9,10 @@ note is linked and every note is unclassified (ACC-5.5).
 import uuid
 from typing import Any
 
-from sqlalchemy import ColumnElement, Select, and_, exists, false, select
+from sqlalchemy import ColumnElement, Select, and_, case, exists, false, or_, select
 from sqlalchemy.orm import aliased
 
-from app.analytics.blocks import VT, E, V, in_class
+from app.analytics.blocks import VT, E, V, entries, in_class
 from app.analytics.context import MetricContext
 from app.models.enums import (
     AccountingDirection,
@@ -99,3 +99,23 @@ def return_entries(ctx: MetricContext, note: BaseVoucherType) -> ColumnElement[b
 
 def is_linked(ctx: MetricContext, note: BaseVoucherType) -> ColumnElement[bool]:
     return E.voucher_id.in_(linked_notes(ctx.company_id, ctx.returns_linkable, note))
+
+
+def gross_less_returns(ctx: MetricContext, note: BaseVoucherType) -> Select[Any]:
+    """Sales (for CREDIT_NOTE) or purchases (for DEBIT_NOTE), single-sided (ACC-1.1, 1.2):
+    CREDIT (DEBIT) entries on Sales-class (Purchase-class) ledgers in ACTIVE vouchers of base
+    type SALES (PURCHASE), positive, plus the linked notes' reversing entries, negative. Tax
+    ledgers count only when taxable-value mode is off (ACC-2.2). The other side of the voucher
+    is never read, so nothing is counted twice (ACC-2.1)."""
+    origin = ORIGIN[note]
+    goods = ctx.classes.sales if note is CREDIT_NOTE else ctx.classes.purchase
+    tax: Any = () if ctx.taxable_value_mode else ctx.classes.tax
+    direction = AccountingDirection.CREDIT if note is CREDIT_NOTE else AccountingDirection.DEBIT
+    original = and_(
+        VT.base_voucher_type == origin,
+        E.accounting_direction == direction,
+        in_class(goods, tax),
+    )
+    reversed_ = and_(return_entries(ctx, note), is_linked(ctx, note))
+    amount = case((VT.base_voucher_type == origin, E.amount_absolute), else_=-E.amount_absolute)
+    return entries(ctx, amount).where(or_(original, reversed_))
