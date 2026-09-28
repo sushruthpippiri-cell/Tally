@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P7 (Tally Sync Agent) — **session 2 done (P7.5–P7.7)** 2026-09-28: the executor, local queue and uploader, progress thread, service loop and heartbeat status; the owner's session-2 tests (progress on its own timer, streaming memory, dates from the backend) pass and are mutation-checked. D-042 confirmed (Administrators stay in the data-directory ACL). CI green (runs 36403514083 `check`, 36403514022 `agent-windows` running the new Agent tests on Windows, 36403514125 `capture-kit`). Session 3 (P7.8–P7.10: mock Tally modes, Windows service and build, install guide, end-to-end suite with the real backend, phase report) not started — waits for the owner.
+P7 (Tally Sync Agent) — **complete, except the real-machine checklist (pending)** 2026-09-28. Local suite PASS ([phase-07](test-reports/phase-07.md), 1,093 tests: 1,090 passed, 3 skipped — the Windows-only tests, which run on the `agent-windows` job; 90.5% line coverage); CI: see the Done row "P7 phase report". D-043 ACCEPTED (per-Agent rate-limit buckets, 429 never a failure, the Windows service). **Pending:** `docs/agent-windows-checklist.md` on the owner's Windows VM (service as `NT SERVICE\TallyAgent`, encrypt-as-installer/decrypt-as-service, ACLs, real TallyPrime), then again on a real x64 PC before launch (P16.8b). The x64 build for it: see the Done row "P7 agent build". Next: P8 (core analytics) — waits for the owner.
 
 P6 (lifecycle, deletion detection, hierarchy, Data Quality) — **complete** 2026-09-27. Local suite PASS ([phase-06](test-reports/phase-06.md), 1020 tests, 0 skipped, 91.9% line coverage); CI green (runs 36310356334 `check`, 36310356314 `agent-windows`, 36310356316 `capture-kit`). D-041 ACCEPTED, and D-007 ACCEPTED with the guard floor lowered to 5. Not covered by design: DR-ML-5 (INACTIVE) waits for G29; SYNC-5.3 is P10; SYNC-5.5 reviewed (question 8, D-041); the metric halves of ACC-7.x/8.x are P8. Next: P7 (Sync Agent) — waits for the owner.
 
@@ -22,6 +22,12 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-28 | P7 phase report | (this commit) | [phase-07](test-reports/phase-07.md): 1,090 passed, 3 skipped (Windows-only, run on `agent-windows`), fresh DB, `make check` PASS. |
+| 2026-09-28 | P7.10 end-to-end | cef0ff4, cdfbd38 | Real Agent, real backend (uvicorn subprocess on the test clock), mock TallyPrime: register → FULL twice (AC-01) → edit (AC-02, old and new audited) → delete (AC-04, in Data Quality); backend SIGKILLed mid-upload and restarted: nothing lost or duplicated; the owner's drain test: 200 queued batches through the Agent's own bucket (100 per 5 s) with 429s, none dead-lettered, anonymous traffic from the same IP untouched (mutation-checked). Control calls ride out brief outages. |
+| 2026-09-28 | P7.9 Windows service and build | 5ae98a3 | pywin32 service wrapper, PyInstaller x64 one-folder build (manual `agent-build` workflow), `Install-/Uninstall-TallyAgent.ps1` (virtual account, icacls, revoke reminder), `docs/agent-install.md`, `docs/agent-windows-checklist.md` (**pending**), `make dev-tls` / `dev-https` and `tally_tools.dev_backend` for the checklist; P16.8b (real x64 re-run). |
+| 2026-09-28 | P7.8 mock Tally | d4cc2b4 | Edits between runs (edit, cancel, delete) and `--sample`. |
+| 2026-09-28 | Agent 429 handling | 900f3eb | A 429 is deferred until Retry-After, never counted as an attempt or dead-lettered; control calls wait it out (D-043 #2). |
+| 2026-09-28 | Per-Agent rate limits | 29ae4c6 | Owner finding confirmed: Agent requests fell into their office IP's anonymous bucket (100/min). Each verified Agent now has its own bucket (1,000/min); forged `agt_` tokens stay in the IP bucket (D-043 #1). |
 | 2026-09-28 | P7 session 2 | b4d2922 | Progress log; CI green on all three workflows. |
 | 2026-09-28 | P7.5/P7.7 executor and service | 7d8d633 | Collections in dependency order under their leases; ALTERID windows (full pulls from 0) or date pages for full-only vouchers and DATE_RANGE; a timed-out window retried once as two halves, a second timeout reported as TALLY_EXPORT_TIMEOUT (AGT-4.3); key lists when due; stock snapshot as of the plan's date; uploads drained before each release and the finish. Progress on its own thread: a Tally answer 3x the lease keeps the command RUNNING (owner 1). A 5,000-voucher window peaks at 1.3x its XML, not 95 MB (owner 2; the parser now feeds XML in 64 KB slices). Dates from the plan while the PC clock says 2031 (owner 5). AC-21, AC-23, AGT-3.2/3.3, AGT-5.4, heartbeat status; six mutations checked. |
 | 2026-09-28 | P7.6 queue and uploader | bea67eb | SQLite (WAL) queue in the restricted data directory: windows staged on disk and committed whole, strict FIFO, backoff 30 s → 15 min with jitter, dead-letter cascade per run and collection, obsolete runs after a lost command, permanent refusals dead-lettered at once, pause on a rotated credential. |
@@ -121,6 +127,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 | Item | Blocked by (gate / decision / question) | Since |
 |---|---|---|
 | Gate track G-E (confirm or fix every GATE-tagged TDL line and constant; live fixtures in the harness; gate statuses) | Live captures from the owner's Windows VM with TallyPrime (`make capture-kit`, then the kit README) | 2026-09-25 |
+| Agent real-machine checklist, `docs/agent-windows-checklist.md` (service as `NT SERVICE\\TallyAgent`, encrypt as the installing user / decrypt as the service, ACLs, real TallyPrime) | The owner runs it on the Windows VM with the `agent-build` x64 zip; repeated on a real x64 PC in P16.8b | 2026-09-28 |
 | _(none)_ | D-021 is still needed before P8. | |
 
 ## Questions for the product owner
