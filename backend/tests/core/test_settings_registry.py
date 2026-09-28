@@ -25,7 +25,7 @@ SRS_18_2 = {
     "analytics.taxable_value_mode": True,
     "analytics.top_n_default": 10,
     "analytics.quarter_mode": "financial",
-    "cashflow.include_journal": False,
+    "cashflow.include_journal": True,  # D-021 (owner, 2026-09-28)
     "aging.bucket_boundaries": [30, 60, 90],
     "payment.window_days": 365,
     "payment.min_settlements": 3,
@@ -84,7 +84,7 @@ VALID: list[tuple[str, Any, Any]] = [
     ("anomaly.max_multiplier", None, None),
     ("analytics.quarter_mode", "calendar", "calendar"),
     ("stock.fast_ranking_basis", "value", "value"),
-    ("cashflow.include_journal", True, True),
+    ("cashflow.include_journal", False, False),
     (
         "classification.sales_groups",
         [{"type": "COMPANY_GROUP", "tally_guid": "g-1"}],

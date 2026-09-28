@@ -148,7 +148,7 @@ _SPECS = [
     SettingSpec("analytics.taxable_value_mode", BOOL, True, _bool),
     SettingSpec("analytics.top_n_default", INT, 10, _int(1, 100)),
     SettingSpec("analytics.quarter_mode", JSON, "financial", _choice("financial", "calendar")),
-    SettingSpec("cashflow.include_journal", BOOL, False, _bool),
+    SettingSpec("cashflow.include_journal", BOOL, True, _bool),  # D-021
     SettingSpec("aging.bucket_boundaries", JSON, [30, 60, 90], _bucket_boundaries),
     SettingSpec("payment.window_days", INT, 365, _POSITIVE),
     SettingSpec("payment.min_settlements", INT, 3, _POSITIVE),

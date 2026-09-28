@@ -140,7 +140,7 @@ A voucher referencing a master GUID not yet stored rolls back its commit chunk, 
 The large-transaction rule needs at least 5 prior transactions for the party in the window; sample standard deviation is used.
 
 ### D-016 Defaults for OPEN business decisions — ACCEPTED as defaults
-GST analytics out of v1 (taxable-value mode on). Journal entries excluded from cash flow (`cashflow.include_journal=false`). Fast-moving ranked by quantity with new setting `stock.fast_ranking_basis` (`quantity` | `value`). Godown/batch stock and profitability out of v1. Backup RPO ≤ 24 h / RTO ≤ 4 h as proposed values.
+GST analytics out of v1 (taxable-value mode on). Journal entries excluded from cash flow (`cashflow.include_journal=false`) — **superseded by D-021 (2026-09-28): journals are included by default**. Fast-moving ranked by quantity with new setting `stock.fast_ranking_basis` (`quantity` | `value`). Godown/batch stock and profitability out of v1. Backup RPO ≤ 24 h / RTO ≤ 4 h as proposed values.
 
 ### D-017 Single scheduler firing — ACCEPTED
 Scheduled jobs take a PostgreSQL advisory lock so multiple backend replicas never create duplicate commands.
@@ -154,8 +154,18 @@ A linked Sales Return is attributed to the customer on the credit note (same one
 ### D-020 Voucher dates are DATEs — ACCEPTED
 Tally vouchers carry a date, not a time. `voucher_date` is `DATE`; TZ-1.x applies to "today", timestamps (sync times, exports, audit) and schedules. AC-62 is tested with a timestamp-based view (e.g. sync time and "today") and by confirming voucher dates are never shifted by the server time zone.
 
-### D-021 Cash flow scope — OPEN
-As specified, inflow/outflow count only Receipt/Payment vouchers (ACC-1.6/1.7). Cash or bank legs of Sales/Purchase vouchers (common for POS/cash sales) are not counted. Implemented as specified; ask the business whether a setting to include them is wanted.
+### D-021 Cash flow scope — ACCEPTED (product owner, 2026-09-28)
+Originally OPEN: as specified, inflow/outflow counted only Receipt/Payment vouchers (ACC-1.6/1.7), so the cash or bank legs of Sales/Purchase vouchers (POS and cash sales) were missed. Also answers the SRS 27 journal question and supersedes D-016's journal default.
+
+| # | Choice | Why |
+|---|---|---|
+| 1 | **Cash flow counts every movement on Cash/Bank allow-list ledgers** on ACTIVE vouchers of **any** base type: Receipts, Payments, Sales and Purchases with cash as the party, Journals, Contras, OTHER | Owner: cash moved is cash moved, whatever the voucher is called. |
+| 2 | **Journals are included by default**: `cashflow.include_journal` defaults to **true**; a company can turn it off, and then JOURNAL-base vouchers are left out | Owner. |
+| 3 | **How a voucher counts:** the **net** of its entries on list ledgers (`amount_signed`, debit +). Net > 0 is an inflow, net < 0 an outflow; a transfer between the company's own cash and bank ledgers nets to 0 and contributes nothing | Transfers between own accounts are not cash flow; netting per voucher excludes them without naming voucher types. |
+| 4 | A Contra from a listed bank to a ledger **not** on the list (e.g. a Bank OD account outside it) is money leaving the list: an outflow | Follows from #3 and keeps #5 true. |
+| 5 | **Invariant:** for any period, net cash flow = Σ `amount_signed` of ACTIVE entries on list ledgers dated in the period = the change in the Cash/Bank allow-list balance over the period (journals included). Tested directly (P8.6) | Owner: the figure must agree with the balance movement. |
+
+Departs from SRS ACC-1.6/1.7 (Receipt/Payment only), ACC-3.3 (every Contra excluded) and ACC-3.4 / SRS 18.2 (journals excluded by default) as worded.
 
 ### D-022 Opening bill allocations — PROPOSED (gate G31)
 Add table `opening_bill_allocations` (company_id, ledger_id, reference_name, bill_date, due_date, amount_absolute, accounting_direction, financial_year_start) for bills outstanding at books-beginning, which Tally stores on the ledger master. Aging treats them as New References.
@@ -396,3 +406,13 @@ How ours compares:
 | 2 | **A 429 is never a failure.** The Agent's client raises `RateLimited(retry_after)`; the uploader defers the item until `Retry-After` (with jitter) without counting an attempt, so a rate-limited batch is never dead-lettered; the progress thread and the heartbeat treat a 429 as a temporary outage; the executor's other calls wait `Retry-After` and retry, up to 5 times | Owner: a 429 means "slow down", not "never". |
 | 3 | **Windows service:** pywin32 `ServiceFramework` (`tally_agent.winservice`), NSSM documented as the fallback. A PyInstaller one-folder x64 build with `tally-agent.exe` (CLI) and `tally-agent-service.exe`, built only by the manual `agent-build` workflow; installed by `Install-TallyAgent.ps1` as `NT SERVICE\TallyAgent`, delayed-automatic start, restart on failure. **IMPLEMENTATION TEST — pending** the owner's real-machine checklist (`docs/agent-windows-checklist.md`), and to be repeated on a real x64 PC before launch (P16) | The service, its virtual account and DPAPI across accounts can only be proven on Windows itself. |
 | 4 | Uninstalling or retiring a PC: the Agent must be **revoked in the dashboard**; the uninstaller leaves the data directory (queue for inspection, the encrypted credential) and says so | The credential file stays on disk; revocation is what makes it useless. |
+
+### D-044 Analytics architecture, expenses and blank openings — ACCEPTED (product owner, 2026-09-28)
+| # | Choice | Why |
+|---|---|---|
+| 1 | **One detail query per metric.** Each module `app/analytics/metrics/<name>.py` exposes exactly one query builder, `detail_query(ctx) -> Select`, returning one row per contributing item (`voucher_id, voucher_date, voucher_number, voucher_type_name, base_voucher_type, ledger_id, ledger_name, amount` = the signed contribution, plus the metric's dimensions). Totals, series, breakdowns and drill-down pages — and later exports and reconciliation — are built only by `app/analytics/query.py` over that subquery. Guarded by tests: one public function per metric module, `select(` nowhere else in it, and entry tables queried only from approved modules | Every view of a metric sums the same rows, so they cannot disagree (ACC-4.4, FR-DD-5, EXP-1.3). |
+| 2 | **Periods are bucketed in SQL.** `voucher_date` is a Tally DATE and is never shifted (D-020); a `timestamptz` is converted with `AT TIME ZONE company_timezone` before truncation, so grouping never depends on the database session's time zone. Months are calendar months; quarters are financial quarters from `financial_year_start`, or calendar ones per `analytics.quarter_mode` | AC-62 (SQL half), AC-63. |
+| 3 | **Classification** by the ledger's `classification_group_id` (D-001) in the allow-list's group ids: predefined entries by reserved name, company groups by GUID. A NULL anchor (unresolved chain) is in no class (ACC-7.4). Customers/suppliers are ledgers anchored at Sundry Debtors / Sundry Creditors (ACC-7.6) | D-001. |
+| 4 | Money is summed in SQL as NUMERIC and returned as Decimal strings; only `accounting_direction`, `amount_absolute` and `amount_signed` are read (a test fails on any `amount_raw` under analytics, exports, reconciliation or anomaly) | ACC-DATA-1, AC-34. |
+| 5 | **Expenses are the net movement on Expense-class ledgers**: Σ `amount_signed` (debit +) of ACTIVE entries, in any voucher type. A credit to an expense ledger (a journal reversing a provision, a refund or rate difference, a reclassification) reduces expenses; a reclassification between two expense heads changes the breakdown, not the total. Departs from ACC-1.5's wording (DEBIT entries only) | Owner: counting debits only makes expenses read higher than Tally's own Profit & Loss, which owners compare against. The other side of an expense entry is never an expense ledger, so there is no double counting. |
+| 6 | **Blank opening balance = zero (GATE-G16).** Our TDL always emits `OPENINGBALANCE`, and Tally leaves a zero opening blank. Field present but blank or zero → a zero opening is stored; field absent → no opening row, and the balance shows "opening balance unavailable" (ACC-9.6) | Owner: most ledgers have no opening; treating blank as "unknown" would mark nearly every ledger unavailable. To confirm with the G16 capture. |
