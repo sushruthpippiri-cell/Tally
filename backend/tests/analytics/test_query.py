@@ -201,3 +201,9 @@ async def test_dates_outside_the_filter_and_other_companies_are_left_out(
     q1 = await books.ctx(date(2025, 4, 1), date(2025, 6, 30))
     assert await query.total(s, q1, entries_metric) == Decimal("1000")
     assert await query.total(s, await other.ctx(), entries_metric) == Decimal("500")
+
+
+async def test_analytics_statements_are_planned_for_their_own_dates(books: Books) -> None:
+    """D-047: no generic plan reused across date ranges, for this transaction only."""
+    await books.ctx()
+    assert await books.session.scalar(text("SHOW plan_cache_mode")) == "force_custom_plan"

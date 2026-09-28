@@ -129,10 +129,11 @@ def balance_rows(ctx: MetricContext, ledgers: ColumnElement[bool]) -> Select[Any
     return select(rows)
 
 
-def party_bucket(ctx: MetricContext, party: Iterable[uuid.UUID]) -> Select[Any]:
-    """(voucher_id, party_id) for every voucher with an entry on a ledger in `party` (the
-    customer or supplier class): the one such ledger, or NULL when there are several
-    (ACC-6.3). A voucher with none has no row, which also means Unattributed (ACC-6.2)."""
+def party_bucket(ctx: MetricContext, party: Iterable[uuid.UUID], base: str) -> Select[Any]:
+    """(voucher_id, party_id) for every voucher of this base type with an entry on a ledger in
+    `party` (the customer or supplier class): the one such ledger, or NULL when there are
+    several (ACC-6.3). A voucher with none has no row, which also means Unattributed
+    (ACC-6.2). Only the base type's vouchers are ever looked up, so only they are computed."""
     found = func.array_agg(E.ledger_id.distinct(), type_=ARRAY(UUID(as_uuid=True)))
     return (
         select(
@@ -140,7 +141,9 @@ def party_bucket(ctx: MetricContext, party: Iterable[uuid.UUID]) -> Select[Any]:
             case((func.cardinality(found) == 1, found[1])).label("party_id"),
         )
         .join(L, and_(L.company_id == E.company_id, L.ledger_id == E.ledger_id))
-        .where(E.company_id == ctx.company_id, in_class(party))
+        .join(V, and_(V.company_id == E.company_id, V.voucher_id == E.voucher_id))
+        .join(VT, and_(VT.company_id == V.company_id, VT.voucher_type_id == V.voucher_type_id))
+        .where(E.company_id == ctx.company_id, in_class(party), VT.base_voucher_type == base)
         .group_by(E.voucher_id)
     )
 

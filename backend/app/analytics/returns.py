@@ -9,7 +9,7 @@ note is linked and every note is unclassified (ACC-5.5).
 import uuid
 from typing import Any
 
-from sqlalchemy import ColumnElement, Select, and_, case, false, func, or_, select
+from sqlalchemy import ColumnElement, Select, and_, case, false, func, or_, select, union_all
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import aliased
 
@@ -137,10 +137,11 @@ def attributed(ctx: MetricContext, note: BaseVoucherType) -> Select[Any]:
     never split (D-046 #1). The rows are exactly those of sales (purchases), so the buckets
     always total the metric."""
     party = ctx.classes.customer if note is CREDIT_NOTE else ctx.classes.supplier
-    rows = gross_less_returns(ctx, note).subquery()
-    bucket = party_bucket(ctx, party).subquery()
+    rows = gross_less_returns(ctx, note).cte("sale_rows")
+    # One set of buckets, for the sales (purchases) and for the originals of the returns.
+    bucket = party_bucket(ctx, party, ORIGIN[note]).cte("party_buckets")
     origins = note_origins(ctx.company_id, ctx.returns_linkable, note).subquery()
-    theirs = aliased(bucket)
+    theirs = bucket.alias("origin_buckets")
     agreed = func.array_agg(theirs.c.party_id.distinct(), type_=ARRAY(UUID(as_uuid=True)))
     origin_bucket = (
         select(
@@ -151,14 +152,20 @@ def attributed(ctx: MetricContext, note: BaseVoucherType) -> Select[Any]:
         .group_by(origins.c.note_id)
         .subquery()
     )
-    party_id = case(
-        (rows.c.base_voucher_type == ORIGIN[note], bucket.c.party_id),
-        else_=origin_bucket.c.party_id,
-    )
-    ledger = aliased(L)
-    return (
-        select(rows, party_id.label("party_id"), ledger.name.label("party_name"))
+    # Sales rows take their own voucher's bucket, return rows their originals': two joins
+    # over disjoint rows, so neither is ever evaluated for the other's rows.
+    sold = (
+        select(rows, bucket.c.party_id)
         .outerjoin(bucket, bucket.c.voucher_id == rows.c.voucher_id)
+        .where(rows.c.base_voucher_type == ORIGIN[note])
+    )
+    returned = (
+        select(rows, origin_bucket.c.party_id)
         .outerjoin(origin_bucket, origin_bucket.c.note_id == rows.c.voucher_id)
-        .outerjoin(ledger, and_(ledger.company_id == ctx.company_id, ledger.ledger_id == party_id))
+        .where(rows.c.base_voucher_type != ORIGIN[note])
+    )
+    both = union_all(sold, returned).subquery()
+    ledger = aliased(L)
+    return select(both, ledger.name.label("party_name")).outerjoin(
+        ledger, and_(ledger.company_id == ctx.company_id, ledger.ledger_id == both.c.party_id)
     )

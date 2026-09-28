@@ -5,6 +5,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analytics.classification import Classes, load_classes
@@ -62,6 +63,10 @@ async def load(session: AsyncSession, ctx: CompanyContext, flt: AnalyticsFilter)
     company = await session.get(Company, ctx.company_id)
     if company is None:
         raise AppError(ErrorCode.NOT_FOUND, "Company not found", 404)
+    # D-047: plan every analytics statement for its own dates. asyncpg prepares statements,
+    # and after 5 runs PostgreSQL may reuse a generic plan made for another date range
+    # (measured ~60% slower at SRS 17.2 size). SET LOCAL: this transaction only.
+    await session.execute(text("SET LOCAL plan_cache_mode = force_custom_plan"))
     taxable = await get_setting(session, company.company_id, "analytics.taxable_value_mode")
     return MetricContext(
         company_id=company.company_id,
