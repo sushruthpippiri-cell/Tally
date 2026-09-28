@@ -75,3 +75,38 @@ class DrilldownOut(BaseModel):
     page: int
     page_size: int
     rows: list[DrillRow]
+
+
+class LabelledAmount(BaseModel):
+    label: str
+    amount: Decimal | None
+
+
+class RankedRow(BaseModel):
+    rank: int
+    id: uuid.UUID
+    name: str
+    amount: Decimal | None = None  # ranked by revenue
+    quantity: Decimal | None = None  # ranked by quantity: always with its unit
+    unit: str | None = None
+    multiple_units: bool | None = None  # the item was sold in more than one unit (FR-STK-10)
+
+
+class RankingOut(BaseModel):
+    """A ranked list (TOPN-1.x). There is deliberately no total of the listed rows: a Top-N
+    list is never presented as adding up to the reference total (TOPN-1.4)."""
+
+    ranking: Literal["customers", "suppliers", "products"]
+    rank_by: Literal["revenue", "quantity"]
+    label: str  # "Top 10", or "All" for View All
+    is_top_n: bool
+    n: int | None
+    total_count: int
+    filters_applied: FiltersApplied
+    company_timezone: str
+    rows: list[RankedRow]
+    unattributed: LabelledAmount | None  # customers and suppliers: shown apart, never ranked
+    product_attributed: LabelledAmount | None  # products
+    difference: LabelledAmount | None  # products: exactly one label (ACC-VAL-1)
+    reference_total: LabelledAmount
+    notes: list[str]

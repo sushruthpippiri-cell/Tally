@@ -249,3 +249,12 @@ async def ranking(
     for r in found:
         del r["total_count"]
     return Ranking(found, int(count), n)
+
+
+async def unattributed(session: AsyncSession, ctx: MetricContext, metric: str, key: str) -> Decimal:
+    """Σ of the metric's rows whose `key` is NULL: the bucket a ranking leaves out."""
+    rows = detail(metric, ctx).subquery()
+    value = await session.scalar(
+        select(func.coalesce(func.sum(rows.c.amount), 0)).where(rows.c[key].is_(None))
+    )
+    return Decimal(value or 0)

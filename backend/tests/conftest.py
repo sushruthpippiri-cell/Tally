@@ -1,7 +1,7 @@
 """Backend test setup: tests use the real `tally_test` database (docker compose), never dev."""
 
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -118,3 +118,21 @@ def committed_database_urls(settings: Any) -> tuple[str, str]:
     assert_test_database(app_url)
     assert_test_database(owner_url)
     return app_url, owner_url
+
+
+@pytest.fixture
+def set_gates(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
+    """set_gates(G28="PASSED"): the given gate statuses, every other gate NOT_TESTED."""
+    from app.core import gates
+
+    def apply(**statuses: str) -> None:
+        now = {g: "NOT_TESTED" for g in gates.load_gate_status()} | statuses
+        monkeypatch.setattr(gates, "_default_statuses", lambda: now)
+
+    return apply
+
+
+@pytest.fixture
+def g26_passed(set_gates: Callable[..., None]) -> None:
+    """Return links are trusted only once gate G26 passes (ACC-5.5)."""
+    set_gates(G26="PASSED")

@@ -4,12 +4,13 @@ metric's one detail query through query.py (ACC-4.4); nothing is computed on its
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analytics import query
 from app.analytics.context import AnalyticsFilter, MetricContext, load
+from app.analytics.metrics import customer_revenue, supplier_purchases
 from app.core.errors import AppError
 from app.core.periods import Granularity, financial_year_of, today
 from app.core.permissions import CompanyContext
@@ -20,9 +21,13 @@ from app.schemas.analytics import (
     DrillRow,
     Figure,
     FiltersApplied,
+    LabelledAmount,
     MetricOut,
+    RankedRow,
+    RankingOut,
     SeriesPoint,
 )
+from app.services.settings import get_setting
 from tally_contract.errors import ErrorCode
 
 MetricName = StrEnum(  # type: ignore[misc]
@@ -38,7 +43,14 @@ STANDARD = {
     "ledger_name",
     "amount",
 }
-RETURNS = {"sales", "purchases", "unclassified_adjustments"}
+RETURNS = {
+    "sales",
+    "purchases",
+    "unclassified_adjustments",
+    "customer_revenue",
+    "supplier_purchases",
+    "product_revenue",
+}
 MAX_NAMED = 20
 NO_OPENING_CHECK = "ledgers_without_opening_balance"
 
@@ -202,4 +214,103 @@ async def drilldown(
         page=page,
         page_size=page_size,
         rows=[_row(r) for r in rows],
+    )
+
+
+# --- rankings (P9.5, TOPN-1.x, FR-2.4) ------------------------------------------------------
+
+RankingKind = Literal["customers", "suppliers", "products"]
+RankBy = Literal["revenue", "quantity"]
+_RANKED: dict[str, tuple[str, str]] = {  # kind -> (metric, reference metric)
+    "customers": ("customer_revenue", "sales"),
+    "suppliers": ("supplier_purchases", "purchases"),
+    "products": ("product_revenue", "sales"),
+}
+_REFERENCE = {"sales": "Total Sales Revenue", "purchases": "Purchase Value"}
+_UNATTRIBUTED = {
+    "customers": customer_revenue.UNATTRIBUTED,
+    "suppliers": supplier_purchases.UNATTRIBUTED,
+}
+UNITS_NOTE = (
+    "Quantities are in each item's own unit and are never added across units. An item marked "
+    "multiple_units was sold in more than one unit and appears once per unit; converting to "
+    "base units waits for the unit-data gate (G27)."
+)
+
+
+async def ranking(
+    session: AsyncSession,
+    ctx: CompanyContext,
+    kind: RankingKind,
+    *,
+    date_from: date | None,
+    date_to: date | None,
+    top_n: int | None,
+    view_all: bool,
+    rank_by: RankBy,
+) -> RankingOut:
+    metric, reference = _RANKED[kind]
+    if rank_by == "quantity" and kind != "products":
+        raise AppError(ErrorCode.VALIDATION_ERROR, "only products can be ranked by quantity", 422)
+    mc = await _context(session, ctx, date_from, date_to, False, False)
+    n = (
+        None
+        if view_all
+        else top_n or await get_setting(session, mc.company_id, "analytics.top_n_default")
+    )
+    if kind == "products":
+        keys = ("stock_item_id", "unit") if rank_by == "quantity" else ("stock_item_id",)
+        label = "stock_item_name"
+    else:
+        keys, label = ("party_id",), "party_name"
+    measure = "quantity" if rank_by == "quantity" else "amount"
+    ranked = await query.ranking(session, mc, metric, keys, label, measure=measure, n=n)
+    rows = [
+        RankedRow(
+            rank=r["rank"],
+            id=r[keys[0]],
+            name=r[label],
+            **(
+                {"quantity": r["value"], "unit": r["unit"], "multiple_units": r["siblings"] > 1}
+                if rank_by == "quantity"
+                else {"amount": r["value"]}
+            ),
+        )
+        for r in ranked.rows
+    ]
+    notes = [
+        f"{'Top ' + str(n) if n else 'The list'} is not meant to add up to "
+        f"{_REFERENCE[reference]}; it is shown for comparison only."
+    ]
+    unattributed = product_attributed = difference = None
+    if kind == "products":
+        diff = await query.product_difference(session, mc)
+        product_attributed = LabelledAmount(
+            label="Product-attributed Revenue", amount=diff.product_attributed
+        )
+        difference = LabelledAmount(label=diff.label, amount=diff.amount)
+        reference_amount = diff.total_sales
+        if rank_by == "quantity":
+            notes.append(UNITS_NOTE)
+    else:
+        unattributed = LabelledAmount(
+            label=_UNATTRIBUTED[kind],
+            amount=await query.unattributed(session, mc, metric, "party_id"),
+        )
+        reference_amount = await query.total(session, mc, reference)
+    return RankingOut(
+        ranking=kind,
+        rank_by=rank_by,
+        label=f"Top {n}" if n else "All",
+        is_top_n=ranked.is_top_n,
+        n=n,
+        total_count=ranked.total_count,
+        filters_applied=_applied(mc, "month", None),
+        company_timezone=mc.company_timezone,
+        rows=rows,
+        unattributed=unattributed,
+        product_attributed=product_attributed,
+        difference=difference,
+        reference_total=LabelledAmount(label=_REFERENCE[reference], amount=reference_amount),
+        notes=notes,
     )

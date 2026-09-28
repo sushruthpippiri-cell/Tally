@@ -1,3 +1,4 @@
+from collections.abc import Awaitable, Callable
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query
@@ -6,14 +7,46 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.periods import Granularity
 from app.core.permissions import CompanyContext, Permission, require
-from app.schemas.analytics import DrilldownOut, MetricOut
+from app.schemas.analytics import DrilldownOut, MetricOut, RankingOut
 from app.services import analytics
-from app.services.analytics import MetricName
+from app.services.analytics import MetricName, RankBy, RankingKind
 
 router = APIRouter(prefix="/companies/{company_id}/analytics", tags=["analytics"])
 VIEW = Depends(require(Permission.VIEW_FINANCIALS))
 FROM = Query(None, alias="from")  # `from` is a Python keyword
 TO = Query(None, alias="to")
+
+
+TOP_N = Query(None, ge=1, le=100)  # default: the analytics.top_n_default setting (TOPN-1.1)
+
+
+def _ranked(kind: RankingKind) -> Callable[..., Awaitable[RankingOut]]:
+    async def endpoint(
+        date_from: date | None = FROM,
+        date_to: date | None = TO,
+        top_n: int | None = TOP_N,
+        view_all: bool = False,
+        rank_by: RankBy = "revenue",
+        ctx: CompanyContext = VIEW,
+        session: AsyncSession = Depends(get_session),
+    ) -> RankingOut:
+        return await analytics.ranking(
+            session,
+            ctx,
+            kind,
+            date_from=date_from,
+            date_to=date_to,
+            top_n=top_n,
+            view_all=view_all,
+            rank_by=rank_by,
+        )
+
+    return endpoint
+
+
+# Registered before /{metric}, which would otherwise take these paths.
+for _kind in ("customers", "suppliers", "products"):
+    router.add_api_route(f"/{_kind}", _ranked(_kind), methods=["GET"], name=f"rank_{_kind}")
 
 
 @router.get("/{metric}")
