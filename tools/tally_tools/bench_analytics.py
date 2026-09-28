@@ -13,6 +13,7 @@ range. Writes docs/benchmarks/p8-analytics.md.
 
 import argparse
 import asyncio
+import functools
 import platform
 import statistics
 import subprocess
@@ -51,22 +52,59 @@ DASHBOARD = [
     ("cash_bank_position", "total"),
     ("receivables", "total"),
     ("payables", "total"),
+    ("rankings", "customers top 10"),
+    ("rankings", "products top 10"),
+    ("product_difference", "total"),
 ]
 Op = Callable[[], Awaitable[Any]]
 
 
-def _ops(session: AsyncSession, ctx: MetricContext, metric: str) -> dict[str, Op]:
-    balance = getattr(query.METRICS[metric], "KIND", "flow") == "balance"
-    second: Op = (
-        (lambda: query.breakdown(session, ctx, metric, "ledger_id", "ledger_name"))
-        if balance
-        else (lambda: query.series(session, ctx, metric, "month"))
-    )
-    return {
-        "total": lambda: query.total(session, ctx, metric),
-        "series": second,
-        "drill-down": lambda: query.drilldown(session, ctx, metric, limit=50),
-    }
+def _ops(session: AsyncSession, ctx: MetricContext) -> list[tuple[str, str, Op]]:
+    """(metric, op, call): every metric's total, series (for a balance, its by-ledger
+    breakdown) and first drill-down page, then the P9 rankings and the product difference."""
+    ops: list[tuple[str, str, Op]] = []
+    for metric in query.METRICS:
+        balance = getattr(query.METRICS[metric], "KIND", "flow") == "balance"
+        second: Op = (
+            functools.partial(query.breakdown, session, ctx, metric, "ledger_id", "ledger_name")
+            if balance
+            else functools.partial(query.series, session, ctx, metric, "month")
+        )
+        ops += [
+            (metric, "total", functools.partial(query.total, session, ctx, metric)),
+            (metric, "series", second),
+            (
+                metric,
+                "drill-down",
+                functools.partial(query.drilldown, session, ctx, metric, limit=50),
+            ),
+        ]
+    rank = functools.partial(query.ranking, session, ctx, n=10)
+    ops += [
+        (
+            "rankings",
+            "customers top 10",
+            functools.partial(rank, "customer_revenue", ("party_id",), "party_name"),
+        ),
+        (
+            "rankings",
+            "products top 10",
+            functools.partial(rank, "product_revenue", ("stock_item_id",), "stock_item_name"),
+        ),
+        (
+            "rankings",
+            "products by quantity top 10",
+            functools.partial(
+                rank,
+                "product_revenue",
+                ("stock_item_id", "unit"),
+                "stock_item_name",
+                measure="quantity",
+            ),
+        ),
+        ("product_difference", "total", functools.partial(query.product_difference, session, ctx)),
+    ]
+    return ops
 
 
 async def measure(url: str, runs: int) -> tuple[list[dict[str, Any]], dict[str, str]]:
@@ -90,37 +128,34 @@ async def measure(url: str, runs: int) -> tuple[list[dict[str, Any]], dict[str, 
             ctx = replace(
                 await load(session, user, AnalyticsFilter(start, end)), returns_linkable=True
             )
-            for metric in query.METRICS:
-                for op, call in _ops(session, ctx, metric).items():
-                    sent.clear()
-                    recording = True
-                    await call()  # warm-up; records the statements
-                    recording = False
-                    statements = list(sent)
-                    times = []
-                    for _ in range(runs):
-                        t0 = time.perf_counter()
-                        await call()
-                        times.append((time.perf_counter() - t0) * 1000)
-                    plans = []
-                    conn = await session.connection()
-                    for statement, params in statements:
-                        plan = await conn.exec_driver_sql(
-                            "EXPLAIN (ANALYZE, BUFFERS) " + statement, params
-                        )
-                        plans.append("\n".join(r[0] for r in plan))
-                    results.append(
-                        {
-                            "range": label,
-                            "metric": metric,
-                            "op": op,
-                            "ms": statistics.median(times),
-                            "plans": plans,
-                        }
+            for metric, op, call in _ops(session, ctx):
+                sent.clear()
+                recording = True
+                await call()  # warm-up; records the statements
+                recording = False
+                statements = list(sent)
+                times = []
+                for _ in range(runs):
+                    t0 = time.perf_counter()
+                    await call()
+                    times.append((time.perf_counter() - t0) * 1000)
+                plans = []
+                conn = await session.connection()
+                for statement, params in statements:
+                    plan = await conn.exec_driver_sql(
+                        "EXPLAIN (ANALYZE, BUFFERS) " + statement, params
                     )
-                    sys.stdout.write(
-                        f"{label:<10} {metric:<26} {op:<10} {results[-1]['ms']:8.1f} ms\n"
-                    )
+                    plans.append("\n".join(r[0] for r in plan))
+                results.append(
+                    {
+                        "range": label,
+                        "metric": metric,
+                        "op": op,
+                        "ms": statistics.median(times),
+                        "plans": plans,
+                    }
+                )
+                sys.stdout.write(f"{label:<10} {metric:<26} {op:<10} {results[-1]['ms']:8.1f} ms\n")
     await engine.dispose()
     return results, env
 
@@ -141,7 +176,7 @@ def _machine() -> str:
 
 def render(results: list[dict[str, Any]], env: dict[str, str], counts: dict[str, int]) -> str:
     lines = [
-        "# P8 analytics timings at SRS 17.2 size",
+        "# Analytics timings at SRS 17.2 size (P8, P9)",
         "",
         "Generated by `make bench-analytics` on the `make bench-data` dataset (seed 8). "
         "**Not PERF-VAL-1 evidence**: a developer machine, PostgreSQL in Docker, one user "
@@ -159,10 +194,9 @@ def render(results: list[dict[str, Any]], env: dict[str, str], counts: dict[str,
         "|---|---|" + "---:|" * len(RANGES),
     ]
     by = {(r["range"], r["metric"], r["op"]): r for r in results}
-    for metric in query.METRICS:
-        for op in ("total", "series", "drill-down"):
-            cells = " | ".join(f"{by[(rng, metric, op)]['ms']:.0f}" for rng in RANGES)
-            lines.append(f"| {metric} | {op} | {cells} |")
+    for metric, op in dict.fromkeys((r["metric"], r["op"]) for r in results):
+        cells = " | ".join(f"{by[(rng, metric, op)]['ms']:.0f}" for rng in RANGES)
+        lines.append(f"| {metric} | {op} | {cells} |")
     dash = {rng: sum(by[(rng, m, op)]["ms"] for m, op in DASHBOARD) for rng in RANGES}
     lines.append(
         "| **dashboard summary** (PERF-1.1, ≤ 3,000) | "
@@ -191,7 +225,7 @@ async def _counts(url: str) -> dict[str, int]:
     async with engine.connect() as conn:
         counts = {
             t: int(await conn.scalar(text(f"select count(*) from {t}")) or 0)
-            for t in ("vouchers", "voucher_entries", "ledgers", "stock_items")
+            for t in ("vouchers", "voucher_entries", "voucher_items", "ledgers", "stock_items")
         }
     await engine.dispose()
     return counts

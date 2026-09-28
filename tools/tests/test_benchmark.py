@@ -32,6 +32,7 @@ def test_the_dataset_has_the_srs_shape_and_balanced_vouchers() -> None:
         net[voucher] += signed
     assert set(net.values()) == {Decimal(0)}
     assert tables["bill_allocations"] and tables["cost_centre_allocations"]
+    assert {row[4] for row in tables["voucher_items"]} == {"Nos", "Box"}
 
 
 def test_the_same_seed_gives_the_same_rows() -> None:

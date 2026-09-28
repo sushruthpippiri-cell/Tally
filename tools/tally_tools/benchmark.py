@@ -5,7 +5,8 @@
 
 The dataset is seeded and reproducible: one company with three financial years of books
 (2023-04-01 to 2026-03-31), 5,000 ledgers, 10,000 stock items, 20 cost centres and 100,000
-vouchers of exactly 5 entries each (500,000 entries), with bill allocations (sales and
+vouchers of exactly 5 entries each (500,000 entries), inventory lines on sales and credit
+notes (some items also sold by the Box), bill allocations (sales and
 purchase bills, notes and receipts against them), cost-centre splits on expense entries,
 books-beginning openings for most balance-sheet ledgers and about 1% cancelled vouchers.
 It lives in its own database, `tally_bench`; the loader refuses any other name.
@@ -175,8 +176,10 @@ def generate(sink: Sink, vouchers: int = VOUCHERS, seed: int = SEED) -> None:
                 (company, lid, BOOKS_FROM, Decimal(paise) / 100, rng.choice(["DEBIT", "CREDIT"])),
             )
 
+    stock: list[uuid.UUID] = []
     for i in range(10_000):
-        sink("stock_items", (ids.new(), *ids.synced(company), "ACTIVE", f"Item {i + 1}", "Nos"))
+        stock.append(ids.new())
+        sink("stock_items", (stock[-1], *ids.synced(company), "ACTIVE", f"Item {i + 1}", "Nos"))
     centres = [ids.new() for _ in range(20)]
     for i, cid in enumerate(centres):
         sink("cost_centres", (cid, *ids.synced(company), "ACTIVE", f"Centre {i + 1}"))
@@ -244,6 +247,32 @@ def generate(sink: Sink, vouchers: int = VOUCHERS, seed: int = SEED) -> None:
                 _bill(sink, rng, company, kind, n, eid, lid, direction, amount, bills)
             if lid in expense and rng.random() < 0.5:
                 _split(sink, rng, company, eid, amount, centres)
+        if kind in ("Sales", "POS Invoice", "Credit Note"):
+            pools = zip([*debit_pools, *credit_pools], [*debits, *credits], strict=True)
+            goods = sum(a for pool, a in pools if pool == "Sales")
+            _items(sink, rng, company, vid, goods, stock)
+
+
+def _items(
+    sink: Sink,
+    rng: random.Random,
+    company: uuid.UUID,
+    vid: uuid.UUID,
+    goods: int,
+    stock: list[uuid.UUID],
+) -> None:
+    """1-3 inventory lines worth 85-100% of the voucher's sales-ledger amount (the rest is
+    the product difference); the first 500 items are sometimes sold by the Box."""
+    worth = goods * rng.randrange(85, 101) // 100
+    count = rng.randint(1, 3)
+    cuts = sorted(rng.sample(range(1, worth), count - 1)) if worth > count else []
+    for part in (b - a for a, b in itertools.pairwise([0, *cuts, worth])):
+        item = rng.randrange(len(stock))
+        unit = "Box" if item < 500 and rng.random() < 0.5 else "Nos"
+        sink(
+            "voucher_items",
+            (company, vid, stock[item], Decimal(rng.randint(1, 50)), unit, Decimal(part) / 100),
+        )
 
 
 def _bill(
@@ -306,6 +335,7 @@ COLUMNS = {
     "bill_allocations": "company_id, voucher_entry_id, ledger_id, allocation_type_raw, "
     "allocation_type, reference_name, amount_absolute, accounting_direction",
     "cost_centre_allocations": "company_id, voucher_entry_id, cost_centre_id, amount_absolute",
+    "voucher_items": "company_id, voucher_id, stock_item_id, quantity, unit, amount",
 }
 
 

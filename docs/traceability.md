@@ -5,9 +5,9 @@ a test marked `@pytest.mark.req` fully proves it; `@pytest.mark.req_partial` tes
 listed separately and never count as covered (CLAUDE.md).
 
 - Requirement IDs in the SRS: **356**
-- Fully covered by at least one test: **126**
-- Partially covered only: **52**
-- Not covered yet: **178**
+- Fully covered by at least one test: **143**
+- Partially covered only: **54**
+- Not covered yet: **159**
 
 ## Covered
 
@@ -79,10 +79,19 @@ listed separately and never count as covered (CLAUDE.md).
 | DR-ML-4 | backend/tests/sync/test_key_lists.py::test_a_missing_ledger_listed_again_with_the_same_alter_id_is_active_again |
 | FR-1.4 | agent/tests/test_agent_sync.py::test_the_heartbeat_reports_what_is_wrong_with_tally |
 | VAL-1.2 | backend/tests/sync/test_full_only.py::test_a_scheduled_incremental_run_syncs_a_full_only_collection_by_full_pull |
+| ACC-VAL-1 | backend/tests/api/test_rankings.py::test_exactly_one_difference_label |
 | ACC-7.2 | backend/tests/sync/test_hierarchy.py::test_example_1_nested_user_groups_roll_up_to_sales_accounts |
 | ACC-7.5 | backend/tests/sync/test_hierarchy.py::test_a_reparented_group_is_recalculated_with_everything_beneath_it_and_logged |
 | ACC-1.1 | backend/tests/analytics/test_sales.py::test_total_sales_revenue_as_acc_1_1_defines_it |
 | ACC-2.1 | backend/tests/analytics/test_sales.py::test_sales_is_the_sum_of_sales_credits_and_nothing_else |
+| ACC-6.1 | backend/tests/analytics/test_attribution.py::test_a_sale_to_one_customer_is_that_customers |
+| ACC-6.2 | backend/tests/analytics/test_attribution.py::test_a_cash_sale_is_unattributed_and_the_buckets_total_sales |
+| ACC-6.3 | backend/tests/analytics/test_attribution.py::test_two_customers_on_one_sale_are_never_split |
+| ACC-6.4 | backend/tests/analytics/test_attribution.py::test_customers_plus_unattributed_equal_total_sales_with_returns<br>backend/tests/analytics/test_attribution.py::test_attribution_matches_a_model_for_random_sales_and_returns |
+| ACC-1.4 | backend/tests/analytics/test_attribution.py::test_suppliers_follow_the_same_rules |
+| ACC-1.8 | backend/tests/analytics/test_products.py::test_only_lines_on_qualifying_sales_vouchers_count |
+| ACC-1.10 | backend/tests/analytics/test_products.py::test_the_difference_is_a_data_quality_figure_until_g28 |
+| ACC-1.9 | backend/tests/analytics/test_products.py::test_the_label_needs_g28_and_taxable_value_mode |
 | ACC-5.1 | backend/tests/analytics/test_returns.py::test_a_credit_note_is_a_return_only_when_it_names_a_sales_bill |
 | ACC-5.2 | backend/tests/analytics/test_returns.py::test_a_debit_note_is_a_return_only_when_it_names_a_purchase_bill |
 | ACC-5.3 | backend/tests/analytics/test_returns.py::test_unlinked_notes_are_classified_and_listed_with_what_they_would_reverse |
@@ -94,7 +103,11 @@ listed separately and never count as covered (CLAUDE.md).
 | ACC-9.3 | backend/tests/analytics/test_balances.py::test_cash_and_bank_position_counts_bank_od_only_when_listed |
 | ACC-9.4 | backend/tests/analytics/test_balances.py::test_receivables_and_payables_on_a_date |
 | ACC-9.6 | backend/tests/analytics/test_balances.py::test_no_opening_row_is_unavailable_never_zero_and_a_zero_opening_is_a_figure |
+| TOPN-1.1 | backend/tests/api/test_rankings.py::test_top_10_of_25_customers_and_view_all |
+| TOPN-1.2 | backend/tests/analytics/test_ranking.py::test_top_n_is_the_first_n_rows_of_the_full_list |
+| TOPN-1.4 | backend/tests/api/test_rankings.py::test_top_10_of_25_customers_and_view_all |
 | ACC-4.5 | backend/tests/analytics/test_every_metric.py::test_cancelled_missing_and_unresolved_never_count |
+| FR-2.4 | backend/tests/api/test_rankings.py::test_customers_and_products_by_revenue_and_quantity |
 | RBAC-1.1 | backend/tests/api/test_route_access.py::test_user_of_another_company_gets_403_and_no_data<br>backend/tests/api/test_route_access.py::test_each_role_gets_exactly_what_srs_14_1_allows |
 | RBAC-1.2 | backend/tests/api/test_route_access.py::test_roles_are_held_per_company |
 | SEC-1.1 | backend/tests/api/test_auth.py::test_login_issues_tokens_that_expire_within_24h |
@@ -131,6 +144,10 @@ listed separately and never count as covered (CLAUDE.md).
 | AC-27 | backend/tests/analytics/test_purchases_expenses.py::test_a_purchase_counts_only_the_debit_on_the_purchase_ledger |
 | AC-28 | backend/tests/analytics/test_sales.py::test_nested_groups_count_and_unresolved_or_unlisted_ledgers_do_not |
 | AC-29 | backend/tests/analytics/test_sales.py::test_a_custom_sales_type_counts_and_other_base_types_do_not |
+| AC-30 | backend/tests/analytics/test_attribution.py::test_a_sale_to_one_customer_is_that_customers |
+| AC-31 | backend/tests/analytics/test_attribution.py::test_a_cash_sale_is_unattributed_and_the_buckets_total_sales |
+| AC-32 | backend/tests/analytics/test_products.py::test_the_difference_is_a_data_quality_figure_until_g28 |
+| AC-33 | backend/tests/api/test_rankings.py::test_top_10_of_25_customers_and_view_all |
 | AC-35 | backend/tests/analytics/test_sales.py::test_a_linked_credit_note_reduces_sales |
 | AC-36 | backend/tests/analytics/test_sales.py::test_an_unlinked_credit_note_is_not_subtracted_and_is_listed |
 | AC-37 | backend/tests/analytics/test_cash_flow.py::test_receipt_payment_and_an_own_transfer |
@@ -171,8 +188,10 @@ listed separately and never count as covered (CLAUDE.md).
 | ACC-3.3 | backend/tests/analytics/test_cash_flow.py::test_receipt_payment_and_an_own_transfer<br>backend/tests/analytics/test_cash_flow.py::test_every_voucher_type_that_moves_cash_counts |
 | ACC-3.4 | backend/tests/analytics/test_cash_flow.py::test_journals_count_by_default_and_can_be_switched_off |
 | ACC-9.1 | backend/tests/analytics/test_balances.py::test_a_bank_ledger_is_its_opening_plus_net_movements |
+| TOPN-1.3 | backend/tests/api/test_rankings.py::test_top_10_of_25_customers_and_view_all |
 | ACC-4.4 | backend/tests/analytics/test_architecture.py::test_every_metric_has_one_query_path<br>backend/tests/analytics/test_sales.py::test_every_view_of_sales_sums_to_the_same_figure<br>backend/tests/api/test_analytics.py::test_every_view_of_every_metric_agrees |
 | FR-2.1 | backend/tests/analytics/test_query.py::test_total_series_breakdown_and_drilldown_sum_the_same_rows<br>backend/tests/analytics/test_sales.py::test_every_view_of_sales_sums_to_the_same_figure |
+| FR-STK-10 | backend/tests/analytics/test_ranking.py::test_quantities_are_ranked_per_unit_and_multi_unit_items_are_flagged |
 | FR-STK-15 | backend/tests/sync/test_snapshots.py::test_snapshots_are_stored_and_a_resend_replaces_them |
 | FR-4.4 | backend/tests/api/test_agent_management.py::test_agents_view_lists_status_versions_heartbeat_uptime_and_queue |
 | FR-4.5 | backend/tests/api/test_data_quality.py::test_every_check_runs_and_a_new_company_has_nothing_to_report |
@@ -199,7 +218,7 @@ listed separately and never count as covered (CLAUDE.md).
 
 ## Not covered yet
 
-SEC-2, SEC-2.4, AGT-5.2, AGT-5.5, AGT-4.1, AGT-4.4, AGT-6.1, AGT-6.2, VER-1.3, ACC-DATA-3, SYNC-5.1, SYNC-5.3, SYNC-5.5, DR-VE-1, DR-VE-2, DR-ML-5, VAL-1.3, ACC-VAL-1, ACC-7.1, ACC-8.1, ACC-6.1, ACC-6.2, ACC-6.3, ACC-6.4, ACC-1.4, ACC-1.8, ACC-1.10, ACC-1.9, ACC-9.5, TOPN-1.1, TOPN-1.2, TOPN-1.3, TOPN-1.4, ACC-6, ACC-4.6, FR-2.4, REC-1.1, REC-1.2, REC-1.3, REC-1.4, REC-1.5, FR-AGE-1, FR-AGE-2, AGE-BILL-1, AGE-BILL-2, AGE-BILL-3, AGE-BILL-4, AGE-BILL-5, FR-PAY-1, FR-PAY-2, FR-PAY-3, FR-PAY-4, FR-PAY-5, FR-PAY-6, FR-STK-1, FR-STK-2, FR-STK-3, FR-STK-4, FR-STK-5, FR-STK-12, FR-STK-19, FR-STK-6, FR-STK-13, FR-STK-14, FR-STK-7, FR-STK-20, FR-STK-8, FR-STK-9, FR-STK-10, FR-STK-16, FR-STK-17, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.5, FR-3.6, FR-3.7, FR-3.8, FR-3.9, FR-4.1, FR-4.2, FR-4.3, FR-DD-1, FR-DD-2, FR-DD-3, FR-DD-4, EXP-1.1, EXP-1.2, EXP-1.3, EXP-1.4, EXP-1.5, EXP-1.6, SEC-1.5, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, SEC-1.11, SEC-1.12, PERF-1.1, PERF-1.2, PERF-1.3, PERF-1.4, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-2.1, TEST-2.2, TEST-4.1, TEST-4.2, TEST-5.1, TEST-5.2, AC-30, AC-31, AC-32, AC-33, AC-39, AC-40, AC-41, AC-42, AC-43, AC-44, AC-45, AC-46, AC-47, AC-48, AC-49, AC-50, AC-51, AC-52, AC-53, AC-54, AC-55, AC-56, AC-57, AC-58, AC-61, AC-64, AC-65, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
+SEC-2, SEC-2.4, AGT-5.2, AGT-5.5, AGT-4.1, AGT-4.4, AGT-6.1, AGT-6.2, VER-1.3, ACC-DATA-3, SYNC-5.1, SYNC-5.3, SYNC-5.5, DR-VE-1, DR-VE-2, DR-ML-5, VAL-1.3, ACC-7.1, ACC-8.1, ACC-9.5, ACC-6, ACC-4.6, REC-1.1, REC-1.2, REC-1.3, REC-1.4, REC-1.5, FR-AGE-1, FR-AGE-2, AGE-BILL-1, AGE-BILL-2, AGE-BILL-3, AGE-BILL-4, AGE-BILL-5, FR-PAY-1, FR-PAY-2, FR-PAY-3, FR-PAY-4, FR-PAY-5, FR-PAY-6, FR-STK-1, FR-STK-2, FR-STK-3, FR-STK-4, FR-STK-5, FR-STK-12, FR-STK-19, FR-STK-6, FR-STK-13, FR-STK-14, FR-STK-7, FR-STK-20, FR-STK-8, FR-STK-9, FR-STK-16, FR-STK-17, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.5, FR-3.6, FR-3.7, FR-3.8, FR-3.9, FR-4.1, FR-4.2, FR-4.3, FR-DD-1, FR-DD-2, FR-DD-3, FR-DD-4, EXP-1.1, EXP-1.2, EXP-1.3, EXP-1.4, EXP-1.5, EXP-1.6, SEC-1.5, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, SEC-1.11, SEC-1.12, PERF-1.1, PERF-1.2, PERF-1.3, PERF-1.4, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-2.1, TEST-2.2, TEST-4.1, TEST-4.2, TEST-5.1, TEST-5.2, AC-39, AC-40, AC-41, AC-42, AC-43, AC-44, AC-45, AC-46, AC-47, AC-48, AC-49, AC-50, AC-51, AC-52, AC-53, AC-54, AC-55, AC-56, AC-57, AC-58, AC-61, AC-64, AC-65, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
 
 ## Marked in tests but not found in the SRS
 

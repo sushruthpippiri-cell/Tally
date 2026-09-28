@@ -1,6 +1,6 @@
-# Metrics (Phase 8)
+# Metrics (Phases 8–9)
 
-What each figure means, in plain English, and where its SQL lives. Written for the accountant reviewing the rules and for later phases building on them. The binding decisions are in `docs/decisions.md`: D-001, D-020, D-021, D-039 #5, D-044, D-045.
+What each figure means, in plain English, and where its SQL lives. Written for the accountant reviewing the rules and for later phases building on them. The binding decisions are in `docs/decisions.md`: D-001, D-020, D-021, D-039 #5, D-044, D-045, D-046, D-047.
 
 ## Rules every metric follows
 - **One detail query per metric** (D-044 #1).
@@ -34,6 +34,9 @@ API: `GET /companies/{id}/analytics/{metric}` and `…/{metric}/drilldown`, with
 | Payables (`payables`) | The balance of supplier ledgers (anchored at Sundry Creditors) on the `to` date; normally a credit (ACC-9.4) | balance rows | Dr + (so usually shown Cr) | ledger | `metrics/payables.py` |
 | Ledger balances (`ledger-balances`) | Every classified ledger. An asset or liability ledger is its balance on the `to` date. An income or expense ledger shows only its movement between `from` and `to`, so it never carries into the next year (ACC-9.2). All ledgers together always total zero; read it by ledger | balance rows, and entries for income/expense | Dr + | ledger | `metrics/ledger_balances.py` |
 | Unclassified Adjustments (`unclassified-adjustments`) | Credit and debit notes not linked to an original bill (UNLINKED_CREDIT_NOTE / UNLINKED_DEBIT_NOTE). They are never subtracted from sales or purchases (ACC-5.3, 5.4). Shows what each note would have reversed: its sales- or purchase-ledger lines. Data Quality lists the notes themselves (`unlinked_notes`) | one per entry | + | type, ledger | `metrics/unclassified_adjustments.py` |
+| Customer-attributed Revenue (`customer-revenue`) | Total Sales Revenue split by customer. A sale with exactly one customer ledger among its entries is that customer's; a cash sale (no customer) or a sale naming two or more customers is **Unattributed Customer Revenue**, never split by guesswork (ACC-6.1–6.3). A linked return comes off **the bucket its original sale was counted in** (D-046 #1). The rows are exactly Total Sales' rows, so customers + Unattributed always equal Total Sales (ACC-6.4) | one per sales entry, with `party_id` (NULL = Unattributed) | as sales | customer | `metrics/customer_revenue.py` → `returns.attributed` |
+| Supplier-attributed purchases (`supplier-purchases`) | The same for Purchase Value and suppliers (Sundry Creditors) (ACC-1.4) | one per purchase entry | as purchases | supplier | `metrics/supplier_purchases.py` → `returns.attributed` |
+| Product-attributed Revenue (`product-revenue`) | The inventory lines (`voucher_items.amount`) of sales vouchers, less the lines of linked credit notes (ACC-1.8, D-046 #2–3). Lines are before tax | one per inventory line, with item, quantity and unit | + sale, − return | product | `metrics/product_revenue.py` → `blocks.items` |
 
 ### Balances (D-039 #5, D-044 #6, D-045 #3)
 - **The rule.** A balance on date D = the ledger's opening at the start of the books (`books_from`) + every ACTIVE movement from then to D. One opening serves every later year.
@@ -44,5 +47,22 @@ API: `GET /companies/{id}/analytics/{metric}` and `…/{metric}/drilldown`, with
   - The response names those ledgers (up to 20, with the count) and points to the Data Quality check `ledgers_without_opening_balance`.
 - **Checking against Tally.** P10 checks the computed balances against Tally's own closing balances (ACC-9.5, G19).
 
+### Attribution, the product difference and rankings (P9: D-046, TOPN-1.x)
+- **Attribution.** Customer and supplier figures are Total Sales' and Purchase Value's own rows, each tagged with a bucket.
+  - A voucher's bucket is its one party ledger, or none (`blocks.party_bucket`).
+  - A linked return's bucket is its originals' bucket. When the originals are in different buckets, the return goes to Unattributed.
+  - Tested as an invariant with returns, on a mixed dataset and against a model in a property test.
+- **Product difference.** Total Sales Revenue − Product-attributed Revenue (`query.product_difference`), under **exactly one** label (ACC-VAL-1).
+  - "Unattributed / Non-product Sales Revenue" requires both that gate G28 has passed (product revenue proven on the same basis) **and** that taxable-value mode is on. Inventory lines are before tax, so with tax in Total Sales the difference would be mostly tax (D-046 #5).
+  - Otherwise the label is "Product Attribution Difference": a data-quality figure, not an accounting claim (ACC-1.10).
+- **Rankings** (`query.ranking`; API `…/analytics/customers`, `/suppliers`, `/products`).
+  - A Top-N list is the full ranked list's own query with a LIMIT (TOPN-1.2). N defaults to the company's `analytics.top_n_default` (10); `top_n` overrides it and `view_all` removes the cut-off.
+  - Unattributed is shown apart and never ranked.
+  - No total of the listed rows is ever returned, and the response says the list is not meant to add up to the reference total (TOPN-1.4).
+- **Quantities and units** (D-046 #4, FR-STK-10).
+  - Products ranked by quantity are ranked per (item, unit), with the unit beside every quantity. Quantities in different units are never added.
+  - An item sold in more than one unit is flagged `multiple_units` on each of its rows.
+  - Converting to base units (FR-STK-9) waits for gate G27 and P12.
+
 ## Speed (PERF-1.1)
-Measured at the SRS 17.2 size (100,000 vouchers, 500,000 entries): see `docs/benchmarks/p8-analytics.md` and the P8 entry in `docs/progress.md`. To reproduce: `make bench-data && make bench-analytics`.
+Measured at the SRS 17.2 size (100,000 vouchers, 500,000 entries, 94,000 inventory lines): see `docs/benchmarks/p8-analytics.md` and the P8 and P9 benchmark entries in `docs/progress.md`. Analytics statements are planned for their own dates (D-047). To reproduce: `make bench-data && make bench-analytics`.
