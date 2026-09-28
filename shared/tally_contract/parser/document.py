@@ -5,10 +5,10 @@
 Records are streamed (iterparse) and each element is cleared once built.
 """
 
-import io
 import xml.etree.ElementTree as ET
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from typing import cast
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -62,11 +62,24 @@ def tally_error(text: str) -> DocumentError | None:
     )
 
 
+FEED = 65_536  # characters per slice: no second full copy of the document (D-042 #2)
+
+
 def _elements(text: str, record_tag: str) -> Iterator[ET.Element]:
-    for _, element in ET.iterparse(io.StringIO(text), events=("end",)):
-        if element.tag == record_tag:
-            yield element
-            element.clear()
+    parser: ET.XMLPullParser[ET.Element] = ET.XMLPullParser(events=("end",))
+
+    def ready() -> Iterator[ET.Element]:
+        events = cast(Iterator[tuple[str, object]], parser.read_events())  # ("end", element)
+        for _event, element in events:
+            if isinstance(element, ET.Element) and element.tag == record_tag:
+                yield element
+                element.clear()
+
+    for start in range(0, len(text), FEED):
+        parser.feed(text[start : start + FEED])
+        yield from ready()
+    parser.close()
+    yield from ready()
 
 
 class DocumentFailure(Exception):

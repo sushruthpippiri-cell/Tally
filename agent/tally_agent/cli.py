@@ -205,7 +205,17 @@ def test_tally(data_dir: Path = DATA_DIR) -> None:
 
 
 @app.command()
-def run() -> None:
-    """Run the poll/sync loop in the foreground (P7.5)."""
-    typer.echo("'run' arrives with P7.5.", err=True)
-    raise typer.Exit(code=2)
+def run(data_dir: Path = DATA_DIR) -> None:
+    """Run the poll/sync loop in the foreground (the Windows service runs the same loop)."""
+    from tally_agent import logging_setup
+    from tally_agent.service import Agent
+
+    settings = _settings(data_dir)
+    logging_setup.setup(settings.data_dir, settings.service_account)
+    try:
+        agent = Agent(settings)
+    except RuntimeError as exc:
+        _fail(str(exc))
+    agent.run_forever()
+    if agent.revoked:
+        raise typer.Exit(code=3)
