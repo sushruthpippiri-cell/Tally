@@ -154,7 +154,46 @@ async def test_a_return_comes_off_the_bucket_its_sale_was_counted_in(
     }
 
 
+@pytest.mark.req("ACC-1.4")
+async def test_suppliers_follow_the_same_rules(books: Books, g26_passed: None) -> None:
+    s = books.voucher
+    await books.ledger("Supplier T", books.groups["Sundry Creditors"])
+    await s(
+        "Purchase",
+        DAY,
+        [("Purchases", "DEBIT", "900"), ("Supplier S", "CREDIT", "900")],
+        bills=[(1, "NEW_REF", "PB-S", "900")],
+    )
+    await s(
+        "Purchase",
+        DAY,
+        [
+            ("Purchases", "DEBIT", "500"),
+            ("Supplier S", "CREDIT", "300"),
+            ("Supplier T", "CREDIT", "200"),
+        ],
+        bills=[(1, "NEW_REF", "PB-ST", "300")],
+    )
+    await s("Purchase", DAY, [("Purchases", "DEBIT", "80"), ("Cash", "CREDIT", "80")])
+    await s(
+        "Debit Note",
+        DAY,
+        [("Supplier S", "DEBIT", "100"), ("Purchases", "CREDIT", "100")],
+        bills=[(0, "AGST_REF", "PB-S", "100")],
+    )
+    await s(
+        "Debit Note",
+        DAY,
+        [("Supplier S", "DEBIT", "50"), ("Purchases", "CREDIT", "50")],
+        bills=[(0, "AGST_REF", "PB-ST", "50")],
+    )
+    found = await buckets(books, "supplier_purchases")
+    assert found == {"Supplier S": Decimal("800"), None: Decimal("530")}  # 500 + 80 - 50
+    assert sum(found.values()) == await total(books, "purchases")
+
+
 # --- property: the identity, and every bucket, against a model -----------------------------
+
 
 PARTIES = ["Customer A", "Customer B", "Customer C"]
 cents = st.integers(min_value=1, max_value=99_999).map(lambda n: Decimal(n) / 100)

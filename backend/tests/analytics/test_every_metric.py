@@ -25,6 +25,11 @@ CASES: dict[str, tuple[str, list[Entry], str]] = {
         [("Purchases", "DEBIT", "100"), ("Supplier S", "CREDIT", "100")],
         "Purchases",
     ),
+    "supplier_purchases": (
+        "Purchase",
+        [("Purchases", "DEBIT", "100"), ("Supplier S", "CREDIT", "100")],
+        "Purchases",
+    ),
     "expenses": ("Payment", [("Rent", "DEBIT", "100"), ("Loan", "CREDIT", "100")], "Rent"),
     "cash_flow": ("Receipt", [("Cash", "DEBIT", "100"), ("Loan", "CREDIT", "100")], "Cash"),
     "cash_bank_position": (

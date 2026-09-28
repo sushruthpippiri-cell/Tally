@@ -36,6 +36,7 @@ from app.analytics.metrics import (
     purchases,
     receivables,
     sales,
+    supplier_purchases,
     unclassified_adjustments,
 )
 from app.core.periods import Granularity, period_key
@@ -44,6 +45,7 @@ METRICS: dict[str, ModuleType] = {
     "sales": sales,
     "customer_revenue": customer_revenue,
     "purchases": purchases,
+    "supplier_purchases": supplier_purchases,
     "expenses": expenses,
     "cash_flow": cash_flow,
     "cash_bank_position": cash_bank_position,
