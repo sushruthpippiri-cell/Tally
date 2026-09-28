@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.analytics.context import MetricContext
 from app.analytics.metrics import (
     cash_bank_position,
+    cash_flow,
     expenses,
     ledger_balances,
     payables,
@@ -42,6 +43,7 @@ METRICS: dict[str, ModuleType] = {
     "sales": sales,
     "purchases": purchases,
     "expenses": expenses,
+    "cash_flow": cash_flow,
     "cash_bank_position": cash_bank_position,
     "receivables": receivables,
     "payables": payables,
