@@ -16,7 +16,7 @@ from tally_agent.queue import BATCH, Limits
 from tally_agent.uploader import Uploader
 from tally_contract import tally_constants as tc
 from tally_contract.testing import assert_logged
-from tally_tools.mock_tally import add_voucher, company_guid
+from tally_tools.mock_tally import Row, add_voucher, company_guid
 
 SHARMA = "Sharma Traders"
 
@@ -75,11 +75,19 @@ def test_a_reconciliation_run_sends_every_key_list_and_tallys_own_figures(
     mock, _ = mock_tally
     for plan in fake_backend.plan["collections"].values():
         plan["key_list_due"] = True
+    total = Row(  # one fixed total per period, whatever the vouchers
+        "l-sales",
+        0,
+        "<RECON_TOTAL><LEDGERGUID>l-sales</LEDGERGUID><VOUCHERTYPEGUID>vt-sales</VOUCHERTYPEGUID>"
+        "<FROMDATE>{from}</FROMDATE><ASOFDATE>{as_of}</ASOFDATE><DEBIT>0</DEBIT>"
+        "<CREDIT>1000.00</CREDIT></RECON_TOTAL>",
+    )
     fake_backend.plan["reconciliation_periods"] = [
         {"label": "2026-03", "date_from": "2026-03-01", "date_to": "2026-03-16"},
         {"label": "FY2025-26 to date", "date_from": "2025-04-01", "date_to": "2026-03-16"},
     ]
     agent = make_agent()
+    mock.data[tc.RECONCILIATION_REPORT] = [total]
     fake_backend.offer("RECONCILIATION")
     assert run_agent_once(agent).status == "COMPLETED"
     assert fake_backend.finishes[-1]["problems"] == []

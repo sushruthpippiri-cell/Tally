@@ -13,6 +13,7 @@ from app.api import (
     data_quality,
     health,
     masters,
+    reconciliation,
     schedules,
     sync,
     users,
@@ -57,6 +58,7 @@ def create_app(config: Settings | None = None) -> FastAPI:
         data_quality,
         masters,
         analytics,
+        reconciliation,
     ):
         app.include_router(module.router)
     get_logger(__name__).info("app_started", env=config.env)

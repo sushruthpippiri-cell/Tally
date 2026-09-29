@@ -12,8 +12,9 @@ from app.core.agent_credentials import new_credential
 from app.core.errors import AppError
 from app.core.permissions import CompanyContext, scoped
 from app.models.agents import Agent, SyncSchedule
-from app.models.enums import AgentStatus, TallyStatus
+from app.models.enums import AgentStatus, ReconOverall, TallyStatus
 from app.schemas.agents import AgentOut, AgentsView, RotatedCredential, TallySettingsUpdate
+from app.services import reconciliation
 from app.services.schedules import deactivate_for_agent
 from app.services.settings import get_setting
 from app.services.sync_runs import INITIAL_SYNC_INCOMPLETE, initial_sync_incomplete
@@ -43,6 +44,10 @@ async def list_agents(session: AsyncSession, ctx: CompanyContext) -> AgentsView:
         ).scalars()
     )
     advisory_days = await get_setting(session, ctx.company_id, "agent.tally_uptime_advisory_days")
+    latest = await reconciliation.latest(session, ctx.company_id)
+    level = (
+        "prominent" if latest is not None and latest.overall == ReconOverall.FAIL else "advisory"
+    )
     rows = [
         AgentOut(
             agent_id=a.agent_id,
@@ -58,7 +63,9 @@ async def list_agents(session: AsyncSession, ctx: CompanyContext) -> AgentsView:
             last_heartbeat_at=a.last_heartbeat_at,
             offline_since=a.last_heartbeat_at if a.status == AgentStatus.OFFLINE else None,
             tally_uptime_seconds=a.tally_uptime_seconds,
-            uptime_advisory=(a.tally_uptime_seconds or 0) > advisory_days * 86_400,
+            uptime_advisory=level
+            if (a.tally_uptime_seconds or 0) > advisory_days * 86_400
+            else "none",
             queue_status=a.queue_status,
             last_tally_status=a.last_tally_status,
             tally_status_since=a.tally_status_since,

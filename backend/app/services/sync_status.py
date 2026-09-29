@@ -19,6 +19,7 @@ from app.schemas.sync import (
     SyncErrorOut,
     SyncStatusOut,
 )
+from app.services import reconciliation
 from app.services.sync_runs import INITIAL_SYNC_INCOMPLETE, initial_sync_incomplete
 from app.sync.holds import held_back
 
@@ -86,6 +87,7 @@ async def status(session: AsyncSession, ctx: CompanyContext) -> SyncStatusOut:
         collections=collections,
         last_run=_summary(last) if last else None,
         warnings=warnings,
+        reconciliation=await reconciliation.status(session, ctx.company_id),
     )
 
 

@@ -16,6 +16,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from xml.sax.saxutils import escape
 
@@ -92,6 +93,43 @@ def _day(value: str | None) -> date | None:
     return datetime.strptime(value, tc.REQUEST_DATE_FORMAT).date() if value else None
 
 
+_ENTRY = re.compile(
+    r"<LEDGERENTRY><LEDGERNAME>(?P<name>[^<]*)</LEDGERNAME><LEDGERGUID>(?P<guid>[^<]*)"
+    r"</LEDGERGUID><AMOUNT>(?P<amount>[^<]*)</AMOUNT>"
+)
+
+
+def _recon_totals(config: MockConfig, variables: dict[str, str]) -> str:
+    """What our TA_ReconTotals is drafted to return (GATE-G36): per (ledger, voucher type),
+    the debit and credit sums of the non-cancelled vouchers dated in the period. Computed from
+    the mock's own vouchers, as Tally computes it from its own."""
+    start = _day(variables.get(tc.VAR_FROM_DATE)) or date.min  # always sent (D-048 #2)
+    end = _day(variables.get(tc.VAR_TO_DATE)) or date.max
+    sums: dict[tuple[str, str, str], list[Decimal]] = {}
+    for row in config.data.get("TA_Vouchers", []):
+        if "<ISCANCELLED>Yes" in row.xml or row.day is None or not (start <= row.day <= end):
+            continue
+        vtype = re.search(r"<VOUCHERTYPEGUID>([^<]*)<", row.xml)
+        for m in _ENTRY.finditer(row.xml):
+            amount = Decimal(m["amount"])  # negative = debit (GATE-G23)
+            key = (m["guid"], m["name"], vtype[1] if vtype else "")
+            debit, credit = sums.setdefault(key, [Decimal(0), Decimal(0)])
+            if amount < 0:
+                debit -= amount
+            else:
+                credit += amount
+            sums[key] = [debit, credit]
+    body = "".join(
+        f"<RECON_TOTAL><LEDGERGUID>{guid}</LEDGERGUID><LEDGERNAME>{escape(name)}</LEDGERNAME>"
+        f"<VOUCHERTYPEGUID>{vtype}</VOUCHERTYPEGUID>"
+        f"<FROMDATE>{variables[tc.VAR_FROM_DATE]}</FROMDATE>"
+        f"<ASOFDATE>{variables[tc.VAR_TO_DATE]}</ASOFDATE>"
+        f"<DEBIT>{debit}</DEBIT><CREDIT>{credit}</CREDIT></RECON_TOTAL>"
+        for (guid, name, vtype), (debit, credit) in sorted(sums.items())
+    )
+    return f"<ENVELOPE><TA_RECONTOTALS>{body}</TA_RECONTOTALS></ENVELOPE>"
+
+
 def _data_body(config: MockConfig, report: str, variables: dict[str, str]) -> str:
     """Rows filtered as our TDL is drafted to filter them: the ALTERID window (from, to], 0/0
     meaning everything (D-013), and the date window for rows that carry a date."""
@@ -150,6 +188,8 @@ def answer(config: MockConfig, body: bytes) -> tuple[int, bytes]:
             f"<RESPONSE><LINEERROR>{tc.REPORT_NOT_FOUND_MARKERS[0]} "
             f"'{escape(report)}'!</LINEERROR></RESPONSE>"
         )
+    elif report == tc.RECONCILIATION_REPORT and report not in config.data:
+        text = _recon_totals(config, variables)
     elif _served(config, report):
         text = _data_body(config, report, variables)
     else:
@@ -261,7 +301,8 @@ def sample_company(
                 led,
                 alter,
                 f"<LEDGER><GUID>{led}</GUID><ALTERID>{alter}</ALTERID><NAME>{escape(name)}</NAME>"
-                f"<PARENT>{escape(parent_name)}</PARENT><PARENTGUID>{parent}</PARENTGUID></LEDGER>",
+                f"<PARENT>{escape(parent_name)}</PARENT><PARENTGUID>{parent}</PARENTGUID>"
+                "<OPENINGBALANCE></OPENINGBALANCE></LEDGER>",
             )
         )
     alter += 1
@@ -312,7 +353,9 @@ def sample_company(
                 "<CLOSINGQTY>40 Nos</CLOSINGQTY></STOCK_CLOSING>",
             )
         ],
-        # Fixed figures in our TDL's shape (D-048); tests that compare them set their own.
+        # Tally's closing balances on any date in FY2025-26 or later (the sample's vouchers
+        # are all in FY2024-25, so income has reset to zero, ACC-9.2). Tally shows a debit
+        # negative (GATE-G23). Totals are computed from the vouchers (`_recon_totals`).
         tc.LEDGER_CLOSING_REPORT: [
             Row(
                 led,
@@ -322,19 +365,9 @@ def sample_company(
                 "</LEDGER_CLOSING>",
             )
             for led, name, balance in (
-                ("l-cust", "Customer A", "-14160.00"),
-                ("l-sales", "Sales - Retail", "12000.00"),
-                ("l-gst", "Output GST", "2160.00"),
-            )
-        ],
-        tc.RECONCILIATION_REPORT: [
-            Row(
-                "l-sales",
-                0,
-                "<RECON_TOTAL><LEDGERGUID>l-sales</LEDGERGUID><LEDGERNAME>Sales - Retail"
-                "</LEDGERNAME><VOUCHERTYPEGUID>vt-sales</VOUCHERTYPEGUID><FROMDATE>{from}"
-                "</FROMDATE><ASOFDATE>{as_of}</ASOFDATE><DEBIT>0</DEBIT><CREDIT>1000.00"
-                "</CREDIT></RECON_TOTAL>",
+                ("l-cust", "Customer A", f"-{1180 * vouchers:.2f}"),
+                ("l-sales", "Sales - Retail", "0.00"),
+                ("l-gst", "Output GST", f"{180 * vouchers:.2f}"),
             )
         ],
     }

@@ -22,6 +22,8 @@ import pytest
 from sqlalchemy import func, select, text
 from typer.testing import CliRunner
 
+from app.jobs.reconciliation import reconcile_runs
+from app.jobs.runner import LOCK_RECONCILE_RUNS, run_exclusive
 from app.models.config import AuditLog
 from app.models.enums import RoleName
 from app.models.vouchers import Voucher, VoucherEntry
@@ -37,6 +39,7 @@ from tally_contract.records import AlterIdWindow, BatchEnvelope, CostCentreRecor
 from tally_contract.testing import assert_logged
 from tally_tools.mock_tally import (
     MockConfig,
+    Row,
     add_voucher,
     company_guid,
     delete,
@@ -170,6 +173,15 @@ def _sync_now(server: Server, company: Any, owner: Any, mode: str) -> None:
     assert r.status_code == 201, r.text
 
 
+async def _full(server: Server, company: Any, owner: Any, agent: Agent) -> None:
+    """A FULL sync, then the reconciliation it queues (REC-1.4, D-048 #6), both COMPLETED, so
+    the next command the test creates is the next one the Agent runs."""
+    _sync_now(server, company, owner, "FULL")
+    assert (await _run(agent)).status == "COMPLETED"
+    reconciliation = await _run(agent)
+    assert reconciliation.status == "COMPLETED"
+
+
 async def _run(agent: Agent) -> Any:
     """Heartbeat until the offered command has been run (the first beat makes it ACTIVE)."""
     before = agent.last_outcome
@@ -212,11 +224,9 @@ async def test_register_sync_edit_and_delete_end_to_end(
     uploading = Uploading(agent)
     try:
         # AC-01: Tally holds the fixture; a FULL sync stores exactly that, and again adds nothing.
-        _sync_now(server, company, owner, "FULL")
-        assert (await _run(agent)).status == "COMPLETED"
+        await _full(server, company, owner, agent)
         assert await _counts(committed) == FIXTURE
-        _sync_now(server, company, owner, "FULL")
-        assert (await _run(agent)).status == "COMPLETED"
+        await _full(server, company, owner, agent)
         assert await _counts(committed) == FIXTURE
 
         # AC-02: edited in Tally (₹1,180 -> ₹2,360, a new ALTERID); an INCREMENTAL applies it.
@@ -273,8 +283,7 @@ async def test_a_post_dated_voucher_syncs_in_the_run_after_it_is_created(
     agent = _agent(tmp_path / "agent", tally_port)
     uploading = Uploading(agent)
     try:
-        _sync_now(server, company, owner, "FULL")
-        assert (await _run(agent)).status == "COMPLETED"
+        await _full(server, company, owner, agent)
         post_dated = add_voucher(mock.data, date(2026, 4, 1))
         _sync_now(server, company, owner, "INCREMENTAL")
         assert (await _run(agent)).status == "COMPLETED"
@@ -291,6 +300,69 @@ async def test_a_post_dated_voucher_syncs_in_the_run_after_it_is_created(
             )
         assert (stored.voucher_date, stored.alter_id) == (date(2026, 4, 1), post_dated.alter_id)
         assert watermark == post_dated.alter_id
+    finally:
+        uploading.close()
+
+
+async def _reconciliation(
+    committed: Factory, server: Server, company: Any, owner: Any
+) -> dict[str, Any]:
+    """The comparison job (the e2e backend runs without its scheduler), then the API."""
+    await run_exclusive(LOCK_RECONCILE_RUNS, reconcile_runs, committed)
+    r = httpx.get(
+        f"{server.url}/companies/{company.company_id}/reconciliation",
+        params={"only_failures": True},
+        headers=auth_header(owner),
+        trust_env=False,
+    )
+    assert r.status_code == 200, r.text
+    body: dict[str, Any] = r.json()
+    return body
+
+
+@pytest.mark.req("REC-1.4")
+@pytest.mark.req_partial("TEST-4.2")  # the synthetic dataset; the live one waits on GATE-G19
+async def test_a_full_sync_is_reconciled_end_to_end_and_a_tally_difference_fails_it(
+    committed: Factory, start_server: Any, tally: tuple[MockConfig, int], tmp_path: Path
+) -> None:
+    """The real Agent and backend and the mock Tally: the FULL sync queues a RECONCILIATION,
+    the Agent sends every key list and Tally's own figures, the job compares them, and the
+    API shows PASS for every ledger and total. Then Tally's closing balance for the customer
+    differs from what we hold, and the next on-demand reconciliation FAILS on exactly that."""
+    mock, tally_port = tally
+    server = start_server()
+    company, owner, token = await _seed(committed)
+    await _register(server, tally_port, token, tmp_path / "agent")
+    agent = _agent(tmp_path / "agent", tally_port)
+    uploading = Uploading(agent)
+    try:
+        await _full(server, company, owner, agent)
+        passed = await _reconciliation(committed, server, company, owner)
+        assert passed["run"]["overall"] == "PASS", passed
+        assert passed["rows"] == [] and passed["not_compared"] == []
+        assert passed["run"]["compared"] >= 3 + 4 * 14 + 1  # ledgers, totals x periods, stock
+
+        mock.data["TA_LedgerClosing"] = [
+            Row(r.guid, r.alter_id, r.xml.replace("-14160.00", "-14000.00"), r.day)
+            for r in mock.data["TA_LedgerClosing"]
+        ]
+        r = httpx.post(
+            f"{server.url}/companies/{company.company_id}/reconciliation/run",
+            json={},
+            headers=auth_header(owner),
+            trust_env=False,
+        )
+        assert r.status_code == 201, r.text
+        assert (await _run(agent)).status == "COMPLETED"
+        failed = await _reconciliation(committed, server, company, owner)
+        assert failed["run"]["overall"] == "FAIL"
+        [row] = failed["rows"]
+        assert (row["metric"], row["entity_name"], row["tally_value"], row["local_value"]) == (
+            "LEDGER_BALANCE",
+            "Customer A",
+            "14000.0000",
+            "14160.0000",
+        )
     finally:
         uploading.close()
 

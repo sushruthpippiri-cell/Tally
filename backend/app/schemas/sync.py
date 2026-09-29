@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import CollectionType, KeyListStatus, SyncMode, SyncRunStatus
+from app.schemas.reconciliation import ReconciliationStatus
 
 
 class CollectionPlan(BaseModel):
@@ -113,6 +114,7 @@ class SyncStatusOut(BaseModel):
     collections: list[CollectionStatus]
     last_run: RunSummary | None
     warnings: list[str]
+    reconciliation: ReconciliationStatus | None = None  # FR-4.1: the latest comparison
 
 
 class LeaseStatus(BaseModel):

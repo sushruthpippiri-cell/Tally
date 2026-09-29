@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -106,7 +107,9 @@ class AgentOut(BaseModel):
     last_heartbeat_at: datetime | None
     offline_since: datetime | None
     tally_uptime_seconds: int | None
-    uptime_advisory: bool  # AGT-6.4: uptime above agent.tally_uptime_advisory_days
+    # AGT-6.4: uptime above agent.tally_uptime_advisory_days -> "advisory"; "prominent" when
+    # the latest reconciliation also failed
+    uptime_advisory: Literal["none", "advisory", "prominent"]
     queue_status: dict[str, object] | None
     last_tally_status: TallyStatus | None
     tally_status_since: datetime | None

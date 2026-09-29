@@ -249,7 +249,7 @@ async def test_agents_view_lists_status_versions_heartbeat_uptime_and_queue(
         "queue_status",
     ):
         assert key in fresh
-    assert (fresh["uptime_advisory"], long["uptime_advisory"]) == (False, True)
+    assert (fresh["uptime_advisory"], long["uptime_advisory"]) == ("none", "advisory")
     assert any(w.startswith("QUEUE_FULL") for w in long["warnings"])
     assert any(w.startswith("COMPANY_MISMATCH") for w in long["warnings"])
     assert datetime.fromisoformat(off["offline_since"]) == last
