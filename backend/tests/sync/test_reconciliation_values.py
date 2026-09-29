@@ -119,6 +119,7 @@ async def test_a_value_that_failed_to_parse_is_recorded_so_the_run_ends_partial(
     assert run is not None and (run.records_fetched, run.records_failed) == (1, 1)
 
 
+@pytest.mark.req_partial("SYNC-5.3")  # the daily schedule: D-023 (P3); comparing: P10.5
 async def test_a_reconciliation_run_lists_every_collection_and_names_its_periods(
     committed: Factory,
 ) -> None:
