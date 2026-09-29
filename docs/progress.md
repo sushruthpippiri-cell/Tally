@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P10 (reconciliation) — **complete locally** 2026-09-29, CI pending (see the P10 CI row). Local suite PASS ([phase-10](test-reports/phase-10.md), 1,327 tests: 1,324 passed, 3 skipped — Windows-only; 89.9% line coverage). D-048 ACCEPTED with the owner's three changes (independence stated and tested; explicit dates on every voucher request, post-dated vouchers included; stock compared within the same run). The basis is in [`docs/reconciliation-basis.md`](reconciliation-basis.md): **still to be reviewed by the accountant** (the phase's definition of done). New gates G36 and G37 (NOT TESTED) join the G-E captures. Next: P11 (aging and payment behaviour) — waits for the owner.
+P10 (reconciliation) — **complete** 2026-09-29. CI green (`check` 36534423550, `agent-windows` 36534423546, `capture-kit` 36534423565). Local suite PASS ([phase-10](test-reports/phase-10.md), 1,327 tests: 1,324 passed, 3 skipped — Windows-only; 89.9% line coverage). D-048 ACCEPTED with the owner's three changes (independence stated and tested; explicit dates on every voucher request, post-dated vouchers included; stock compared within the same run). The basis is in [`docs/reconciliation-basis.md`](reconciliation-basis.md): **still to be reviewed by the accountant** (the phase's definition of done). New gates G36 and G37 (NOT TESTED) join the G-E captures. Next: P11 (aging and payment behaviour) — waits for the owner.
 
 P9 (attribution and rankings) — **complete** 2026-09-28. Local suite PASS ([phase-09](test-reports/phase-09.md), 1,252 tests: 1,249 passed, 3 skipped — Windows-only; 89.5% line coverage); CI green (`check` 36460856648; `capture-kit` and `agent-windows` not triggered, last green 36444202153 / 36436892986). D-046 ACCEPTED (returns follow their original's bucket; product rows; units never summed across; the "Non-product" label needs G28 **and** taxable-value mode). D-047 (custom plans for analytics) added as a performance fix. The benchmark at SRS 17.2 size found the dashboard set at 2.6 s over three years once the P9 figures were added; fixed to 1.8 s (below). Next: P10 (reconciliation) — waits for the owner.
 
@@ -28,6 +28,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-29 | P10 CI | b23f8c4 | Green on all three workflows: `check` 36534423550, `agent-windows` 36534423546, `capture-kit` 36534423565. |
 | 2026-09-29 | P10 phase report | (this commit) | [phase-10](test-reports/phase-10.md): 1,324 passed, 3 skipped (Windows-only), fresh DB, `make check` PASS. |
 | 2026-09-29 | P10.6 API, end to end | 21edd57 | `POST …/reconciliation/run`, `GET …/reconciliation` (AC-40, REC-1.2: Tally, local, both differences, result; failures first; not compared; unverified gates; history), `sync/status.reconciliation` (FR-4.1), `uptime_advisory` none/advisory/prominent (AGT-6.4). The mock Tally computes `TA_ReconTotals` from its own vouchers; e2e: FULL → queued RECONCILIATION → job → PASS for every ledger and total; a changed Tally closing → FAIL on exactly that ledger. |
 | 2026-09-29 | P10.5 comparison | 9398be9 | `app/reconciliation/compare.py` through `app.analytics.query` only; `recon_receipts` / `recon_payments` detail queries (not in the analytics API); the job `reconcile_runs`; a FULL run that stored data queues a RECONCILIATION command (audited). Migration 0008 `reconciliation_runs`. Tests: each basis, the shared-filter case, AC-10, AC-38, D-007 guard and date window on reconciliation lists, the one-writer architecture test. |
@@ -186,7 +187,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
-| 10 | [phase-10](test-reports/phase-10.md) | PASS - 1,327 tests, 0 failed, 3 skipped (Windows-only), 89.9% coverage; CI: pending |
+| 10 | [phase-10](test-reports/phase-10.md) | PASS - 1,327 tests, 0 failed, 3 skipped (Windows-only), 89.9% coverage; CI green: check 36534423550, agent-windows 36534423546, capture-kit 36534423565 |
 | 09 | [phase-09.md](test-reports/phase-09.md) | PASS - 1,252 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI green: check 36460856648 |
 | 08 | [phase-08.md](test-reports/phase-08.md) | PASS - 1,204 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI green: check 36444202147, capture-kit 36444202153 |
 | 04 | [phase-04.md](test-reports/phase-04.md) | PASS on drafts - 804 tests, 0 failed, 0 skipped, 90.0% coverage; CI green: check 36294681749, capture-kit 36294681754, agent-windows 36294681770 |
