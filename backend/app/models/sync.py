@@ -3,6 +3,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -31,6 +32,7 @@ from app.models.base import (
 from app.models.enums import (
     CollectionType,
     KeyListStatus,
+    ReconOverall,
     ReconResult,
     SyncMode,
     SyncRunStatus,
@@ -82,8 +84,6 @@ class SyncRun(Base):
     status: Mapped[str]
     records_fetched: Mapped[int] = mapped_column(default=0, server_default=text("0"))
     records_failed: Mapped[int] = mapped_column(default=0, server_default=text("0"))
-    # RECONCILIATION runs: when the comparison job recorded its results (D-048 #6)
-    reconciled_at: Mapped[datetime | None]
 
 
 class SyncError(Base):
@@ -160,6 +160,29 @@ class ReconciliationTallyValue(Base):
     credit: Mapped[Decimal | None] = mapped_column(Money)  # TOTAL
     value: Mapped[Decimal | None] = mapped_column(Quantity)  # a closing: Dr + balance, or qty
     unit: Mapped[str | None]
+
+
+class ReconciliationRun(Base):
+    """One per compared RECONCILIATION run: its overall result and what could not be
+    compared (D-048 #8). Its existence is what tells the job the run is done."""
+
+    __tablename__ = "reconciliation_runs"
+    __table_args__ = (
+        tenant_fk("sync_run_id", "sync_runs.sync_run_id"),
+        enum_check("overall", ReconOverall),
+        Index(None, "company_id", "run_at"),
+    )
+
+    sync_run_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    company_id: Mapped[uuid.UUID] = company_id_col(index=False)
+    run_at: Mapped[datetime]
+    as_of: Mapped[date]  # the sync date the balances and stock are compared on
+    overall: Mapped[str]
+    compared: Mapped[int]
+    failed: Mapped[int]
+    # [{metric, entity_guid, name, reason, fails}]: reasons the basis doc lists
+    not_compared: Mapped[list[Any]]
+    unverified_gates: Mapped[list[Any]]  # the gates behind these figures not yet PASSED
 
 
 class ReconciliationResult(Base):

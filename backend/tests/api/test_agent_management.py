@@ -317,8 +317,17 @@ async def test_replacing_an_agent_keeps_scheduled_syncs_working(
         await session.refresh(s)
     next_hour = min(s.next_fire_at for s in b_schedules if s.next_fire_at)
     assert await fire_schedules(session, next_hour + timedelta(seconds=5)) >= 1
+    fired = await session.scalar(
+        select(AgentCommand.command_id).where(
+            AgentCommand.agent_id == uuid.UUID(b["agent_id"]),
+            AgentCommand.sync_mode == SyncMode.INCREMENTAL,
+            AgentCommand.status == "PENDING",
+        )
+    )
+    assert fired is not None
     offered = (await _beat(api, b["credential"])).json()["command"]
-    assert offered is not None and offered["sync_mode"] == "INCREMENTAL"
+    # REC-1.4 (D-048 #6): B's FULL sync queued a reconciliation, older, so it comes first
+    assert offered is not None and offered["sync_mode"] == "RECONCILIATION"
 
     # 6. A standby beside the working, scheduled B gets no schedules of its own.
     standby = await _register(api, session, company, "Standby")

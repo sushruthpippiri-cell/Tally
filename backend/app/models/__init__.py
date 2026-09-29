@@ -20,6 +20,7 @@ from app.models.config import (
 from app.models.masters import CostCentre, Group, Ledger, StockItem, VoucherType
 from app.models.sync import (
     ReconciliationResult,
+    ReconciliationRun,
     ReconciliationTallyValue,
     SyncBatch,
     SyncError,
@@ -54,6 +55,7 @@ __all__ = [
     "LedgerOpeningBalance",
     "OpeningBillAllocation",
     "ReconciliationResult",
+    "ReconciliationRun",
     "ReconciliationTallyValue",
     "Role",
     "StockItem",

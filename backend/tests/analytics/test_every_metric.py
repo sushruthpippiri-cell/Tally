@@ -59,6 +59,9 @@ CASES: dict[str, tuple[str, list[Entry], str]] = {
         [("Sales", "DEBIT", "100"), ("Customer A", "CREDIT", "100")],
         "Sales",
     ),
+    # reconciliation-only (D-048 #4): Tally's totals are compared on these bases
+    "recon_receipts": ("Receipt", [("Cash", "DEBIT", "100"), ("Loan", "CREDIT", "100")], "Cash"),
+    "recon_payments": ("Payment", [("Rent", "DEBIT", "100"), ("Cash", "CREDIT", "100")], "Cash"),
 }
 OPENINGS = [
     "Customer A",

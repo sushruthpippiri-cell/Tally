@@ -15,6 +15,7 @@ from app.models.company import Company
 from app.models.enums import (
     CollectionType,
     CommandStatus,
+    CommandType,
     KeyListStatus,
     SyncMode,
     SyncRunStatus,
@@ -265,7 +266,32 @@ async def close_run(
     log.info("sync_run_closed", sync_run_id=str(run.sync_run_id), status=status.value)
     if run.sync_mode == SyncMode.FULL and status != SyncRunStatus.FAILED:
         await _activate_first_full(session, run, now)
+        await _queue_reconciliation(session, run)
     return status
+
+
+async def _queue_reconciliation(session: AsyncSession, run: SyncRun) -> None:
+    """REC-1.4, D-048 #6: a FULL sync that stored data is followed by a reconciliation, on the
+    same Agent, through the same RECONCILIATION run type as the daily one."""
+    command = AgentCommand(
+        company_id=run.company_id,
+        agent_id=run.agent_id,
+        command_type=CommandType.RUN_SYNC,
+        sync_mode=SyncMode.RECONCILIATION,
+        status=CommandStatus.PENDING,
+        created_by=None,
+    )
+    session.add(command)
+    await session.flush()
+    await audit.record(
+        session,
+        company_id=run.company_id,
+        user_id=None,
+        action="RECONCILIATION_QUEUED",
+        entity_type="agent_command",
+        entity_id=str(command.command_id),
+        after={"agent_id": str(run.agent_id), "after_full_sync_run": str(run.sync_run_id)},
+    )
 
 
 async def _abandon_key_lists(session: AsyncSession, sync_run_id: uuid.UUID) -> None:

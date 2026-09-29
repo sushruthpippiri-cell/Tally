@@ -127,6 +127,14 @@ class ReconResult(StrEnum):
     FAIL = "FAIL"
 
 
+class ReconOverall(StrEnum):
+    """A reconciliation run as a whole (D-048 #8)."""
+
+    PASS = "PASS"
+    FAIL = "FAIL"  # a comparison failed, or something that must match could not be compared
+    INCOMPLETE = "INCOMPLETE"  # nothing failed, but the run did not bring everything (PARTIAL)
+
+
 class TallyValueKind(StrEnum):
     """What a staged Tally reconciliation value is (D-048)."""
 

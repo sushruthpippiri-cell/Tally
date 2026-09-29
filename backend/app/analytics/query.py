@@ -36,6 +36,8 @@ from app.analytics.metrics import (
     product_revenue,
     purchases,
     receivables,
+    recon_payments,
+    recon_receipts,
     sales,
     supplier_purchases,
     unclassified_adjustments,
@@ -55,7 +57,11 @@ METRICS: dict[str, ModuleType] = {
     "payables": payables,
     "ledger_balances": ledger_balances,
     "unclassified_adjustments": unclassified_adjustments,
+    "recon_receipts": recon_receipts,
+    "recon_payments": recon_payments,
 }
+# Summed only by reconciliation, never offered by the analytics API (D-048 #4).
+RECONCILIATION_ONLY = frozenset({"recon_receipts", "recon_payments"})
 
 
 def detail(metric: str, ctx: MetricContext) -> Select[Any]:

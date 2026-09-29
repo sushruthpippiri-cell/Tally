@@ -31,7 +31,12 @@ from app.services.settings import get_setting
 from tally_contract.errors import ErrorCode
 
 MetricName = StrEnum(  # type: ignore[misc]
-    "MetricName", {name.upper(): name.replace("_", "-") for name in query.METRICS}
+    "MetricName",
+    {
+        name.upper(): name.replace("_", "-")
+        for name in query.METRICS
+        if name not in query.RECONCILIATION_ONLY
+    },
 )
 STANDARD = {
     "voucher_id",

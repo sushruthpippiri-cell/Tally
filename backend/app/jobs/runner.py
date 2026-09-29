@@ -19,6 +19,7 @@ Job = Callable[[AsyncSession, datetime], Awaitable[int]]
 LOCK_MARK_OFFLINE = 3_001
 LOCK_COMMAND_TIMEOUTS = 3_002
 LOCK_FIRE_SCHEDULES = 3_003
+LOCK_RECONCILE_RUNS = 3_004
 
 
 async def run_exclusive(
@@ -39,6 +40,7 @@ async def run_exclusive(
 def build_scheduler() -> AsyncIOScheduler:
     from app.jobs.agents import mark_offline
     from app.jobs.commands import command_timeouts
+    from app.jobs.reconciliation import reconcile_runs
     from app.jobs.schedules import fire_schedules
 
     scheduler = AsyncIOScheduler(timezone=UTC)
@@ -46,6 +48,7 @@ def build_scheduler() -> AsyncIOScheduler:
         ("mark_offline", LOCK_MARK_OFFLINE, mark_offline),
         ("command_timeouts", LOCK_COMMAND_TIMEOUTS, command_timeouts),
         ("fire_schedules", LOCK_FIRE_SCHEDULES, fire_schedules),
+        ("reconcile_runs", LOCK_RECONCILE_RUNS, reconcile_runs),
     ):
         scheduler.add_job(
             run_exclusive,

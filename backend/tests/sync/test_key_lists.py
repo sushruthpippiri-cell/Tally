@@ -135,7 +135,7 @@ async def test_an_active_voucher_missing_from_the_key_list_becomes_missing_in_ta
 
 
 @pytest.mark.req("DR-ML-1", "DR-ML-2", "DR-ML-3")
-@pytest.mark.req_partial("AC-10")  # P10's full reconciliation is the other detector
+@pytest.mark.req_partial("AC-10")  # from a full reconciliation: tests/reconciliation (P10)
 async def test_a_ledger_missing_from_its_key_list_keeps_its_row_and_its_vouchers(
     committed: Factory,
 ) -> None:
