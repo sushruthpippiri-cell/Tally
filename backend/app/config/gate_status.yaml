@@ -1,6 +1,6 @@
 # Live-Tally validation gates (SRS 7). Keep in sync with docs/validation-gate.md.
 # Allowed values: NOT_TESTED | PASSED | FAILED. Change only with evidence (VAL-1.3).
-# G30-G35 are additions not in SRS v7.3 (see docs/validation-gate.md, D-038).
+# G30-G37 are additions not in SRS v7.3 (see docs/validation-gate.md, D-038).
 G1: NOT_TESTED
 G2: NOT_TESTED
 G3: NOT_TESTED
@@ -36,3 +36,5 @@ G32: NOT_TESTED
 G33: NOT_TESTED
 G34: NOT_TESTED
 G35: NOT_TESTED
+G36: NOT_TESTED
+G37: NOT_TESTED

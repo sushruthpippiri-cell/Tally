@@ -94,6 +94,10 @@ list also works in TallyPrime's Educational mode.
       record a **Sales** voucher to a new customer **Overseas Buyer** in **USD** (e.g. $100),
       2 Oct 2024. Until the capture shows the format, the parser rejects such amounts rather than
       read part of them.
+- [ ] **Post-dated voucher** (G37): a **Sales** to Gupta Stores dated the **1st of the month
+      after the day you run the captures** (a date in the future). Enter it **last**, just before
+      the captures, so it has the highest ALTERID. It must appear in `vouchers_full` and
+      `voucher_keys` although its date is after today.
 - [ ] At least **25 accounting vouchers** in total (so the 0–20 and 20–40 ALTERID windows both
       have data, G7, G33).
 - [ ] **Only if you have a TDL customisation that adds a user-defined field** to vouchers: one
@@ -111,6 +115,8 @@ list also works in TallyPrime's Educational mode.
   - [ ] `G32` rename *Sundry Debtors* and voucher type *Sales* (then rename back)
   - [ ] `ACC-7.5` move *Retail Customers* under a different parent (then move back)
   - [ ] `AGT-5.4` rename the company (then rename back)
+  - [ ] `G37` change the period selected in TallyPrime (Alt+F2) to **one month only**, e.g.
+        1 May 2024 to 31 May 2024 (then set it back)
 - [ ] Optional: tally-database-loader CSV output (README, last section).
 
 ## Which data proves which gate
@@ -131,4 +137,6 @@ list also works in TallyPrime's Educational mode.
 | G27 | units and the compound unit (E); purchase in boxes (G) |
 | G29 | scenario G29 |
 | G34 | the optional voucher, Sales Order and Delivery Note (G) |
+| G36 | `recon_totals_*` compared with the Trial Balance and Day Book references (G) |
+| G37 | the post-dated voucher (G) in `vouchers_full` and `voucher_keys`; scenario G37 |
 | G35 | the `error_*` captures, every response's encoding, and the foreign-currency voucher (G) |

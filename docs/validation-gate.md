@@ -41,5 +41,7 @@ How the probe tool and test company are set up: `docs/plan/gate-track.md`.
 | G33* | ALTERID window paging | from/to ALTERID filter returns exactly the objects in the window; company max ALTERID obtainable | NOT TESTED | | | | D-013 |
 | G34* | Voucher scope | The voucher Collection returns accounting vouchers only: no orders, Delivery/Receipt Notes, Stock Journals or optional vouchers (SRS 1.3) | NOT TESTED | | | | Voucher sync scope |
 | G35* | Error responses, encoding and formats | Exact response for an unknown report and for a company that is not loaded; response encoding; invalid XML characters Tally emits; date and logical value formats in our report fields (`UniversalDate`, Yes/No) | NOT TESTED | | | | TDL_NOT_LOADED, COMPANY_NOT_LOADED detection; parser sanitising |
+| G36* | Reconciliation totals | `TA_ReconTotals` returns, for a period, Tally's own debit and credit sums per (ledger, voucher type) over the voucher Collection, cancelled vouchers left out; compare with the Trial Balance reference | NOT TESTED | | | | Reconciliation SALES_CREDITS / PURCHASE_DEBITS / RECEIPTS / PAYMENTS (D-048 #4) |
+| G37* | Explicit voucher dates | A voucher request with SVFROMDATE/SVTODATE returns exactly the vouchers dated in that range whatever period is selected in Tally, including a post-dated voucher up to `FULL_PULL_DATE_TO` | NOT TESTED | | | | Every voucher pull, key list and total (D-048 #2) |
 
-\* Additions not in SRS v7.3: G30–G33 from planning, G34–G35 from Phase 4 (D-038).
+\* Additions not in SRS v7.3: G30–G33 from planning, G34–G35 from Phase 4 (D-038), G36–G37 from Phase 10 (D-048).
