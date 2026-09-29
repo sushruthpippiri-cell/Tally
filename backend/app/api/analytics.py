@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import Awaitable, Callable
 from datetime import date
 
@@ -7,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.periods import Granularity
 from app.core.permissions import CompanyContext, Permission, require
+from app.schemas.aging import AgingOut, AllocationsOut, BillsOut, Side
 from app.schemas.analytics import DrilldownOut, MetricOut, RankingOut
-from app.services import analytics
+from app.services import aging, analytics
 from app.services.analytics import MetricName, RankBy, RankingKind
 
 router = APIRouter(prefix="/companies/{company_id}/analytics", tags=["analytics"])
@@ -47,6 +49,39 @@ def _ranked(kind: RankingKind) -> Callable[..., Awaitable[RankingOut]]:
 # Registered before /{metric}, which would otherwise take these paths.
 for _kind in ("customers", "suppliers", "products"):
     router.add_api_route(f"/{_kind}", _ranked(_kind), methods=["GET"], name=f"rank_{_kind}")
+
+
+@router.get("/aging", summary="Receivables or payables aged per bill (SRS 10)")
+async def aging_summary(
+    side: Side,
+    as_of: date | None = None,
+    ctx: CompanyContext = VIEW,
+    session: AsyncSession = Depends(get_session),
+) -> AgingOut:
+    return await aging.summary(session, ctx, side, as_of)
+
+
+@router.get("/aging/bills", summary="A party's bills (aging drill-down)")
+async def aging_bills(
+    side: Side,
+    ledger_id: uuid.UUID,
+    as_of: date | None = None,
+    ctx: CompanyContext = VIEW,
+    session: AsyncSession = Depends(get_session),
+) -> BillsOut:
+    return await aging.bills(session, ctx, side, ledger_id, as_of)
+
+
+@router.get("/aging/allocations", summary="A bill's allocations and vouchers")
+async def aging_allocations(
+    side: Side,
+    ledger_id: uuid.UUID,
+    reference: str = Query(..., min_length=1, max_length=200),
+    as_of: date | None = None,
+    ctx: CompanyContext = VIEW,
+    session: AsyncSession = Depends(get_session),
+) -> AllocationsOut:
+    return await aging.allocations(session, ctx, side, ledger_id, reference, as_of)
 
 
 @router.get("/{metric}")
