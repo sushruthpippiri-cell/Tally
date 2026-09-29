@@ -30,6 +30,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.analytics import blocks
 from app.analytics.returns import CREDIT_NOTE, DEBIT_NOTE, UNLINKED, linked_notes
 from app.core.errors import AppError
 from app.core.gates import gate_passed
@@ -419,6 +420,10 @@ async def _unlinked_notes(session: AsyncSession, ctx: CompanyContext) -> Select[
     )
 
 
+async def _unsupported_allocations(session: AsyncSession, ctx: CompanyContext) -> Select[Any]:
+    return blocks.unsupported_allocations(ctx.company_id)
+
+
 def _before_g32() -> bool:
     return not gate_passed("G32")
 
@@ -540,6 +545,15 @@ for _check in (
         "subtracted from sales or purchases and are listed under Unclassified Adjustments. "
         "Until the return-link gate (G26) passes, every note is listed here.",
         _unlinked_notes,
+    ),
+    Check(
+        "unsupported_bill_allocations",
+        "Bill allocations of an unknown type",
+        "WARNING",
+        "Tally exported these bill allocations with a type that is not New Ref, Agst Ref, "
+        "Advance or On Account, so they are left out of aging (AGE-BILL-2). Until the "
+        "allocation-type gate (G25) passes, the expected names are a draft.",
+        _unsupported_allocations,
     ),
 ):
     register(_check)

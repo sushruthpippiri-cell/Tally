@@ -30,12 +30,12 @@ from sqlalchemy.orm import InstrumentedAttribute
 
 from app.analytics.context import MetricContext
 from app.models.balances import LedgerOpeningBalance
-from app.models.enums import AccountingDirection, Nature
+from app.models.enums import AccountingDirection, AllocationType, Nature, VoucherStatus
 from app.models.masters import Group, Ledger, StockItem, VoucherType
-from app.models.vouchers import Voucher, VoucherEntry, VoucherItem
+from app.models.vouchers import BillAllocation, Voucher, VoucherEntry, VoucherItem
 
 E, V, VT, L = VoucherEntry, Voucher, VoucherType, Ledger
-VI, SI = VoucherItem, StockItem
+VI, SI, B = VoucherItem, StockItem, BillAllocation
 
 
 def entries(
@@ -178,4 +178,33 @@ def items(ctx: MetricContext, sign: ColumnElement[int]) -> Select[Any]:
             V.status.in_(ctx.filter.statuses),
             V.voucher_date.between(ctx.filter.date_from, ctx.filter.date_to),
         )
+    )
+
+
+def unsupported_allocations(company_id: uuid.UUID) -> Select[Any]:
+    """Bill allocations whose type Tally exported in a form we cannot map (AGE-BILL-1): never
+    aged (AGE-BILL-2), listed for review with the raw type (GATE-G25)."""
+    return (
+        select(
+            V.voucher_id,
+            V.voucher_date,
+            V.voucher_number,
+            VT.name.label("voucher_type_name"),
+            L.name.label("ledger_name"),
+            B.reference_name,
+            B.allocation_type_raw,
+            B.amount_absolute,
+            B.accounting_direction,
+        )
+        .select_from(B)
+        .join(E, and_(E.company_id == B.company_id, E.voucher_entry_id == B.voucher_entry_id))
+        .join(V, and_(V.company_id == E.company_id, V.voucher_id == E.voucher_id))
+        .join(VT, and_(VT.company_id == V.company_id, VT.voucher_type_id == V.voucher_type_id))
+        .join(L, and_(L.company_id == B.company_id, L.ledger_id == B.ledger_id))
+        .where(
+            B.company_id == company_id,
+            B.allocation_type == AllocationType.UNSUPPORTED,
+            V.status == VoucherStatus.ACTIVE,
+        )
+        .order_by(V.voucher_date, V.voucher_number, B.id)
     )
