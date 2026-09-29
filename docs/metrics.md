@@ -64,5 +64,24 @@ API: `GET /companies/{id}/analytics/{metric}` and `…/{metric}/drilldown`, with
   - An item sold in more than one unit is flagged `multiple_units` on each of its rows.
   - Converting to base units (FR-STK-9) waits for gate G27 and P12.
 
+## Aging and payment behaviour (P11: D-049, SRS 10)
+- **Where the rows come from.** Two detail queries, `receivable_bills` (customer ledgers) and `payable_bills` (supplier ledgers), give one row per bill allocation on an ACTIVE voucher dated on or before the as-of date, plus the ledger masters' opening bills as New References (D-022). UNSUPPORTED allocations are left out and listed in Data Quality (AGE-BILL-1, 2). All of aging is summed from these rows in `backend/app/analytics/aging.py`.
+- **Signs.** Each row keeps its own direction: on the receivable side a debit is +, on the payable side a credit is +. A sale's New Reference raises the bill, a receipt's Against Reference lowers it, a refund paid back against it raises it again (D-049 #1).
+- **A bill** is a (ledger, reference) with a New Reference. Its outstanding on the as-of date is the sum of its New and Against References (FR-AGE-1, FR-AGE-2). Its bill date is the New Reference's voucher date (or the opening bill's date), its due date the New Reference's.
+  - **Over-settled** (outstanding below zero): shown as a **Credit**, a positive amount marked Cr, never in a bucket; also in Data Quality "Over-settled bills".
+  - **Reused name** (New References from more than one voucher, e.g. invoice numbers restarting each year): still one bill, marked unverified (GATE-G31) and listed in Data Quality "Bill reference reused" (D-049 #7).
+- **Buckets** (SRS 10.1), from the as-of date (default: today in the company's time zone):
+  - due date after it: **Not yet due** (never negative days);
+  - no due date: **Due date unavailable**;
+  - otherwise days overdue = as-of − due date, into the `aging.bucket_boundaries` buckets (default 0–30, 31–60, 61–90, 90+; a bill due that day is 0 days).
+- **Kept out of the buckets, shown apart, per side, never netted across sides** (AGE-BILL-3, 4): Unadjusted Advances (an advance, less any Against Reference made to it later, GATE-G25), On-Account / Unallocated, unmatched settlements (Against References with no bill or advance; Data Quality "Unmatched settlements"). Each party's **net exposure** is the sum of all its rows.
+- **No bill details** (SRS 10.3): a customer or supplier ledger that is not bill-wise, or has no bill rows, is one line with its balance (the `receivables` / `payables` figure) and "bill details not available".
+- **Payment behaviour** (customers, FR-PAY-1–6, D-049 #5):
+  - a settlement is an Against Reference that lowers a customer's bill **on a Receipt voucher**, dated in the trailing `payment.window_days` (365); each part settlement counts on its own. Credit notes, journals and other settlements are excluded and counted in the notes (a departure from FR-PAY-2's wording: a return is not a payment);
+  - average days to pay = Σ(amount × (settled − bill date)) ÷ Σ amount; average days past due uses the due date, early payments count as 0, bills without a due date are left out and counted;
+  - fewer than `payment.min_settlements` (3) settlements: "insufficient history";
+  - hidden until gate G25 passes (FR-PAY-6).
+- **Unverified gates.** Every aging and payment-behaviour response lists G25 and G31 while they have not passed.
+
 ## Speed (PERF-1.1)
 Measured at the SRS 17.2 size (100,000 vouchers, 500,000 entries, 94,000 inventory lines): see `docs/benchmarks/p8-analytics.md` and the P8 and P9 benchmark entries in `docs/progress.md`. Analytics statements are planned for their own dates (D-047). To reproduce: `make bench-data && make bench-analytics`.

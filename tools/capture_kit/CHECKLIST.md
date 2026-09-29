@@ -94,6 +94,9 @@ list also works in TallyPrime's Educational mode.
       record a **Sales** voucher to a new customer **Overseas Buyer** in **USD** (e.g. $100),
       2 Oct 2024. Until the capture shows the format, the parser rejects such amounts rather than
       read part of them.
+- [ ] **Reused bill name** (G31, D-049 #7): a **Sales** to Sharma Traders with bill-wise
+      **New Ref `S-1`** dated **1 Apr 2025** (the next financial year, so both `S-1` bills exist
+      under one party). The capture shows whether Tally keeps them apart and how.
 - [ ] **Post-dated voucher** (G37): a **Sales** to Gupta Stores dated the **1st of the month
       after the day you run the captures** (a date in the future). Enter it **last**, just before
       the captures, so it has the highest ALTERID. It must appear in `vouchers_full` and
@@ -137,6 +140,7 @@ list also works in TallyPrime's Educational mode.
 | G27 | units and the compound unit (E); purchase in boxes (G) |
 | G29 | scenario G29 |
 | G34 | the optional voucher, Sales Order and Delivery Note (G) |
+| G31 (reused names) | the second `S-1` (G) in `vouchers_full` and `ledgers_full` |
 | G36 | `recon_totals_*` compared with the Trial Balance and Day Book references (G) |
 | G37 | the post-dated voucher (G) in `vouchers_full` and `voucher_keys`; scenario G37 |
 | G35 | the `error_*` captures, every response's encoding, and the foreign-currency voucher (G) |
