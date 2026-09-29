@@ -3,6 +3,8 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
+P11 (aging and payment behaviour) — **complete locally** 2026-09-29, CI pending. Local suite PASS ([phase-11](test-reports/phase-11.md), 1,388 tests: 1,385 passed, 3 skipped — Windows-only; 89.9% line coverage). D-049 ACCEPTED with the owner's two additions (reused bill names marked unverified and listed; payment behaviour counts receipts only). Aging rules in [`docs/metrics.md`](metrics.md). Payment behaviour stays hidden until G25 passes; G25 and G31 join the pending G-E captures (the CHECKLIST gains a reused bill name). Next: P12 (stock) — waits for the owner.
+
 P10 (reconciliation) — **complete** 2026-09-29. CI green (`check` 36534423550, `agent-windows` 36534423546, `capture-kit` 36534423565). Local suite PASS ([phase-10](test-reports/phase-10.md), 1,327 tests: 1,324 passed, 3 skipped — Windows-only; 89.9% line coverage). D-048 ACCEPTED with the owner's three changes (independence stated and tested; explicit dates on every voucher request, post-dated vouchers included; stock compared within the same run). The basis is in [`docs/reconciliation-basis.md`](reconciliation-basis.md): **still to be reviewed by the accountant** (the phase's definition of done). New gates G36 and G37 (NOT TESTED) join the G-E captures. Next: P11 (aging and payment behaviour) — waits for the owner.
 
 P9 (attribution and rankings) — **complete** 2026-09-28. Local suite PASS ([phase-09](test-reports/phase-09.md), 1,252 tests: 1,249 passed, 3 skipped — Windows-only; 89.5% line coverage); CI green (`check` 36460856648; `capture-kit` and `agent-windows` not triggered, last green 36444202153 / 36436892986). D-046 ACCEPTED (returns follow their original's bucket; product rows; units never summed across; the "Non-product" label needs G28 **and** taxable-value mode). D-047 (custom plans for analytics) added as a performance fix. The benchmark at SRS 17.2 size found the dashboard set at 2.6 s over three years once the P9 figures were added; fixed to 1.8 s (below). Next: P10 (reconciliation) — waits for the owner.
@@ -28,6 +30,12 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-29 | P11 phase report | (this commit) | [phase-11](test-reports/phase-11.md): 1,385 passed, 3 skipped (Windows-only), fresh DB, `make check` PASS. |
+| 2026-09-29 | P11.7 payment behaviour | 2cae95a | `GET …/analytics/payment-behaviour`: receipts only (D-049 #5), credit notes and journals excluded and counted in the notes, refunds and advances never settlements, trailing 365 days, insufficient history below 3; hidden until G25 passes. AC-51 = 14 days. |
+| 2026-09-29 | P11.6 aging API | e2afb4f | `GET …/analytics/aging`, `/aging/bills`, `/aging/allocations`: buckets, credit, advances, on-account, unmatched, net exposure, no-bill-details, unverified gates. "Today" in company time at IST midnight, a month end and the FY end; summary = Σ parties; a party's bills add up to its buckets less its credit. |
+| 2026-09-29 | P11.2–P11.5 bills and buckets | 309f26c | `blocks.bill_rows`, `receivable_bills` / `payable_bills` detail queries, `app/analytics/aging.py`. AC-45–50, boundaries 0/30/31/60/61/90/91 and [15, 45], refunds, over-settled credits, payable mirror, opening bills, reused names, unmatched, UNSUPPORTED excluded, no bill details. Data Quality: over-settled bills, unmatched settlements, bill reference reused. |
+| 2026-09-29 | P11.1 allocation types | e173384 | Stored types from the P4 fixture; "Bill allocations of an unknown type" Data Quality check. |
+| 2026-09-29 | P11.0 decisions | bf28f36 | D-049; metrics.md aging section; CHECKLIST reused bill name. |
 | 2026-09-29 | P10 CI | b23f8c4 | Green on all three workflows: `check` 36534423550, `agent-windows` 36534423546, `capture-kit` 36534423565. |
 | 2026-09-29 | P10 phase report | (this commit) | [phase-10](test-reports/phase-10.md): 1,324 passed, 3 skipped (Windows-only), fresh DB, `make check` PASS. |
 | 2026-09-29 | P10.6 API, end to end | 21edd57 | `POST …/reconciliation/run`, `GET …/reconciliation` (AC-40, REC-1.2: Tally, local, both differences, result; failures first; not compared; unverified gates; history), `sync/status.reconciliation` (FR-4.1), `uptime_advisory` none/advisory/prominent (AGT-6.4). The mock Tally computes `TA_ReconTotals` from its own vouchers; e2e: FULL → queued RECONCILIATION → job → PASS for every ledger and total; a changed Tally closing → FAIL on exactly that ledger. |
@@ -187,6 +195,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
+| 11 | [phase-11](test-reports/phase-11.md) | PASS - 1,388 tests, 0 failed, 3 skipped (Windows-only), 89.9% coverage; CI: pending |
 | 10 | [phase-10](test-reports/phase-10.md) | PASS - 1,327 tests, 0 failed, 3 skipped (Windows-only), 89.9% coverage; CI green: check 36534423550, agent-windows 36534423546, capture-kit 36534423565 |
 | 09 | [phase-09.md](test-reports/phase-09.md) | PASS - 1,252 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI green: check 36460856648 |
 | 08 | [phase-08.md](test-reports/phase-08.md) | PASS - 1,204 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI green: check 36444202147, capture-kit 36444202153 |

@@ -91,7 +91,8 @@ async def test_hidden_until_the_allocation_type_gate_passes(
     }
 
 
-@pytest.mark.req("AC-51", "FR-PAY-1", "FR-PAY-2", "FR-PAY-3")
+@pytest.mark.req("AC-51", "FR-PAY-1", "FR-PAY-3")
+@pytest.mark.req_partial("FR-PAY-2")  # superseded as worded: receipts only (D-049 #5)
 async def test_ac51_part_settlements_average_14_days_to_pay(
     api: httpx.AsyncClient, books: Books, owner: User, g25_passed: None
 ) -> None:
