@@ -43,4 +43,4 @@ def test_all_srs_codes_exist_in_srs_pdf_text() -> None:
 
 
 def test_contract_version() -> None:
-    assert CONTRACT_VERSION == "1.0"
+    assert CONTRACT_VERSION == "1.1"  # 1.1: reconciliation records (P10, D-048)

@@ -14,6 +14,7 @@ from tally_contract.enums import CollectionType
 
 GOLDEN = Path(__file__).parent / "golden" / "requests"
 CO = "Sharma & Sons Traders"  # an ampersand must be escaped
+DATES = {"date_from": date(2024, 4, 1), "date_to": tc.FULL_PULL_DATE_TO}
 
 CASES: dict[str, Callable[[], bytes]] = {
     "info": lambda: rq.info(CO),
@@ -40,6 +41,15 @@ CASES: dict[str, Callable[[], bytes]] = {
     ),
     "stock_closing": lambda: rq.stock_closing(CO, date(2025, 3, 31)),
     "ledger_closing": lambda: rq.ledger_closing(CO, date(2025, 3, 31)),
+    "ledger_closing_fy": lambda: rq.ledger_closing(CO, date(2025, 3, 31), date(2024, 4, 1)),
+    "recon_totals": lambda: rq.recon_totals(CO, date(2025, 4, 1), date(2025, 4, 30)),
+    "vouchers_keys": lambda: rq.collection(
+        CollectionType.VOUCHER,
+        CO,
+        keys_only=True,
+        date_from=date(2024, 4, 1),
+        date_to=tc.FULL_PULL_DATE_TO,
+    ),
     "builtin_company_list": rq.builtin_company_list,
     "builtin_trial_balance": lambda: rq.builtin_report(
         "Trial Balance", CO, date(2024, 4, 1), date(2025, 3, 31)
@@ -72,17 +82,38 @@ def test_company_names_are_escaped() -> None:
 
 @pytest.mark.parametrize("collection", list(CollectionType), ids=str)
 def test_every_collection_and_key_list_has_a_request(collection: CollectionType) -> None:
+    dates = DATES if collection == CollectionType.VOUCHER else {}
     for keys in (False, True):
-        root = ET.fromstring(rq.collection(collection, CO, keys_only=keys))
+        root = ET.fromstring(rq.collection(collection, CO, keys_only=keys, **dates))
         report = (tc.KEY_REPORTS if keys else tc.REPORTS)[collection]
         assert root.findtext("HEADER/ID") == report
 
 
+@pytest.mark.parametrize("keys", [False, True])
+@pytest.mark.parametrize("missing", ["date_from", "date_to"])
+def test_a_voucher_request_without_both_dates_is_refused(keys: bool, missing: str) -> None:
+    """D-048 #2 (GATE-G37): without dates Tally would use the period selected in Tally, which
+    its user can change, so no voucher pull or key list may leave them out."""
+    dates = {k: v for k, v in DATES.items() if k != missing}
+    with pytest.raises(ValueError, match="names its dates"):
+        rq.collection(CollectionType.VOUCHER, CO, keys_only=keys, **dates)
+
+
+def test_totals_and_ledger_closing_name_their_period() -> None:
+    """D-048: the totals period and the ledger closing's financial year are explicit."""
+    for raw, start, end in (
+        (rq.recon_totals(CO, date(2025, 4, 1), date(2025, 4, 30)), "20250401", "20250430"),
+        (rq.ledger_closing(CO, date(2025, 9, 29), date(2025, 4, 1)), "20250401", "20250929"),
+    ):
+        variables = ET.fromstring(raw).find("BODY/DESC/STATICVARIABLES")
+        assert variables is not None
+        assert variables.findtext(tc.VAR_FROM_DATE) == start
+        assert variables.findtext(tc.VAR_TO_DATE) == end
+
+
 def test_window_and_dates_go_in_static_variables() -> None:
     root = ET.fromstring(
-        rq.collection(
-            CollectionType.VOUCHER, CO, from_alter_id=5, to_alter_id=10, date_from=date(2024, 4, 1)
-        )
+        rq.collection(CollectionType.VOUCHER, CO, from_alter_id=5, to_alter_id=10, **DATES)
     )
     variables = root.find("BODY/DESC/STATICVARIABLES")
     assert variables is not None

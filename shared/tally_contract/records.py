@@ -186,23 +186,44 @@ class StockSnapshotRecord(_Record):
 
 
 class LedgerClosingBalanceRecord(_Record):
-    """Tally's closing balance as of a date (GATE-G19)."""
+    """Tally's own closing balance as of a date, for reconciliation (GATE-G19, D-048)."""
 
     record_type: Literal["LEDGER_CLOSING_BALANCE"] = "LEDGER_CLOSING_BALANCE"
     ledger_guid: str
+    ledger_name: str | None = None
     as_of_date: date
     balance: Amount
 
 
 class ReconciliationTotalRecord(_Record):
-    """A Tally-side total for reconciliation (drafted here, completed in P10, D-008)."""
+    """Tally's own debit and credit sums for one (ledger, voucher type, period), over the
+    sync's voucher Collection with cancelled vouchers left out (GATE-G36, D-048 #4). The
+    backend classifies them exactly as it classifies synced entries."""
 
     record_type: Literal["RECONCILIATION_TOTAL"] = "RECONCILIATION_TOTAL"
-    metric: str
+    ledger_guid: str = Field(min_length=1)
+    ledger_name: str | None = None
+    voucher_type_guid: str = Field(min_length=1)
     period_start: date
     period_end: date
-    entity_guid: str | None = None
-    value: Decimal
+    debit: Decimal = Field(ge=0)
+    credit: Decimal = Field(ge=0)
+
+
+class ReconciliationStockRecord(_Record):
+    """Tally's closing quantity read for reconciliation, moments after the run stored its
+    snapshot; never written to stock_snapshots (GATE-G18, D-048 #3)."""
+
+    record_type: Literal["RECONCILIATION_STOCK"] = "RECONCILIATION_STOCK"
+    stock_item_guid: str
+    as_of_date: date
+    closing_quantity: Decimal
+    unit: str | None = None
+
+
+RECONCILIATION_RECORD_TYPES = frozenset(
+    {"LEDGER_CLOSING_BALANCE", "RECONCILIATION_TOTAL", "RECONCILIATION_STOCK"}
+)
 
 
 AnyRecord = Annotated[
@@ -216,7 +237,8 @@ AnyRecord = Annotated[
     | KeyRecord
     | StockSnapshotRecord
     | LedgerClosingBalanceRecord
-    | ReconciliationTotalRecord,
+    | ReconciliationTotalRecord
+    | ReconciliationStockRecord,
     Field(discriminator="record_type"),
 ]
 
@@ -293,6 +315,10 @@ class BatchEnvelope(_Record):
             alter_ids = [r.alter_id for r in self.records if isinstance(r, _HAS_ALTER_ID)]
             if alter_ids != sorted(alter_ids):
                 raise ValueError("records must be sorted by alter_id (D-026)")
+        else:  # snapshots, or reconciliation values: never both (D-048 #7)
+            kinds = {r.record_type in RECONCILIATION_RECORD_TYPES for r in self.records}
+            if len(kinds) > 1:
+                raise ValueError("a batch holds snapshots or reconciliation values, not both")
         return self
 
 

@@ -12,7 +12,7 @@ import threading
 import time
 import uuid
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -37,6 +37,7 @@ from tally_contract.records import AlterIdWindow, BatchEnvelope, CostCentreRecor
 from tally_contract.testing import assert_logged
 from tally_tools.mock_tally import (
     MockConfig,
+    add_voucher,
     company_guid,
     delete,
     edit_voucher,
@@ -254,6 +255,42 @@ async def test_register_sync_edit_and_delete_end_to_end(
             trust_env=False,
         ).json()["items"]
         assert [item["tally_guid"] for item in listed] == ["v-5"]  # in the Data Quality view
+    finally:
+        uploading.close()
+
+
+async def test_a_post_dated_voucher_syncs_in_the_run_after_it_is_created(
+    committed: Factory, start_server: Any, tally: tuple[MockConfig, int], tmp_path: Path
+) -> None:
+    """Owner (D-048 #2, GATE-G37): a voucher entered today but dated next month gets the next
+    ALTERID. The next INCREMENTAL stores it, even with Tally's selected period ending today,
+    so the watermark that moves past its ALTERID has not skipped it."""
+    mock, tally_port = tally
+    mock.selected_period = (date(2024, 4, 1), date(2026, 3, 16))  # today (FIXED_NOW)
+    server = start_server()
+    company, owner, token = await _seed(committed)
+    await _register(server, tally_port, token, tmp_path / "agent")
+    agent = _agent(tmp_path / "agent", tally_port)
+    uploading = Uploading(agent)
+    try:
+        _sync_now(server, company, owner, "FULL")
+        assert (await _run(agent)).status == "COMPLETED"
+        post_dated = add_voucher(mock.data, date(2026, 4, 1))
+        _sync_now(server, company, owner, "INCREMENTAL")
+        assert (await _run(agent)).status == "COMPLETED"
+        async with committed() as s:
+            stored = (
+                await s.execute(select(Voucher).where(Voucher.tally_guid == post_dated.guid))
+            ).scalar_one()
+            watermark = await s.scalar(
+                text(
+                    "SELECT last_alter_id FROM sync_watermarks "
+                    "WHERE company_id = :c AND collection_type = 'VOUCHER'"
+                ),
+                {"c": company.company_id},
+            )
+        assert (stored.voucher_date, stored.alter_id) == (date(2026, 4, 1), post_dated.alter_id)
+        assert watermark == post_dated.alter_id
     finally:
         uploading.close()
 

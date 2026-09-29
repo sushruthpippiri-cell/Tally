@@ -21,6 +21,7 @@ from tally_contract.records import (
     KeyRecord,
     LedgerClosingBalanceRecord,
     ParseError,
+    ReconciliationTotalRecord,
     StockSnapshotRecord,
 )
 from tally_contract.udf import UdfReader
@@ -31,6 +32,8 @@ __all__ = [
     "DocumentFailure",
     "iter_collection",
     "iter_keys",
+    "iter_ledger_closing",
+    "iter_recon_totals",
     "iter_stock_closing",
     "ParseResult",
     "TallyInfo",
@@ -38,6 +41,7 @@ __all__ = [
     "parse_info",
     "parse_keys",
     "parse_ledger_closing",
+    "parse_recon_totals",
     "parse_stock_closing",
 ]
 
@@ -111,6 +115,18 @@ def parse_stock_closing(raw: bytes) -> ParseResult[StockSnapshotRecord]:
 
 def parse_ledger_closing(raw: bytes) -> ParseResult[LedgerClosingBalanceRecord]:
     return parse(raw, tc.RECORD_TAGS[tc.LEDGER_CLOSING_REPORT], builders.ledger_closing)
+
+
+def iter_ledger_closing(raw: bytes) -> Iterator[LedgerClosingBalanceRecord | ParseError]:
+    return iter_parse(raw, tc.RECORD_TAGS[tc.LEDGER_CLOSING_REPORT], builders.ledger_closing)
+
+
+def parse_recon_totals(raw: bytes) -> ParseResult[ReconciliationTotalRecord]:
+    return parse(raw, tc.RECORD_TAGS[tc.RECONCILIATION_REPORT], builders.recon_total)
+
+
+def iter_recon_totals(raw: bytes) -> Iterator[ReconciliationTotalRecord | ParseError]:
+    return iter_parse(raw, tc.RECORD_TAGS[tc.RECONCILIATION_REPORT], builders.recon_total)
 
 
 def _info(e: ET.Element) -> TallyInfo:

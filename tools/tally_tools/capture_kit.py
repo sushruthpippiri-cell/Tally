@@ -53,7 +53,7 @@ CAPTURE: dict[str, tuple[Build, list[str], bool]] = {
     "cost_centres_full": (_full(C.COST_CENTRE), ["G4"], False),
     "vouchers_full": (
         _full(C.VOUCHER, **VOUCHER_DATES),
-        ["G3", "G5", "G9", "G23", "G25", "G26", "G27", "G28", "G30", "G31", "G34"],
+        ["G3", "G5", "G9", "G23", "G25", "G26", "G27", "G28", "G30", "G31", "G34", "G37"],
         False,
     ),
     # G7/G33: the window filter on small pages; compare with the full pulls.
@@ -68,9 +68,21 @@ CAPTURE: dict[str, tuple[Build, list[str], bool]] = {
         ["G7", "G33"],
         False,
     ),
-    **{f"{c.value.lower()}_keys": (_full(c, keys_only=True), ["G21"], False) for c in C},
+    **{
+        f"{c.value.lower()}_keys": (_full(c, keys_only=True), ["G21"], False)
+        for c in C
+        if c != C.VOUCHER
+    },
+    # D-048 #2: a voucher key list names its dates like the pull it mirrors.
+    "voucher_keys": (_full(C.VOUCHER, keys_only=True, **VOUCHER_DATES), ["G21", "G37"], False),
     "stock_closing": (lambda: rq.stock_closing(COMPANY, AS_OF), ["G18"], False),
-    "ledger_closing": (lambda: rq.ledger_closing(COMPANY, AS_OF), ["G19", "G23"], False),
+    "ledger_closing": (
+        lambda: rq.ledger_closing(COMPANY, AS_OF, BOOKS_FROM),
+        ["G19", "G23"],
+        False,
+    ),
+    # G36: Tally's own sums per (ledger, voucher type); compare with the Trial Balance.
+    "recon_totals": (lambda: rq.recon_totals(COMPANY, BOOKS_FROM, AS_OF), ["G36", "G23"], False),
     # G35: what Tally says for an unknown report and for a company that is not open.
     "error_unknown_report": (
         lambda: rq.envelope("TA_ReportThatDoesNotExist", {tc.VAR_COMPANY: COMPANY}),
@@ -153,6 +165,17 @@ SCENARIOS: list[dict[str, Any]] = [
             "change 'Under' from 'Sundry Debtors' to 'Current Assets'.",
         ],
         "undo": "Move it back under 'Sundry Debtors'.",
+    },
+    {
+        "name": "G37",
+        "gates": ["G37"],
+        "requests": ["vouchers_full", "voucher_keys", "recon_totals"],
+        "instructions": [
+            "Change the period selected in TallyPrime to one month only (Alt+F2 > Period),",
+            "e.g. 1 May 2024 to 31 May 2024. Every voucher, including the post-dated one,",
+            "must still appear in the AFTER capture: our requests name their own dates.",
+        ],
+        "undo": "Set the period back to the whole financial year.",
     },
     {
         "name": "AGT-5.4",

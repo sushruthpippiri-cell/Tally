@@ -17,7 +17,7 @@ SOURCE = kit.SOURCE
 
 def test_every_gate_has_a_capture_scenario_or_checklist_item() -> None:
     covered = kit.gates_covered(kit.manifest())
-    assert {f"G{i}" for i in range(1, 36)} <= covered
+    assert {f"G{i}" for i in range(1, 38)} <= covered
 
 
 def test_every_entry_has_the_fields_the_script_reads_under_strict_mode() -> None:

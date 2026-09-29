@@ -1,0 +1,37 @@
+{
+  "parse": "recon_totals",
+  "expected": {
+    "records": [
+      {
+        "record_type": "RECONCILIATION_TOTAL",
+        "ledger_guid": "l-sales",
+        "ledger_name": "Sales - Retail",
+        "voucher_type_guid": "vt-sales",
+        "period_start": "2025-04-01",
+        "period_end": "2025-04-30",
+        "debit": "0",
+        "credit": "125000.50"
+      },
+      {
+        "record_type": "RECONCILIATION_TOTAL",
+        "ledger_guid": "l-sharma",
+        "ledger_name": "Sharma & Sons",
+        "voucher_type_guid": "vt-sales",
+        "period_start": "2025-04-01",
+        "period_end": "2025-04-30",
+        "debit": "125000.50",
+        "credit": "0"
+      }
+    ],
+    "errors": [
+      {
+        "guid": null,
+        "code": "PARSE_ERROR",
+        "message": "a debit or credit sum is negative: -5.00, 0",
+        "snippet": "<RECON_TOTAL><LEDGERGUID>l-bad</LEDGERGUID><LEDGERNAME>Negative sum</LEDGERNAME><VOUCHERTYPEGUID>vt-sales</VOUCHERTYPEGUID><FROMDATE>20250401</FROMDATE><ASOFDATE>20250430</ASOFDATE><DEBIT>-5.00</DEBIT><CREDIT>0</CREDIT></RECON_TOTAL>\n"
+      }
+    ],
+    "document_error": null,
+    "invalid_characters_removed": 0
+  }
+}

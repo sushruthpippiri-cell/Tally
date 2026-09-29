@@ -8,7 +8,7 @@ the gate track (`tools/capture_kit/`, D-038) correct them.
 | File | What it is |
 |---|---|
 | `TA_Minimal.tdl` | Only the `TA_Info` report (TDL version, target company GUID and name). **Load this first**: an error here is about loading TDL at all. |
-| `TallyAnalytics.tdl` | The full package: the `TA_Info` section (identical, tested) plus one Report per Collection (FR-1.1, FR-1.3), each with GUID, ALTERID, an ALTERID window filter and a `…Keys` key-only variant (FR-1.2), stock and ledger closing as of a date, and a reconciliation stub (P10). |
+| `TallyAnalytics.tdl` | The full package: the `TA_Info` section (identical, tested) plus one Report per Collection (FR-1.1, FR-1.3), each with GUID, ALTERID, an ALTERID window filter and a `…Keys` key-only variant (FR-1.2), stock and ledger closing as of a date, and the reconciliation totals (`TA_ReconTotals`, D-048). |
 
 The XML tags these reports emit are ours, not Tally's, and must match
 `shared/tally_contract/tally_constants.py`; `shared/tests/test_tdl.py` checks that, the version,

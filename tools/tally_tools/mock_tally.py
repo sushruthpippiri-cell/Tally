@@ -46,6 +46,9 @@ class MockConfig:
     calls: list[dict[str, str]] = field(default_factory=list)  # report + static variables
     data: dict[str, list[Row]] = field(default_factory=dict)  # report -> rows; else a sample
     slow: dict[str, list[float]] = field(default_factory=dict)  # report -> delays, one per call
+    # The period selected in Tally: what a request that names no dates gets (GATE-G37, as
+    # drafted). None: no limit.
+    selected_period: tuple[date, date] | None = None
 
 
 def company_guid(name: str) -> str:
@@ -96,15 +99,19 @@ def _data_body(config: MockConfig, report: str, variables: dict[str, str]) -> st
     low = int(variables.get(tc.VAR_FROM_ALTER_ID) or 0)
     high = int(variables.get(tc.VAR_TO_ALTER_ID) or 0)
     start, end = _day(variables.get(tc.VAR_FROM_DATE)), _day(variables.get(tc.VAR_TO_DATE))
+    if config.selected_period is not None:
+        start = start or config.selected_period[0]
+        end = end or config.selected_period[1]
     rows = [
         r
         for r in config.data[source]
         if ((low, high) == (0, 0) or low < r.alter_id <= high)
         and (r.day is None or ((start is None or r.day >= start) and (end is None or r.day <= end)))
     ]
-    if report == tc.STOCK_CLOSING_REPORT:  # "as of" is the requested SVTODATE (G18)
-        as_of = variables.get(tc.VAR_TO_DATE, "")
-        body = "".join(r.xml.replace("{as_of}", as_of) for r in rows)
+    if report in (tc.STOCK_CLOSING_REPORT, tc.LEDGER_CLOSING_REPORT, tc.RECONCILIATION_REPORT):
+        # "as of" is the requested SVTODATE (G18, G19); totals also echo SVFROMDATE (G36)
+        as_of, since = variables.get(tc.VAR_TO_DATE, ""), variables.get(tc.VAR_FROM_DATE, "")
+        body = "".join(r.xml.replace("{as_of}", as_of).replace("{from}", since) for r in rows)
     elif report == source:
         body = "".join(r.xml for r in rows)
     else:
@@ -357,6 +364,16 @@ def edit_voucher(data: dict[str, list[Row]], guid: str, amount: str) -> Row:
     row = voucher_row(
         int(guid.removeprefix("v-")), _last_voucher_alter_id(data) + 1, old.day, amount
     )
+    _replace(data, "TA_Vouchers", row)
+    return row
+
+
+def add_voucher(data: dict[str, list[Row]], day: date, amount: str = "1180.00") -> Row:
+    """A new voucher entered in Tally, dated `day` (a post-dated one if after today), with the
+    next ALTERID."""
+    alter = _last_voucher_alter_id(data) + 1
+    row = voucher_row(len(data["TA_Vouchers"]) + 1, alter, day, amount)
+    data["TA_Vouchers"] = [*data["TA_Vouchers"], row]
     _replace(data, "TA_Vouchers", row)
     return row
 

@@ -4,7 +4,7 @@ dates from the backend), AC-21, AC-23, AC-24, and the heartbeat."""
 
 import threading
 import time
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pytest
@@ -16,7 +16,7 @@ from tally_agent.queue import BATCH, Limits
 from tally_agent.uploader import Uploader
 from tally_contract import tally_constants as tc
 from tally_contract.testing import assert_logged
-from tally_tools.mock_tally import company_guid
+from tally_tools.mock_tally import add_voucher, company_guid
 
 SHARMA = "Sharma Traders"
 
@@ -116,12 +116,51 @@ def test_dates_come_from_the_plan_never_from_this_pcs_clock(
     assert outcome is not None and outcome.status == "COMPLETED", outcome
     pages = voucher_calls(mock)
     assert pages[0][tc.VAR_FROM_DATE] == "20251120"
-    assert pages[-1][tc.VAR_TO_DATE] == "20260316"
+    assert pages[-2][tc.VAR_TO_DATE] == "20260316"
+    # D-048 #2: then one page for everything dated after today (post-dated vouchers)
+    assert (pages[-1][tc.VAR_FROM_DATE], pages[-1][tc.VAR_TO_DATE]) == ("20260317", "20991231")
     assert all(p[tc.VAR_FROM_ALTER_ID] == "0" for p in pages)  # a full-only collection: no windows
     [stock] = [c for c in mock.calls if c["report"] == tc.STOCK_CLOSING_REPORT]
     assert stock[tc.VAR_TO_DATE] == "20260316"
     [snapshot] = [b for b in fake_backend.batches if b["collection_type"] is None]
     assert snapshot["records"][0]["as_of_date"] == "2026-03-16"
+
+
+# --- D-048 #2: every voucher request names its dates -----------------------------------------
+
+
+@pytest.mark.parametrize("mode", ["INCREMENTAL", "FULL_ONLY"])
+def test_every_voucher_request_names_its_dates_whatever_period_tally_has_selected(
+    make_agent: Any,
+    run_agent_once: Any,
+    fake_backend: Any,
+    mock_tally: tuple[Any, str],
+    mode: str,
+) -> None:
+    """Owner (D-048 #2, GATE-G37): the Tally user has selected one month; our pulls and key
+    lists still get every voucher, post-dated ones included, because every request names
+    books-beginning to FULL_PULL_DATE_TO. The voucher key list carries that date window."""
+    mock, _ = mock_tally
+    fake_backend.plan["collections"]["VOUCHER"] |= {"mode": mode, "key_list_due": True}
+    agent = make_agent()
+    add_voucher(mock.data, date(2026, 4, 1))  # post-dated: after the plan's today, 2026-03-16
+    mock.selected_period = (date(2024, 5, 1), date(2024, 5, 31))
+    fake_backend.offer("INCREMENTAL")
+    assert run_agent_once(agent).status == "COMPLETED"
+    requests = [c for c in mock.calls if c["report"] in ("TA_Vouchers", "TA_VouchersKeys")]
+    assert requests and all(c.get(tc.VAR_FROM_DATE) and c.get(tc.VAR_TO_DATE) for c in requests)
+    vouchers = {
+        r["guid"] for b in fake_backend.batches if b["collection_type"] == "VOUCHER"
+        for r in b["records"]
+    }  # fmt: skip
+    assert vouchers == {f"v-{i}" for i in range(1, 14)}
+    [keys] = [k for k in fake_backend.key_lists if k["collection_type"] == "VOUCHER"]
+    assert len(keys["keys"]) == 13
+    assert keys["window"] == {
+        "kind": "DATE",
+        "date_from": "2024-04-01",
+        "date_to": "2099-12-31",
+    }
 
 
 # --- AC-21: a full queue --------------------------------------------------------------------

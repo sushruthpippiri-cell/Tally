@@ -20,8 +20,11 @@ from tally_contract.records import (
     KeyRecord,
     LedgerEntry,
     LedgerRecord,
+    ReconciliationStockRecord,
+    ReconciliationTotalRecord,
     VoucherRecord,
 )
+from tally_contract.version import CONTRACT_VERSION
 
 
 def debit(value: str) -> Amount:
@@ -132,12 +135,11 @@ def test_any_record_is_chosen_by_record_type() -> None:
 
 def _envelope(**kw: Any) -> BatchEnvelope:
     return BatchEnvelope(
-        collection_type=CollectionType.VOUCHER,
         command_id=uuid.uuid4(),
         sync_run_id=uuid.uuid4(),
         batch_seq=0,
         batch_id=uuid.uuid4(),
-        **kw,
+        **{"collection_type": CollectionType.VOUCHER, **kw},
     )
 
 
@@ -147,7 +149,7 @@ def test_envelope_round_trips_with_its_window() -> None:
         records=[sale(3), sale(7)],
     )
     back = BatchEnvelope.model_validate_json(env.model_dump_json())
-    assert back == env and back.contract_version == "1.0"
+    assert back == env and back.contract_version == CONTRACT_VERSION
 
 
 def test_envelope_records_must_be_sorted_by_alter_id() -> None:
@@ -182,3 +184,37 @@ def test_a_key_list_chunk_takes_a_date_window_for_vouchers_only() -> None:
         KeyListChunk.model_validate(_chunk(collection_type="LEDGER", window=window))
     with pytest.raises(ValidationError, match="no key list"):
         KeyListChunk.model_validate(_chunk(collection_type="COMPANY"))
+
+
+def _total(**kw: Any) -> ReconciliationTotalRecord:
+    return ReconciliationTotalRecord(
+        ledger_guid="l-sales",
+        voucher_type_guid="vt-sales",
+        period_start=date(2025, 4, 1),
+        period_end=date(2025, 4, 30),
+        **{"debit": Decimal("0"), "credit": Decimal("1000.00"), **kw},
+    )
+
+
+def test_reconciliation_totals_are_non_negative_sums() -> None:
+    """D-048 #4: Tally's own debit and credit sums per (ledger, voucher type, period)."""
+    assert _total().credit == Decimal("1000.00")
+    with pytest.raises(ValidationError):
+        _total(credit=Decimal("-1"))
+
+
+def test_a_null_collection_batch_holds_snapshots_or_reconciliation_values_not_both() -> None:
+    """D-048 #7: the backend routes a batch by what it holds, so it must hold one kind."""
+    stock = ReconciliationStockRecord(
+        stock_item_guid="s-1", as_of_date=date(2025, 4, 30), closing_quantity=Decimal(5)
+    )
+    ok = _envelope(collection_type=None, records=[_total(), stock])
+    assert BatchEnvelope.model_validate_json(ok.model_dump_json()) == ok
+    snapshot = {
+        "record_type": "STOCK_SNAPSHOT",
+        "stock_item_guid": "s-1",
+        "as_of_date": "2025-04-30",
+        "closing_quantity": "5",
+    }
+    with pytest.raises(ValidationError, match="not both"):
+        _envelope(collection_type=None, records=[_total(), snapshot])

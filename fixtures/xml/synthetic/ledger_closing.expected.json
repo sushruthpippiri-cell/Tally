@@ -5,6 +5,7 @@
       {
         "record_type": "LEDGER_CLOSING_BALANCE",
         "ledger_guid": "l-cash",
+        "ledger_name": "Cash",
         "as_of_date": "2025-03-31",
         "balance": {
           "amount_raw": "-4250.00",
@@ -17,6 +18,7 @@
       {
         "record_type": "LEDGER_CLOSING_BALANCE",
         "ledger_guid": "l-capital",
+        "ledger_name": "Capital",
         "as_of_date": "2025-03-31",
         "balance": {
           "amount_raw": "100000.00",

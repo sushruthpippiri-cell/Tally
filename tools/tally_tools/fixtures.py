@@ -1,7 +1,8 @@
 """Contract fixtures (TEST-1.1..1.4): XML in, expected parse result out.
 
 Each `fixtures/xml/synthetic/<case>.xml` has `<case>.expected.json`:
-    {"parse": "collection:VOUCHER" | "keys" | "info" | "stock_closing" | "ledger_closing",
+    {"parse": "collection:VOUCHER" | "keys" | "info" | "stock_closing" | "ledger_closing"
+              | "recon_totals",
      "udf": [<UdfMapping>, ...],            # optional
      "expected": {records, errors, document_error, invalid_characters_removed}}
 Live captures (`fixtures/xml/live/**/<id>.response.xml`) join once step G-E adds their
@@ -24,6 +25,7 @@ from tally_contract.parser import (
     parse_info,
     parse_keys,
     parse_ledger_closing,
+    parse_recon_totals,
     parse_stock_closing,
 )
 from tally_contract.udf import UdfMapping, UdfReader
@@ -63,6 +65,7 @@ def parse_fixture(xml: Path, spec: dict[str, Any]) -> ParseResult[Any]:
         "info": parse_info,
         "stock_closing": parse_stock_closing,
         "ledger_closing": parse_ledger_closing,
+        "recon_totals": parse_recon_totals,
     }
     result: ParseResult[Any] = parsers[kind](raw)
     return result

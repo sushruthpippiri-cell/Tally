@@ -6,7 +6,7 @@
 
 ;; ==== BEGIN TA_INFO (identical in TallyAnalytics.tdl; a test checks) ====
 [System: Formula]
-    TA_TDLVersion : "0.1.0"
+    TA_TDLVersion : "0.2.0"
 
 [Report: TA_Info]
     Form : TA_Info

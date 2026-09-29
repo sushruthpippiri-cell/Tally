@@ -19,6 +19,7 @@ from tally_contract.records import (
     LedgerEntry,
     LedgerRecord,
     OpeningBill,
+    ReconciliationTotalRecord,
     StockItemRecord,
     StockSnapshotRecord,
     VoucherRecord,
@@ -254,6 +255,24 @@ def stock_closing(e: ET.Element) -> StockSnapshotRecord:
 def ledger_closing(e: ET.Element) -> LedgerClosingBalanceRecord:
     return LedgerClosingBalanceRecord(
         ledger_guid=_required(e, "GUID"),
+        ledger_name=_get(e, "NAME"),
         as_of_date=parse_date(_get(e, "ASOFDATE")),
         balance=normalize.to_amount(_get(e, "CLOSINGBALANCE") or "0"),
+    )
+
+
+def recon_total(e: ET.Element) -> ReconciliationTotalRecord:
+    """GATE-G36: DEBIT and CREDIT are Tally's own sums, as plain non-negative numbers; an
+    empty sum is zero."""
+    debit, credit = (parse_plain_decimal(_get(e, tag)) or Decimal(0) for tag in ("DEBIT", "CREDIT"))
+    if debit < 0 or credit < 0:
+        raise ValueError(f"a debit or credit sum is negative: {debit}, {credit}")
+    return ReconciliationTotalRecord(
+        ledger_guid=_required(e, "LEDGERGUID"),
+        ledger_name=_get(e, "LEDGERNAME"),
+        voucher_type_guid=_required(e, "VOUCHERTYPEGUID"),
+        period_start=parse_date(_get(e, "FROMDATE")),
+        period_end=parse_date(_get(e, "ASOFDATE")),
+        debit=debit,
+        credit=credit,
     )

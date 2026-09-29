@@ -83,6 +83,9 @@ def collection(
     ALTERID-windowed, since that would omit every unchanged record."""
     if keys_only and (from_alter_id, to_alter_id) != (0, 0):
         raise ValueError("a key list is never ALTERID-windowed (D-041 #2)")
+    if collection_type == CollectionType.VOUCHER and (date_from is None or date_to is None):
+        # GATE-G37 (D-048 #2): without dates Tally uses the period selected in Tally.
+        raise ValueError("a voucher request always names its dates (D-048 #2)")
     reports = tc.KEY_REPORTS if keys_only else tc.REPORTS
     return envelope(
         reports[collection_type],
@@ -105,11 +108,23 @@ def stock_closing(company: Value, as_of: Value) -> bytes:
     )
 
 
-def ledger_closing(company: Value, as_of: Value) -> bytes:
-    """Tally's ledger closing balances as of a date (GATE-G19)."""
+def ledger_closing(company: Value, as_of: Value, fy_start: Value | None = None) -> bytes:
+    """Tally's ledger closing balances as of a date (GATE-G19). `fy_start`: the start of the
+    financial year containing it, so income and expense ledgers show this year's movement
+    (ACC-9.2, D-048)."""
     return envelope(
         tc.LEDGER_CLOSING_REPORT,
-        {tc.VAR_COMPANY: company, tc.VAR_TO_DATE: as_of},
+        {tc.VAR_COMPANY: company, **_dates(fy_start, as_of)},
+        date_variables=DATE_VARS,
+    )
+
+
+def recon_totals(company: Value, date_from: Value, date_to: Value) -> bytes:
+    """Tally's own debit and credit sums per (ledger, voucher type) for a period, over the
+    sync's voucher Collection (GATE-G36, D-048 #4)."""
+    return envelope(
+        tc.RECONCILIATION_REPORT,
+        {tc.VAR_COMPANY: company, **_dates(date_from, date_to)},
         date_variables=DATE_VARS,
     )
 

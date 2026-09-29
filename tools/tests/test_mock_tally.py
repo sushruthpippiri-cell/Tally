@@ -1,6 +1,7 @@
 """The mock Tally answers our real requests in the shape our parser reads (K1)."""
 
 import urllib.request
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -30,9 +31,17 @@ def test_info_and_collections_parse_with_the_real_parser() -> None:
         [info] = parse_info(_post(url, rq.info("Test Co"))).records
         assert (info.tdl_version, info.company_name) == (tc.TDL_VERSION, "Test Co")
         for collection in CollectionType:
-            result = parse_collection(_post(url, rq.collection(collection, "Test Co")), collection)
+            dates: dict[str, Any] = (
+                {"date_from": date(2024, 4, 1), "date_to": tc.FULL_PULL_DATE_TO}
+                if collection == CollectionType.VOUCHER
+                else {}
+            )
+            raw = _post(url, rq.collection(collection, "Test Co", **dates))
+            result = parse_collection(raw, collection)
             assert result.ok and len(result.records) == 1, collection
-            keys = parse_keys(_post(url, rq.collection(collection, "Test Co", keys_only=True)))
+            keys = parse_keys(
+                _post(url, rq.collection(collection, "Test Co", keys_only=True, **dates))
+            )
             assert [k.alter_id for k in keys.records] == [1]
 
 

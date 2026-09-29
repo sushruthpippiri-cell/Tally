@@ -8,6 +8,7 @@ Names that are *ours* (report IDs, the XML tags our own TDL emits) are not Tally
 carry no gate tag; they must match tdl/TallyAnalytics.tdl, which a test checks.
 """
 
+from datetime import date
 from decimal import Decimal
 from typing import Final
 
@@ -16,7 +17,7 @@ from tally_contract.enums import CollectionType
 # --- our TDL package ----------------------------------------------------------------------
 # Bump on every TDL change; must equal TA_TDLVersion in tdl/TallyAnalytics.tdl and
 # tdl/TA_Minimal.tdl (tested). The Agent reports it on every heartbeat (VER-1.1).
-TDL_VERSION: Final = "0.1.0"
+TDL_VERSION: Final = "0.2.0"
 
 INFO_REPORT: Final = "TA_Info"
 REPORTS: Final[dict[CollectionType, str]] = {
@@ -32,7 +33,7 @@ REPORTS: Final[dict[CollectionType, str]] = {
 KEY_REPORTS: Final[dict[CollectionType, str]] = {c: f"{r}Keys" for c, r in REPORTS.items()}
 STOCK_CLOSING_REPORT: Final = "TA_StockClosing"  # GATE-G18
 LEDGER_CLOSING_REPORT: Final = "TA_LedgerClosing"  # GATE-G19
-RECONCILIATION_REPORT: Final = "TA_ReconTotals"  # drafted; completed in P10
+RECONCILIATION_REPORT: Final = "TA_ReconTotals"  # GATE-G36 (D-048 #4)
 
 # XML our reports emit: <ROOT><RECORD>...</RECORD>...</ROOT> (ours, set by XMLTag in the TDL).
 RECORD_TAGS: Final[dict[str, str]] = {
@@ -59,9 +60,10 @@ VAR_TO_ALTER_ID: Final = "TAToAlterId"
 REQUEST_DATE_FORMAT: Final = "%Y%m%d"  # GATE-G35: SVFROMDATE/SVTODATE accept YYYYMMDD
 # GATE-G35: requests go out as UTF-8 without an XML declaration.
 REQUEST_CONTENT_TYPE: Final = "text/xml;charset=utf-8"
-# GATE-G33: a full voucher pull still sends a date window, or Tally limits a Voucher
-# collection to the current period. The Agent sends books-from .. this far-future date.
-FULL_PULL_DATE_TO: Final = "20991231"
+# GATE-G33 GATE-G37: every voucher request sends a date window, or Tally limits a Voucher
+# collection to the period selected in Tally. Pulls and key lists run books-from .. this
+# far-future date, so post-dated vouchers are included (D-048 #2).
+FULL_PULL_DATE_TO: Final = date(2099, 12, 31)
 
 # --- TallyPrime's built-in collection and reports: CAPTURE KIT ONLY --------------------------
 # The Agent never uses built-in reports (FR-1.4); the capture kit uses these to check the

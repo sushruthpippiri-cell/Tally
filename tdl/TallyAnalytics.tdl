@@ -8,7 +8,7 @@
 
 ;; ==== BEGIN TA_INFO (identical in TallyAnalytics.tdl; a test checks) ====
 [System: Formula]
-    TA_TDLVersion : "0.1.0"
+    TA_TDLVersion : "0.2.0"
 
 [Report: TA_Info]
     Form : TA_Info
@@ -625,7 +625,8 @@
     Set As : $$String:$IsDeemedPositive    ;; GATE-G23
     XMLTag : "ISDEEMEDPOSITIVE"
 
-;; ==== closing balances as of a date (SVTODATE = the date) ====
+;; ==== closing balances as of a date (SVTODATE = the date; for ledgers SVFROMDATE = the
+;; start of its financial year, so income and expense ledgers show this year's movement) ====
 [Report: TA_StockClosing]
     Form : TA_StockClosing
 
@@ -666,7 +667,10 @@
     Type  : Ledger
     Fetch : GUID, Name, ClosingBalance    ;; GATE-G19
 
-;; ==== reconciliation totals: drafted here, completed in P10 (D-008) ====
+;; ==== reconciliation totals (D-048 #4): Tally's own sums per ledger and voucher type ====
+;; SVFROMDATE..SVTODATE = the period. The vouchers are the sync's own Collection (the same
+;; G34 filter), with cancelled vouchers left out; the backend classifies ledgers and voucher
+;; types exactly as it classifies synced entries.
 [Report: TA_ReconTotals]
     Form : TA_ReconTotals
 
@@ -675,11 +679,58 @@
     XMLTag : "TA_RECONTOTALS"
 
 [Part: TA_ReconTotals]
-    Line : TA_ReconTotalsLine
+    Line   : TA_ReconTotalsLine
+    Repeat : TA_ReconTotalsLine : TA_ReconTotalsColl
+    Scroll : Vertical
 
 [Line: TA_ReconTotalsLine]
-    Fields : TA_AsOfDate
+    Fields : TA_RtLedgerGuid, TA_RtLedgerName, TA_RtVchTypeGuid, TA_FromDate, TA_AsOfDate, TA_RtDebit, TA_RtCredit
     XMLTag : "RECON_TOTAL"
+
+[Collection: TA_ReconVouchersColl]
+    Source Collection : TA_VouchersColl    ;; GATE-G36
+    Filter            : TA_IsNotCancelled
+
+[Collection: TA_ReconTotalsColl]
+    Source Collection : TA_ReconVouchersColl    ;; GATE-G36
+    Walk              : AllLedgerEntries
+    By                : TA_RtLedger  : $LedgerName
+    By                : TA_RtVchType : $..VoucherTypeName    ;; GATE-G36
+    Aggr Compute      : TA_RtDebitSum  : Sum : IF $$IsDebit:$Amount THEN -$Amount ELSE 0    ;; GATE-G36 GATE-G23
+    Aggr Compute      : TA_RtCreditSum : Sum : IF $$IsDebit:$Amount THEN 0 ELSE $Amount     ;; GATE-G36 GATE-G23
+
+[System: Formula]
+    TA_IsNotCancelled : NOT $IsCancelled    ;; GATE-G9
+
+[Field: TA_RtLedgerGuid]
+    Use    : Name Field
+    Set As : $GUID:Ledger:$TA_RtLedger    ;; GATE-G30 GATE-G36
+    XMLTag : "LEDGERGUID"
+
+[Field: TA_RtLedgerName]
+    Use    : Name Field
+    Set As : $TA_RtLedger    ;; GATE-G36
+    XMLTag : "LEDGERNAME"
+
+[Field: TA_RtVchTypeGuid]
+    Use    : Name Field
+    Set As : $GUID:VoucherType:$TA_RtVchType    ;; GATE-G30 GATE-G36
+    XMLTag : "VOUCHERTYPEGUID"
+
+[Field: TA_RtDebit]
+    Use    : Name Field
+    Set As : $$String:$TA_RtDebitSum    ;; GATE-G36 GATE-G23
+    XMLTag : "DEBIT"
+
+[Field: TA_RtCredit]
+    Use    : Name Field
+    Set As : $$String:$TA_RtCreditSum    ;; GATE-G36 GATE-G23
+    XMLTag : "CREDIT"
+
+[Field: TA_FromDate]
+    Use    : Name Field
+    Set As : $$String:##SVFromDate:UniversalDate    ;; GATE-G36 GATE-G35
+    XMLTag : "FROMDATE"
 
 [Field: TA_AsOfDate]
     Use    : Name Field

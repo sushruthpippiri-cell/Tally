@@ -6,6 +6,10 @@ preflight -> run plan -> for each collection, in dependency order: lease -> pull
 - Pulls stream from Tally into the local queue one window at a time (D-042 #2): ALTERID
   windows of `extraction_batch_size` for incremental collections (D-013; a full pull starts at
   0), date pages for full-only vouchers and DATE_RANGE commands.
+- Every voucher request names its dates (D-048 #2, GATE-G37): books-beginning to
+  `FULL_PULL_DATE_TO`, so post-dated vouchers come too and nothing depends on the period
+  selected in Tally. A date-paged full pull goes a month at a time to today, then one page for
+  everything after it.
 - A window that times out is retried once as two halves (AGT-4.3); a second timeout fails
   that collection's segment, reported to the backend as TALLY_EXPORT_TIMEOUT.
 - Every date comes from the backend's plan or command, in company time, never from this PC's
@@ -30,6 +34,7 @@ from tally_agent.protocol import AgentConfig
 from tally_agent.queue import BATCH, KEY_LIST_CHUNK, Queue
 from tally_agent.tally_client import TallyClient, TallyError, TallyTimeout
 from tally_contract import requests
+from tally_contract import tally_constants as tc
 from tally_contract.enums import CollectionType as C
 from tally_contract.errors import ErrorCode
 from tally_contract.log import get_logger
@@ -187,6 +192,8 @@ class Executor:
             self._window(collection)  # one request: masters are small
         elif dated:
             self._date_pages(collection, *self._date_range())
+            if self.command["sync_mode"] != "DATE_RANGE":  # post-dated vouchers (D-048 #2)
+                self._date_page(collection, self._as_of() + timedelta(days=1), tc.FULL_PULL_DATE_TO)
         else:
             self._alter_windows(collection, 0 if plan["full"] else plan["watermark"])
         if plan.get("key_list_due") and collection != C.COMPANY:
@@ -201,12 +208,23 @@ class Executor:
             patience=5,
         )
 
+    def _as_of(self) -> date:
+        return date.fromisoformat(self.plan["as_of"])
+
     def _date_range(self) -> tuple[date, date]:
         """D-042 #5: the command's window, or books-beginning to the backend's today."""
         if self.command["sync_mode"] == "DATE_RANGE":
             return date.fromisoformat(self.command["date_from"]), date.fromisoformat(
                 self.command["date_to"]
             )
+        return self._books_from(), self._as_of()
+
+    def _voucher_span(self) -> tuple[date, date]:
+        """D-048 #2: every voucher, post-dated ones included, whatever period Tally has
+        selected: books-beginning to FULL_PULL_DATE_TO."""
+        return self._books_from(), tc.FULL_PULL_DATE_TO
+
+    def _books_from(self) -> date:
         start = self.plan.get("full_pull_from") or (
             self.company.books_from.isoformat()
             if self.company and self.company.books_from
@@ -216,7 +234,7 @@ class Executor:
             raise TallyError(
                 ErrorCode.PARSE_ERROR, "Books-beginning date unknown; sync the company first"
             )
-        return date.fromisoformat(start), date.fromisoformat(self.plan["as_of"])
+        return date.fromisoformat(start)
 
     def _last_alter_id(self, collection: C) -> int:
         if self.company is None:
@@ -254,28 +272,31 @@ class Executor:
 
     def _date_pages(self, collection: C, first: date, last: date) -> None:
         """Month-sized pages, halved when a page returns more than `extraction_batch_size`
-        records; a timeout is retried once as two halves (AGT-4.3)."""
+        records."""
         days, day = FIRST_PAGE_DAYS, first
         while day <= last:
             end = min(day + timedelta(days=days - 1), last)
-            try:
-                count = self._window(collection, dates=(day, end))
-            except TallyTimeout:
-                middle = day + timedelta(days=max(0, (end - day).days // 2))
-                log.warning(
-                    "tally_retry_half_size", collection=collection.value, dates=[str(day), str(end)]
-                )
-                try:
-                    count = self._window(collection, dates=(day, middle))
-                    if middle < end:
-                        count += self._window(collection, dates=(middle + timedelta(days=1), end))
-                except TallyTimeout as exc:
-                    raise SegmentTimeout(
-                        f"{collection.value} {day}..{end} timed out twice"
-                    ) from exc
+            count = self._date_page(collection, day, end)
             if count > self.config.extraction_batch_size and days > 1:
                 days = max(1, days // 2)
             day = end + timedelta(days=1)
+
+    def _date_page(self, collection: C, day: date, end: date) -> int:
+        """One date page; a timeout is retried once as two halves (AGT-4.3)."""
+        try:
+            return self._window(collection, dates=(day, end))
+        except TallyTimeout:
+            middle = day + timedelta(days=max(0, (end - day).days // 2))
+            log.warning(
+                "tally_retry_half_size", collection=collection.value, dates=[str(day), str(end)]
+            )
+            try:
+                count = self._window(collection, dates=(day, middle))
+                if middle < end:
+                    count += self._window(collection, dates=(middle + timedelta(days=1), end))
+                return count
+            except TallyTimeout as exc:
+                raise SegmentTimeout(f"{collection.value} {day}..{end} timed out twice") from exc
 
     # --- one Tally response --------------------------------------------------------------------
 
@@ -287,14 +308,15 @@ class Executor:
         dates: tuple[date, date] | None = None,
     ) -> int:
         self._wait_for_room()
+        span = dates or (self._voucher_span() if collection == C.VOUCHER else None)
         raw = self.tally.export(
             requests.collection(
                 collection,
                 self.company_name,
                 from_alter_id=alter[0] if alter else 0,
                 to_alter_id=alter[1] if alter else 0,
-                date_from=dates[0] if dates else None,
-                date_to=dates[1] if dates else None,
+                date_from=span[0] if span else None,
+                date_to=span[1] if span else None,
             )
         )
         window: AlterIdWindow | DateWindow | None = None
@@ -307,8 +329,7 @@ class Executor:
     def _snapshots(self) -> None:
         """Tally's closing stock as of the backend's today in company time (D-042 #5)."""
         self._wait_for_room()
-        as_of = date.fromisoformat(self.plan["as_of"])
-        raw = self.tally.export(requests.stock_closing(self.company_name, as_of))
+        raw = self.tally.export(requests.stock_closing(self.company_name, self._as_of()))
         self._stage(iter_stock_closing(raw), None, None, queue_collection=C.STOCK_ITEM.value)
 
     def _stage(
@@ -381,7 +402,19 @@ class Executor:
     def _key_list(self, collection: C) -> None:
         """SYNC-5.1: the collection's keys from the same Collection as the pull (D-041 #2)."""
         self._wait_for_room()
-        raw = self.tally.export(requests.collection(collection, self.company_name, keys_only=True))
+        # D-048 #2: a voucher key list names its dates, and its window says so, so only
+        # vouchers dated inside it can be marked missing (D-041 #3).
+        span = self._voucher_span() if collection == C.VOUCHER else None
+        raw = self.tally.export(
+            requests.collection(
+                collection,
+                self.company_name,
+                keys_only=True,
+                date_from=span[0] if span else None,
+                date_to=span[1] if span else None,
+            )
+        )
+        window = DateWindow(date_from=span[0], date_to=span[1]) if span else None
         list_id = str(uuid.uuid4())
         try:
             with self.queue.window():
@@ -392,14 +425,21 @@ class Executor:
                         continue
                     pending.append(item)
                     if len(pending) == KEYS_PER_CHUNK:
-                        self._key_chunk(collection, list_id, seq, pending, final=False)
+                        self._key_chunk(collection, list_id, seq, pending, window, final=False)
                         seq, pending = seq + 1, []
-                self._key_chunk(collection, list_id, seq, pending, final=True)
+                self._key_chunk(collection, list_id, seq, pending, window, final=True)
         except DocumentFailure as exc:
             raise TallyError(exc.error.code, exc.error.message) from exc
 
     def _key_chunk(
-        self, collection: C, list_id: str, seq: int, keys: list[KeyRecord], *, final: bool
+        self,
+        collection: C,
+        list_id: str,
+        seq: int,
+        keys: list[KeyRecord],
+        window: DateWindow | None,
+        *,
+        final: bool,
     ) -> None:
         chunk = KeyListChunk(
             collection_type=collection,
@@ -409,6 +449,7 @@ class Executor:
             chunk_seq=seq,
             is_final=final,
             keys=keys,
+            window=window,
         )
         self.queue.add(
             kind=KEY_LIST_CHUNK,

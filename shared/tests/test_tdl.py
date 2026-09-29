@@ -123,3 +123,16 @@ def test_a_key_list_and_its_data_pull_share_one_collection_and_filter(
     assert "Filter" not in key_part and "Collection" not in key_part
     if collection == CollectionType.VOUCHER:
         assert "TA_IsAccountingVoucher" in _attr(_block(FULL, "Collection", key_coll), "Filter")
+
+
+def test_reconciliation_totals_add_up_the_sync_voucher_collection_less_cancelled() -> None:
+    """D-048 #4-5: the totals take their vouchers from the sync's own Collection (same G34
+    filter), so they cannot catch a wrong filter; that is LEDGER_BALANCE's job. Cancelled
+    vouchers are left out, as ACTIVE-only analytics leave them out."""
+    totals = _block(FULL, "Collection", "TA_ReconTotalsColl")
+    assert _attr(totals, "Source Collection") == "TA_ReconVouchersColl"
+    assert _attr(totals, "Walk") == "AllLedgerEntries"
+    vouchers = _block(FULL, "Collection", "TA_ReconVouchersColl")
+    assert _attr(vouchers, "Source Collection") == "TA_VouchersColl"
+    assert _attr(vouchers, "Filter") == "TA_IsNotCancelled"
+    assert "TA_IsNotCancelled : NOT $IsCancelled" in FULL
