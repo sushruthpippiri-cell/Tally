@@ -11,8 +11,7 @@ from app.models.balances import StockSnapshot
 from app.models.enums import CollectionType as C
 from app.models.sync import SyncError
 from app.sync.ingest import BatchResult
-from tally_contract import normalize
-from tally_contract.records import LedgerClosingBalanceRecord, StockSnapshotRecord
+from tally_contract.records import StockSnapshotRecord
 from tests.sync.helpers import Factory, Setup, count, envelope, lease, setup, sync_masters, upload
 
 DAY = date(2026, 3, 16)
@@ -87,14 +86,6 @@ async def test_snapshots_need_the_stock_item_lease_and_a_running_command(
     result = await upload(committed, st, envelope(st, None, [snap("s-soap", "40")]))
     assert result == ("SYNC_LOCKED" if problem == "no_lease" else "INVALID_COMMAND_STATE")
     assert await count(committed, StockSnapshot, st.company_id) == 0
-
-
-async def test_other_records_without_a_collection_wait_for_p10(committed: Factory) -> None:
-    st = await _ready(committed)
-    balance = LedgerClosingBalanceRecord(
-        ledger_guid="l-cash", as_of_date=DAY, balance=normalize.to_amount("-100.00", True)
-    )
-    assert await upload(committed, st, envelope(st, None, [balance])) == "VALIDATION_ERROR"
 
 
 async def test_a_snapshot_dated_after_the_companys_today_is_refused(committed: Factory) -> None:

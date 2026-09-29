@@ -1,7 +1,12 @@
-"""Runs one sync command (P7.5, SRS 4, D-039..D-042).
+"""Runs one sync command (P7.5, SRS 4, D-039..D-042, D-048).
 
 preflight -> run plan -> for each collection, in dependency order: lease -> pull -> key list
 (when due) -> stock snapshot (STOCK_ITEM) -> wait for its uploads -> release; then finish.
+
+A RECONCILIATION run is the same (the plan makes every key list due), plus Tally's own
+figures for the backend to compare (D-048): right after the snapshot, Tally's closing stock
+again, so the two are moments apart (#3); after the collections, the totals for each period in
+the plan and every ledger's closing balance.
 
 - Pulls stream from Tally into the local queue one window at a time (D-042 #2): ALTERID
   windows of `extraction_batch_size` for incremental collections (D-013; a full pull starts at
@@ -38,7 +43,14 @@ from tally_contract import tally_constants as tc
 from tally_contract.enums import CollectionType as C
 from tally_contract.errors import ErrorCode
 from tally_contract.log import get_logger
-from tally_contract.parser import DocumentFailure, iter_collection, iter_keys, iter_stock_closing
+from tally_contract.parser import (
+    DocumentFailure,
+    iter_collection,
+    iter_keys,
+    iter_ledger_closing,
+    iter_recon_totals,
+    iter_stock_closing,
+)
 from tally_contract.records import (
     AlterIdWindow,
     BatchEnvelope,
@@ -47,6 +59,8 @@ from tally_contract.records import (
     KeyListChunk,
     KeyRecord,
     ParseError,
+    ReconciliationStockRecord,
+    StockSnapshotRecord,
 )
 
 log = get_logger(__name__)
@@ -136,6 +150,8 @@ class Executor:
                             {"code": ErrorCode.TALLY_UNREACHABLE.value, "message": exc.message}
                         )
                     break
+            if failure is None and self.reconciling:
+                failure = self._reconciliation()
             self._drain(None)
         except CommandLost:
             self.queue.drop_run(self.run_id, "command lost")
@@ -157,6 +173,10 @@ class Executor:
         if failure is not None:
             return Outcome("FAILED", failure.code.value, failure.message)
         return Outcome("COMPLETED")
+
+    @property
+    def reconciling(self) -> bool:
+        return bool(self.command["sync_mode"] == "RECONCILIATION")
 
     def _check(self) -> None:
         if self.lost.is_set():
@@ -200,6 +220,8 @@ class Executor:
             self._key_list(collection)
         if collection == C.STOCK_ITEM:
             self._snapshots()
+            if self.reconciling:  # D-048 #3: the comparison figure, moments after the snapshot
+                self._recon_stock()
         self._drain(collection)
         self.backend.call(
             "POST",
@@ -331,6 +353,57 @@ class Executor:
         self._wait_for_room()
         raw = self.tally.export(requests.stock_closing(self.company_name, self._as_of()))
         self._stage(iter_stock_closing(raw), None, None, queue_collection=C.STOCK_ITEM.value)
+
+    def _recon_stock(self) -> None:
+        self._wait_for_room()
+        raw = self.tally.export(requests.stock_closing(self.company_name, self._as_of()))
+        items = (
+            ReconciliationStockRecord(**i.model_dump(exclude={"record_type"}))
+            if isinstance(i, StockSnapshotRecord)
+            else i
+            for i in iter_stock_closing(raw)
+        )
+        self._stage(items, None, None, queue_collection=C.STOCK_ITEM.value)
+
+    def _reconciliation(self) -> TallyError | None:
+        """D-048: Tally's totals for each period in the plan, then every ledger's closing
+        balance on the plan's today (from the start of its financial year). A timeout is noted
+        and the rest carries on: the backend reports what never arrived as INCOMPLETE."""
+        requests_: list[tuple[str, bytes, Any]] = [
+            (
+                f"totals {p['label']}",
+                requests.recon_totals(
+                    self.company_name,
+                    date.fromisoformat(p["date_from"]),
+                    date.fromisoformat(p["date_to"]),
+                ),
+                iter_recon_totals,
+            )
+            for p in self.plan.get("reconciliation_periods", [])
+        ]
+        requests_.append(
+            (
+                "ledger closing balances",
+                requests.ledger_closing(
+                    self.company_name,
+                    self._as_of(),
+                    date.fromisoformat(self.plan["financial_year_from"]),
+                ),
+                iter_ledger_closing,
+            )
+        )
+        for what, request, parse in requests_:
+            self._check()
+            self._wait_for_room()
+            try:
+                self._stage(parse(self.tally.export(request)), None, None)
+            except TallyTimeout as exc:
+                self.problems.append(
+                    {"code": ErrorCode.TALLY_EXPORT_TIMEOUT.value, "message": f"{what}: {exc}"}
+                )
+            except TallyError as exc:
+                return exc
+        return None
 
     def _stage(
         self,

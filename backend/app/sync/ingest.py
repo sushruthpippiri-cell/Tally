@@ -23,11 +23,11 @@ from app.core.agent_credentials import AgentContext
 from app.core.errors import AppError
 from app.core.gates import collection_sync_mode
 from app.models.company import Company
-from app.models.enums import CollectionType
+from app.models.enums import CollectionType, SyncMode
 from app.models.sync import SyncBatch, SyncError, SyncRun, SyncWatermark
 from app.services.settings import get_setting
 from app.services.sync_runs import open_run, running_command
-from app.sync import hierarchy, holds, leases, masters, snapshots, vouchers
+from app.sync import hierarchy, holds, leases, masters, snapshots, tally_values, vouchers
 from app.sync.context import (
     SYNC_ERROR_KIND,
     ChunkOutcome,
@@ -38,7 +38,7 @@ from app.sync.context import (
 )
 from tally_contract.errors import ErrorCode
 from tally_contract.log import get_logger
-from tally_contract.records import AlterIdWindow, BatchEnvelope
+from tally_contract.records import RECONCILIATION_RECORD_TYPES, AlterIdWindow, BatchEnvelope
 from tally_contract.version import CONTRACT_VERSION
 
 log = get_logger(__name__)
@@ -123,6 +123,59 @@ async def chunk_guard(
     if held is None:
         raise leases.not_held(collection)
     return held.last_alter_id
+
+
+async def _not_after_today(session: AsyncSession, agent: AgentContext, env: BatchEnvelope) -> None:
+    company = await session.get(Company, agent.company_id)
+    assert company is not None
+    today = periods.today(company.company_timezone)
+    for r in env.records:
+        day: date = getattr(r, "as_of_date", None) or r.period_end  # type: ignore[union-attr]
+        if day > today:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                f"A {r.record_type} is dated after today ({today}) in the company's time "
+                "zone; take the date from the run plan (D-042 #5)",
+                422,
+            )
+
+
+async def _reconciliation_values(
+    session: AsyncSession, agent: AgentContext, command_id: uuid.UUID, env: BatchEnvelope
+) -> BatchResult:
+    """D-048 #7: Tally's figures for the run's comparison, staged; no lease (no synced table
+    is touched), but only while the RECONCILIATION command is RUNNING and its run IN_PROGRESS.
+    A value that failed to parse is recorded, so the run ends PARTIAL."""
+    run, command = await open_run(session, agent, env.sync_run_id, lock=True)
+    if run.command_id != command_id:
+        raise AppError(ErrorCode.NOT_FOUND, "Sync run not found", 404)
+    if command.sync_mode != SyncMode.RECONCILIATION:
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "Reconciliation values are accepted only in a RECONCILIATION run",
+            422,
+        )
+    written = await tally_values.write(session, agent.company_id, run.sync_run_id, env.records)
+    for e in env.parse_errors:
+        session.add(
+            error_row(
+                company_id=agent.company_id,
+                sync_run_id=run.sync_run_id,
+                entity_type="RECONCILIATION",
+                code=e.code,
+                message=e.message,
+                guid=e.guid,
+            )
+        )
+    run.records_fetched += len(env.records)
+    run.records_failed += len(env.parse_errors)
+    await session.commit()
+    return BatchResult(
+        batch_id=env.batch_id,
+        status="PARTIAL" if env.parse_errors else "COMPLETE",
+        written=written,
+        failed=len(env.parse_errors),
+    )
 
 
 def _error_row(ctx: IngestContext, failure: RecordFailure, hold: int | None) -> SyncError:
@@ -236,23 +289,9 @@ async def ingest(
         )
     is_snapshot = env.collection_type is None
     if is_snapshot:
-        if any(r.record_type != "STOCK_SNAPSHOT" for r in env.records):
-            raise AppError(
-                ErrorCode.VALIDATION_ERROR,
-                "Without a collection only stock snapshots are accepted; balances and "
-                "reconciliation totals come in P10",
-                422,
-            )
-        company = await session.get(Company, agent.company_id)
-        assert company is not None
-        today = periods.today(company.company_timezone)
-        if any(r.as_of_date > today for r in env.records):  # type: ignore[union-attr]
-            raise AppError(
-                ErrorCode.VALIDATION_ERROR,
-                f"A stock snapshot is dated after today ({today}) in the company's time zone; "
-                "take the date from the run plan (D-042 #5)",
-                422,
-            )
+        await _not_after_today(session, agent, env)
+        if any(r.record_type in RECONCILIATION_RECORD_TYPES for r in env.records):
+            return await _reconciliation_values(session, agent, command_id, env)
         collection = CollectionType.STOCK_ITEM  # snapshots ride on the item lease (D-040 #8)
         writer: Writer = snapshots.write_snapshots
     else:

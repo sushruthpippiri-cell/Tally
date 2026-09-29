@@ -26,6 +26,7 @@ from app.schemas.sync import (
     FinishRequest,
     LeaseOut,
     LeaseRequest,
+    PlanPeriod,
     ReleaseOut,
     ReleaseRequest,
     RunOut,
@@ -152,7 +153,13 @@ async def start_run(session: AsyncSession, agent: AgentContext, command_id: uuid
         ).scalars()
     }
     plan: dict[CollectionType, CollectionPlan] = {}
-    due = await key_lists_due(session, agent.company_id, run.sync_run_id)
+    reconciling = command.sync_mode == SyncMode.RECONCILIATION
+    # D-048 #1: a reconciliation lists every collection, through the same key-list evaluation
+    due = (
+        set(CollectionType) - {CollectionType.COMPANY}
+        if reconciling
+        else await key_lists_due(session, agent.company_id, run.sync_run_id)
+    )
     for collection in CollectionType:
         mode = collection_sync_mode(collection.value)
         watermark = stored.get(collection.value)
@@ -166,14 +173,22 @@ async def start_run(session: AsyncSession, agent: AgentContext, command_id: uuid
     await session.commit()
     company = await session.get(Company, agent.company_id)
     assert company is not None
+    as_of = periods.today(company.company_timezone)  # D-042 #5: never the PC's clock
     return RunPlan(
         sync_run_id=run.sync_run_id,
         sync_mode=SyncMode(command.sync_mode),
         date_from=command.date_from,
         date_to=command.date_to,
-        as_of=periods.today(company.company_timezone),  # D-042 #5: never the PC's clock
+        as_of=as_of,
         full_pull_from=company.books_from,
         collections=plan,
+        financial_year_from=periods.financial_year_of(as_of, company.financial_year_start).start,
+        reconciliation_periods=[
+            PlanPeriod(label=p.label, date_from=p.start, date_to=p.end)
+            for p in periods.reconciliation_periods(as_of, company.financial_year_start)
+        ]
+        if reconciling
+        else [],
     )
 
 

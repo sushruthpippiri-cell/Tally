@@ -62,6 +62,58 @@ def test_a_full_sync_uploads_every_collection_in_order_and_completes(
         "VOUCHER",
     ]
     assert agent.queue.status().records == 0
+    reconciliation = (tc.RECONCILIATION_REPORT, tc.LEDGER_CLOSING_REPORT)
+    assert not any(c["report"] in reconciliation for c in mock_tally[0].calls)
+
+
+def test_a_reconciliation_run_sends_every_key_list_and_tallys_own_figures(
+    make_agent: Any, run_agent_once: Any, fake_backend: Any, mock_tally: tuple[Any, str]
+) -> None:
+    """D-048: the plan makes every key list due (#1); the stock snapshot is taken and Tally's
+    closing stock read again right after it, moments apart (#3); then Tally's totals for each
+    period in the plan and every ledger's closing balance from the FY start to today (#4)."""
+    mock, _ = mock_tally
+    for plan in fake_backend.plan["collections"].values():
+        plan["key_list_due"] = True
+    fake_backend.plan["reconciliation_periods"] = [
+        {"label": "2026-03", "date_from": "2026-03-01", "date_to": "2026-03-16"},
+        {"label": "FY2025-26 to date", "date_from": "2025-04-01", "date_to": "2026-03-16"},
+    ]
+    agent = make_agent()
+    fake_backend.offer("RECONCILIATION")
+    assert run_agent_once(agent).status == "COMPLETED"
+    assert fake_backend.finishes[-1]["problems"] == []
+    listed = {k["collection_type"] for k in fake_backend.key_lists}
+    assert listed == {"GROUP", "LEDGER", "VOUCHER_TYPE", "STOCK_ITEM", "COST_CENTRE", "VOUCHER"}
+    reports = [c["report"] for c in mock.calls]
+    first = reports.index(tc.STOCK_CLOSING_REPORT)
+    assert reports[first + 1] == tc.STOCK_CLOSING_REPORT  # nothing asked of Tally in between
+    totals = [c for c in mock.calls if c["report"] == tc.RECONCILIATION_REPORT]
+    assert [(c[tc.VAR_FROM_DATE], c[tc.VAR_TO_DATE]) for c in totals] == [
+        ("20260301", "20260316"),
+        ("20250401", "20260316"),
+    ]
+    [ledgers] = [c for c in mock.calls if c["report"] == tc.LEDGER_CLOSING_REPORT]
+    assert (ledgers[tc.VAR_FROM_DATE], ledgers[tc.VAR_TO_DATE]) == ("20250401", "20260316")
+    kinds = [
+        sorted({r["record_type"] for r in b["records"]})
+        for b in fake_backend.batches
+        if b["collection_type"] is None
+    ]
+    assert kinds == [
+        ["STOCK_SNAPSHOT"],
+        ["RECONCILIATION_STOCK"],
+        ["RECONCILIATION_TOTAL"],
+        ["RECONCILIATION_TOTAL"],
+        ["LEDGER_CLOSING_BALANCE"],
+    ]
+    periods = [
+        (r["period_start"], r["period_end"])
+        for b in fake_backend.batches
+        for r in b["records"]
+        if r["record_type"] == "RECONCILIATION_TOTAL"
+    ]
+    assert periods == [("2026-03-01", "2026-03-16"), ("2025-04-01", "2026-03-16")]
 
 
 @pytest.mark.req("SEC-2.0a")

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import (
     Base,
     Money,
+    Quantity,
     Rate,
     bigint_pk,
     company_id_col,
@@ -33,6 +34,7 @@ from app.models.enums import (
     ReconResult,
     SyncMode,
     SyncRunStatus,
+    TallyValueKind,
     WatermarkStatus,
 )
 
@@ -80,6 +82,8 @@ class SyncRun(Base):
     status: Mapped[str]
     records_fetched: Mapped[int] = mapped_column(default=0, server_default=text("0"))
     records_failed: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    # RECONCILIATION runs: when the comparison job recorded its results (D-048 #6)
+    reconciled_at: Mapped[datetime | None]
 
 
 class SyncError(Base):
@@ -124,15 +128,52 @@ class SyncBatch(Base):
     error_count: Mapped[int]
 
 
-class ReconciliationResult(Base):
-    __tablename__ = "reconciliation_results"
+class ReconciliationTallyValue(Base):
+    """A figure Tally computed, uploaded by a RECONCILIATION run (D-048). Only the
+    comparison reads it; no local figure is ever computed from it (SRS 9.1)."""
+
+    __tablename__ = "reconciliation_tally_values"
     __table_args__ = (
-        enum_check("result", ReconResult),
-        Index(None, "company_id", "run_at"),
+        tenant_fk("sync_run_id", "sync_runs.sync_run_id"),
+        enum_check("kind", TallyValueKind),
+        UniqueConstraint(  # a replayed batch changes nothing; named: the default is > 63 chars
+            "sync_run_id",
+            "kind",
+            "entity_guid",
+            "voucher_type_guid",
+            "period_start",
+            "period_end",
+            name="uq_reconciliation_tally_values_key",
+        ),
     )
 
     id: Mapped[int] = bigint_pk()
     company_id: Mapped[uuid.UUID] = company_id_col(index=False)
+    sync_run_id: Mapped[uuid.UUID]
+    kind: Mapped[str]
+    entity_guid: Mapped[str]  # the ledger or stock item
+    voucher_type_guid: Mapped[str] = mapped_column(default="", server_default="")  # TOTAL only
+    name: Mapped[str | None]
+    period_start: Mapped[date]  # closings: the as-of date
+    period_end: Mapped[date]
+    debit: Mapped[Decimal | None] = mapped_column(Money)  # TOTAL
+    credit: Mapped[Decimal | None] = mapped_column(Money)  # TOTAL
+    value: Mapped[Decimal | None] = mapped_column(Quantity)  # a closing: Dr + balance, or qty
+    unit: Mapped[str | None]
+
+
+class ReconciliationResult(Base):
+    __tablename__ = "reconciliation_results"
+    __table_args__ = (
+        enum_check("result", ReconResult),
+        tenant_fk("sync_run_id", "sync_runs.sync_run_id"),
+        Index(None, "company_id", "run_at"),
+        Index(None, "sync_run_id"),
+    )
+
+    id: Mapped[int] = bigint_pk()
+    company_id: Mapped[uuid.UUID] = company_id_col(index=False)
+    sync_run_id: Mapped[uuid.UUID | None]  # the RECONCILIATION run compared (D-048 #8)
     run_at: Mapped[datetime]
     metric: Mapped[str]
     entity_id: Mapped[uuid.UUID | None]  # e.g. a ledger; the metric says which table

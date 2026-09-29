@@ -118,3 +118,19 @@ def test_period_keys() -> None:
     assert periods.period_key(d, "month", APR_1) == "2024-08"
     assert periods.period_key(d, "quarter", APR_1) == "FY2024-25 Q2"
     assert periods.period_key(d, "quarter", APR_1, mode="calendar") == "CY2024 Q3"
+
+
+@pytest.mark.req_partial("REC-1.1")  # which periods; the comparisons: tests/reconciliation
+def test_reconciliation_periods_are_this_years_months_the_year_to_date_and_last_year() -> None:
+    """D-048: calendar months of the financial year containing `as_of`, clipped to its start
+    and to `as_of`; then the year to date and the previous financial year."""
+    got = periods.reconciliation_periods(date(2026, 6, 10), date(2024, 4, 15))
+    assert [(p.start, p.end, p.label) for p in got] == [
+        (date(2026, 4, 15), date(2026, 4, 30), "2026-04"),
+        (date(2026, 5, 1), date(2026, 5, 31), "2026-05"),
+        (date(2026, 6, 1), date(2026, 6, 10), "2026-06"),
+        (date(2026, 4, 15), date(2026, 6, 10), "FY2026-27 to date"),
+        (date(2025, 4, 15), date(2026, 4, 14), "FY2025-26"),
+    ]
+    first_day = periods.reconciliation_periods(date(2026, 4, 1), date(2024, 4, 1))
+    assert [p.label for p in first_day] == ["2026-04", "FY2026-27 to date", "FY2025-26"]

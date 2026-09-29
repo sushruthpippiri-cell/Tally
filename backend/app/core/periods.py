@@ -52,6 +52,20 @@ def financial_year_of(day: date, fy_start: date) -> Period:
     return Period(start, end, label)
 
 
+def reconciliation_periods(as_of: date, fy_start: date) -> list[Period]:
+    """REC-1.1, D-048: each calendar month of the financial year containing `as_of`, clipped
+    to the year's start and to `as_of`; the year to date; the previous financial year."""
+    year = financial_year_of(as_of, fy_start)
+    months: list[Period] = []
+    day = year.start
+    while day <= as_of:
+        month_end = _add_months(date(day.year, day.month, 1), 1) - timedelta(days=1)
+        months.append(Period(day, min(month_end, as_of), f"{day.year}-{day.month:02d}"))
+        day = month_end + timedelta(days=1)
+    previous = financial_year_of(year.start - timedelta(days=1), fy_start)
+    return [*months, Period(year.start, as_of, f"{year.label} to date"), previous]
+
+
 def financial_quarter_of(day: date, fy_start: date, mode: QuarterMode = "financial") -> Period:
     """Q-1.1/Q-1.2: quarters counted from fy_start, or calendar quarters when chosen."""
     year = financial_year_of(day, date(2000, 1, 1) if mode == "calendar" else fy_start)

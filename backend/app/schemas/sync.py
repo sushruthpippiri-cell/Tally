@@ -14,6 +14,12 @@ class CollectionPlan(BaseModel):
     key_list_due: bool = False  # send a key list after this collection (SYNC-5.4, D-041 #6)
 
 
+class PlanPeriod(BaseModel):
+    label: str
+    date_from: date
+    date_to: date
+
+
 class RunPlan(BaseModel):
     sync_run_id: uuid.UUID
     sync_mode: SyncMode
@@ -22,6 +28,9 @@ class RunPlan(BaseModel):
     as_of: date  # today in company_timezone: the stock snapshot date, the end of date pages
     full_pull_from: date | None  # books_from: where date-paged full pulls start
     collections: dict[CollectionType, CollectionPlan]
+    financial_year_from: date  # start of the FY containing as_of: ledger closings (D-048)
+    # RECONCILIATION runs only: the periods whose Tally totals to pull (REC-1.1, D-048)
+    reconciliation_periods: list[PlanPeriod] = []
 
 
 class LeaseRequest(BaseModel):

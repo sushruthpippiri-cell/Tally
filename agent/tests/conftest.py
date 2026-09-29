@@ -228,6 +228,8 @@ class FakeBackend:
         self.plan: dict[str, Any] = {
             "as_of": "2026-03-16",
             "full_pull_from": "2024-04-01",
+            "financial_year_from": "2025-04-01",
+            "reconciliation_periods": [],
             "collections": {
                 c: {"mode": "INCREMENTAL", "watermark": 0, "full": True, "key_list_due": False}
                 for c in ALL_COLLECTIONS

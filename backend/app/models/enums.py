@@ -127,6 +127,14 @@ class ReconResult(StrEnum):
     FAIL = "FAIL"
 
 
+class TallyValueKind(StrEnum):
+    """What a staged Tally reconciliation value is (D-048)."""
+
+    TOTAL = "TOTAL"  # debit/credit sums per (ledger, voucher type, period), GATE-G36
+    LEDGER_CLOSING = "LEDGER_CLOSING"  # a ledger's closing balance, Dr +, GATE-G19
+    STOCK_CLOSING = "STOCK_CLOSING"  # an item's closing quantity, GATE-G18
+
+
 class SettingDataType(StrEnum):
     INTEGER = "INTEGER"
     DECIMAL = "DECIMAL"

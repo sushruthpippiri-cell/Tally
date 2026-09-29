@@ -312,6 +312,31 @@ def sample_company(
                 "<CLOSINGQTY>40 Nos</CLOSINGQTY></STOCK_CLOSING>",
             )
         ],
+        # Fixed figures in our TDL's shape (D-048); tests that compare them set their own.
+        tc.LEDGER_CLOSING_REPORT: [
+            Row(
+                led,
+                0,
+                f"<LEDGER_CLOSING><GUID>{led}</GUID><NAME>{escape(name)}</NAME>"
+                f"<ASOFDATE>{{as_of}}</ASOFDATE><CLOSINGBALANCE>{balance}</CLOSINGBALANCE>"
+                "</LEDGER_CLOSING>",
+            )
+            for led, name, balance in (
+                ("l-cust", "Customer A", "-14160.00"),
+                ("l-sales", "Sales - Retail", "12000.00"),
+                ("l-gst", "Output GST", "2160.00"),
+            )
+        ],
+        tc.RECONCILIATION_REPORT: [
+            Row(
+                "l-sales",
+                0,
+                "<RECON_TOTAL><LEDGERGUID>l-sales</LEDGERGUID><LEDGERNAME>Sales - Retail"
+                "</LEDGERNAME><VOUCHERTYPEGUID>vt-sales</VOUCHERTYPEGUID><FROMDATE>{from}"
+                "</FROMDATE><ASOFDATE>{as_of}</ASOFDATE><DEBIT>0</DEBIT><CREDIT>1000.00"
+                "</CREDIT></RECON_TOTAL>",
+            )
+        ],
     }
 
 

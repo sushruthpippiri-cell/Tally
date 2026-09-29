@@ -107,7 +107,7 @@ Inside a RUNNING command the Agent syncs collection by collection:
 
 | Call | Body | Answer | Refused |
 |---|---|---|---|
-| `POST /agent/commands/{id}/runs` | — | 201 `{sync_run_id, sync_mode, date_from, date_to, collections: {TYPE: {mode, watermark, full}}}` | 409 `INVALID_COMMAND_STATE` unless the command is RUNNING |
+| `POST /agent/commands/{id}/runs` | — | 201 `{sync_run_id, sync_mode, date_from, date_to, as_of, full_pull_from, financial_year_from, reconciliation_periods: [{label, date_from, date_to}], collections: {TYPE: {mode, watermark, full, key_list_due}}}` | 409 `INVALID_COMMAND_STATE` unless the command is RUNNING |
 | `POST /agent/leases/acquire` | `{sync_run_id, collection_type}` | `{collection_type, last_alter_id, lock_expires_at}` | 409 `SYNC_LOCKED`, `details.holder` names the Agent holding it |
 | `POST /agent/leases/renew` | — | `{renewed: n}` | |
 | `POST /agent/commands/{id}/batches` | a `BatchEnvelope` | `{status: COMPLETE\|PARTIAL, written, unchanged, rejected_stale, failed, chunks_committed, watermark, error}` | 409 `INVALID_COMMAND_STATE` / `SYNC_LOCKED` / `GATE_NOT_PASSED`, 422 (contract major version, validation, an unclassified parse-error code) |
@@ -117,6 +117,12 @@ Inside a RUNNING command the Agent syncs collection by collection:
 **Plan.** Pull a collection in full when `full` is true (a FULL command, a FULL_ONLY collection,
 or one never synced); otherwise pull ALTERID > `watermark`. Each collection has its own
 watermark (SYNC-1.1).
+
+**Voucher dates (D-048 #2, GATE-G37).** Every voucher request names its dates, ALTERID windows
+included: `full_pull_from` (books-beginning) to `FULL_PULL_DATE_TO` (2099-12-31), so post-dated
+vouchers come too and nothing depends on the period selected in Tally. A date-paged full pull
+goes a month at a time to `as_of`, then one page for everything after it. A VOUCHER key list
+names the same dates and carries them as its `window`.
 
 **One timer.** Sync leases live `command_lease_seconds`, and each command progress call renews
 them with the command. An Agent that stops sending progress loses both together. The command
@@ -143,7 +149,17 @@ watermark never passes it.
 - The COMPANY batch comes first: LEDGER and STOCK_ITEM batches are refused until its books-beginning date is known.
 - **Full-only collections** (`mode: FULL_ONLY`, VAL-1.2): pull them in full in every run, including a scheduled INCREMENTAL one, and send them with a `DATE` window or none. An `ALTER_ID` window for such a collection is refused with 409 `GATE_NOT_PASSED` and nothing is written; their watermark never moves.
 
-**Stock snapshots.** Send Tally's closing quantities as a batch with `collection_type: null` and `STOCK_SNAPSHOT` records, while holding the `STOCK_ITEM` lease. They are upserted on (item, date); an unknown item is recorded and skipped. Closing balances and reconciliation totals come in P10.
+**Stock snapshots.** Send Tally's closing quantities as a batch with `collection_type: null` and `STOCK_SNAPSHOT` records, while holding the `STOCK_ITEM` lease. They are upserted on (item, date); an unknown item is recorded and skipped.
+
+**Reconciliation (D-048).** In a RECONCILIATION run the plan makes every key list due and lists
+`reconciliation_periods`. After the stock snapshot, the Agent reads Tally's closing stock again
+at once and sends it as `RECONCILIATION_STOCK` records; after the collections, it sends Tally's
+`RECONCILIATION_TOTAL` records (`TA_ReconTotals`, one request per period) and every ledger's
+`LEDGER_CLOSING_BALANCE` (`TA_LedgerClosing`, from `financial_year_from` to `as_of`). These go
+as batches with `collection_type: null` holding only reconciliation records. They need the
+RECONCILIATION command RUNNING and its run open, no lease, and are refused (422) in any other
+run. A timed-out request is a `TALLY_EXPORT_TIMEOUT` problem; the backend reports what never
+arrived.
 
 **How a run ends** (the backend decides, D-040):
 - `finish` with COMPLETED → COMPLETED, or PARTIAL if any data was not stored: a failed record or chunk, or a `problems` entry (a collection skipped with `SYNC_LOCKED`, a segment that hit `TALLY_EXPORT_TIMEOUT`, `TALLY_UNREACHABLE`). Informational errors (`STALE_ALTERID`, `UDF_NOT_FOUND`) do not make a run PARTIAL.
