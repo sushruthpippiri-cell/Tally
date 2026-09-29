@@ -16,7 +16,7 @@ on-account, unmatched) are reported as positive figures.
 
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -239,4 +239,137 @@ def unmatched_settlements(ctx: MetricContext, side: str) -> Select[Any]:
         select(refs.c.ledger_name, refs.c.reference_name, (-refs.c.settled).label("amount"))
         .where(~refs.c.is_bill, ~refs.c.is_advance, refs.c.settled != 0)
         .order_by(refs.c.ledger_name, refs.c.reference_name)
+    )
+
+
+# --- payment behaviour (SRS 10.4, FR-PAY-1-6, D-049 #5) ----------------------------------------
+
+PAYMENT_BASE = "RECEIPT"
+
+
+@dataclass
+class PaymentFigure:
+    ledger_id: uuid.UUID | None  # None: all customers
+    ledger_name: str | None
+    settlements: int
+    settled_amount: Decimal
+    avg_days_to_pay: Decimal | None  # None: insufficient history
+    avg_days_past_due: Decimal | None  # None: insufficient history, or no bill had a due date
+    insufficient_history: bool
+
+
+@dataclass
+class PaymentBehaviour:
+    window_from: date  # exclusive
+    window_to: date  # inclusive: the as-of date
+    overall: PaymentFigure
+    customers: list[PaymentFigure]
+    excluded_by_type: dict[str, int]  # settlements that are not payments (credit notes, ...)
+    without_bill_date: int
+    without_due_date: int
+
+
+def settlements(ctx: MetricContext, window_days: int) -> Select[Any]:
+    """Each Against Reference that lowers a customer's bill (FR-PAY-2: part settlements
+    separately), dated in (as-of − window, as-of], with its bill's date and due date. Refunds
+    raise a bill and are never settlements; Advance and On Account are not settlements
+    (FR-PAY-4)."""
+    r = _rows(ctx, "receivable")
+    new = r.c.allocation_type == NEW
+    bill = (
+        select(
+            r.c.ledger_id,
+            r.c.reference_name,
+            func.min(r.c.voucher_date).filter(new).label("bill_date"),
+            func.max(r.c.due_date).filter(new).label("due_date"),
+        )
+        .where(r.c.reference_name.is_not(None))
+        .group_by(r.c.ledger_id, r.c.reference_name)
+        .having(func.bool_or(new))
+    ).subquery()
+    as_of = ctx.filter.date_to
+    return (
+        select(
+            r.c.ledger_id,
+            r.c.ledger_name,
+            r.c.base_voucher_type,
+            r.c.voucher_date,
+            (-r.c.amount).label("settled"),
+            bill.c.bill_date,
+            bill.c.due_date,
+        )
+        .join(
+            bill,
+            (bill.c.ledger_id == r.c.ledger_id) & (bill.c.reference_name == r.c.reference_name),
+        )
+        .where(
+            r.c.allocation_type == AGST,
+            r.c.amount < 0,
+            r.c.voucher_date > cast(literal(as_of), Date) - window_days,
+            r.c.voucher_date <= cast(literal(as_of), Date),
+        )
+    )
+
+
+async def payment_behaviour(
+    session: AsyncSession, ctx: MetricContext, window_days: int, min_settlements: int
+) -> PaymentBehaviour:
+    """FR-PAY-1: Σ(amount × (settled − bill date)) ÷ Σ amount; FR-PAY-3: the same from the due
+    date, early payments as 0, bills without a due date left out. Only settlements on Receipt
+    vouchers are payments (D-049 #5). Summed in SQL, per customer and over all customers."""
+    s = settlements(ctx, window_days).subquery()
+    paid = (s.c.base_voucher_type == PAYMENT_BASE) & s.c.bill_date.is_not(None)
+    with_due = paid & s.c.due_date.is_not(None)
+    to_pay = type_coerce(s.c.voucher_date - s.c.bill_date, Integer)
+    past_due = func.greatest(0, type_coerce(s.c.voucher_date - s.c.due_date, Integer))
+    amount = func.sum(s.c.settled)
+    figures = await session.execute(
+        select(
+            s.c.ledger_id,
+            s.c.ledger_name,
+            func.count().filter(paid),
+            func.coalesce(amount.filter(paid), 0),
+            func.sum(s.c.settled * to_pay).filter(paid) / amount.filter(paid),
+            func.sum(s.c.settled * past_due).filter(with_due) / amount.filter(with_due),
+        )
+        .where(paid)
+        .group_by(func.grouping_sets(tuple_(s.c.ledger_id, s.c.ledger_name), tuple_()))
+    )
+    two = Decimal("0.01")
+    rows: dict[Any, PaymentFigure] = {}
+    for ledger_id, name, count, settled, days, due_days in figures.tuples():
+        short = count < min_settlements  # FR-PAY-5
+        rows[ledger_id] = PaymentFigure(
+            ledger_id=ledger_id,
+            ledger_name=name,
+            settlements=count,
+            settled_amount=settled,
+            avg_days_to_pay=None if short or days is None else days.quantize(two),
+            avg_days_past_due=None if short or due_days is None else due_days.quantize(two),
+            insufficient_history=short,
+        )
+    counts = await session.execute(
+        select(
+            func.coalesce(s.c.base_voucher_type, "OPENING"),
+            func.count(),
+            func.count().filter(s.c.bill_date.is_(None)),
+            func.count().filter(s.c.bill_date.is_not(None) & s.c.due_date.is_(None)),
+        ).group_by(s.c.base_voucher_type)
+    )
+    excluded: dict[str, int] = {}
+    without_bill_date = without_due_date = 0
+    for base, count, no_bill_date, no_due in counts.tuples():
+        if base != PAYMENT_BASE:
+            excluded[base] = count
+        else:
+            without_bill_date, without_due_date = no_bill_date, no_due
+    overall = rows.pop(None, None) or PaymentFigure(None, None, 0, Decimal(0), None, None, True)
+    return PaymentBehaviour(
+        window_from=ctx.filter.date_to - timedelta(days=window_days),
+        window_to=ctx.filter.date_to,
+        overall=overall,
+        customers=sorted(rows.values(), key=lambda f: (f.ledger_name or "", str(f.ledger_id))),
+        excluded_by_type=excluded,
+        without_bill_date=without_bill_date,
+        without_due_date=without_due_date,
     )

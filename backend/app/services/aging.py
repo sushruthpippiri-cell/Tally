@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.analytics import aging
 from app.analytics.context import AnalyticsFilter, MetricContext, load
 from app.core.errors import AppError
+from app.core.gates import gate_passed
 from app.core.periods import financial_year_of, today
 from app.core.permissions import CompanyContext
 from app.models.company import Company
@@ -21,6 +22,8 @@ from app.schemas.aging import (
     BillsOut,
     BucketLabel,
     NoBillDetails,
+    PaymentBehaviourOut,
+    PaymentFigureOut,
 )
 from app.schemas.analytics import Figure
 from app.services.settings import get_setting
@@ -146,5 +149,52 @@ async def allocations(
             )
             for r in rows
         ],
+        unverified_gates=aging.unverified_gates(),
+    )
+
+
+HIDDEN = "Awaiting Tally validation (G25)"
+KINDS = {"CREDIT_NOTE": "credit notes (returns and discounts)", "JOURNAL": "journals"}
+
+
+def _figure(f: aging.PaymentFigure) -> PaymentFigureOut:
+    return PaymentFigureOut(**f.__dict__)
+
+
+async def payment_behaviour(session: AsyncSession, ctx: CompanyContext) -> PaymentBehaviourOut:
+    """FR-PAY-6: hidden, and not computed, until G25 passes."""
+    if not gate_passed("G25"):
+        return PaymentBehaviourOut(
+            available=False, reason=HIDDEN, unverified_gates=aging.unverified_gates()
+        )
+    mctx, _ = await context(session, ctx, None)
+    window = int(await get_setting(session, ctx.company_id, "payment.window_days"))
+    minimum = int(await get_setting(session, ctx.company_id, "payment.min_settlements"))
+    result = await aging.payment_behaviour(session, mctx, window, minimum)
+    notes: list[str] = []
+    if result.excluded_by_type:
+        left_out = "; ".join(
+            f"{n} on {KINDS.get(kind, kind.lower().replace('_', ' ') + ' vouchers')}"
+            for kind, n in sorted(result.excluded_by_type.items())
+        )
+        notes.append(f"Only settlements on Receipt vouchers are payments: {left_out} left out.")
+    if result.without_bill_date:
+        notes.append(
+            f"{result.without_bill_date} settlement(s) of bills with no bill date left out."
+        )
+    if result.without_due_date:
+        notes.append(
+            f"{result.without_due_date} settlement(s) of bills with no due date left out of "
+            "average days past due."
+        )
+    return PaymentBehaviourOut(
+        available=True,
+        window_from=result.window_from,
+        window_to=result.window_to,
+        min_settlements=minimum,
+        overall=_figure(result.overall),
+        customers=[_figure(c) for c in result.customers],
+        excluded_settlements=result.excluded_by_type,
+        notes=notes,
         unverified_gates=aging.unverified_gates(),
     )

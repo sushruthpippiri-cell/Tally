@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.periods import Granularity
 from app.core.permissions import CompanyContext, Permission, require
-from app.schemas.aging import AgingOut, AllocationsOut, BillsOut, Side
+from app.schemas.aging import AgingOut, AllocationsOut, BillsOut, PaymentBehaviourOut, Side
 from app.schemas.analytics import DrilldownOut, MetricOut, RankingOut
 from app.services import aging, analytics
 from app.services.analytics import MetricName, RankBy, RankingKind
@@ -82,6 +82,13 @@ async def aging_allocations(
     session: AsyncSession = Depends(get_session),
 ) -> AllocationsOut:
     return await aging.allocations(session, ctx, side, ledger_id, reference, as_of)
+
+
+@router.get("/payment-behaviour", summary="Customer payment behaviour (SRS 10.4)")
+async def payment_behaviour(
+    ctx: CompanyContext = VIEW, session: AsyncSession = Depends(get_session)
+) -> PaymentBehaviourOut:
+    return await aging.payment_behaviour(session, ctx)
 
 
 @router.get("/{metric}")

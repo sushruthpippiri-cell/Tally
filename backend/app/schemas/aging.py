@@ -89,3 +89,29 @@ class AllocationsOut(BaseModel):
     reference_name: str
     allocations: list[AllocationOut]
     unverified_gates: list[str]
+
+
+class PaymentFigureOut(BaseModel):
+    ledger_id: uuid.UUID | None  # None: all customers
+    ledger_name: str | None
+    settlements: int
+    settled_amount: Decimal
+    avg_days_to_pay: Decimal | None  # None when `insufficient_history` (FR-PAY-5)
+    avg_days_past_due: Decimal | None
+    insufficient_history: bool
+
+
+class PaymentBehaviourOut(BaseModel):
+    """FR-PAY-1-6, D-049 #5. Until gate G25 passes, `available` is false and nothing is
+    computed (FR-PAY-6)."""
+
+    available: bool
+    reason: str | None = None
+    window_from: date | None = None  # exclusive
+    window_to: date | None = None  # inclusive: today in the company's time zone
+    min_settlements: int | None = None
+    overall: PaymentFigureOut | None = None
+    customers: list[PaymentFigureOut] = []
+    excluded_settlements: dict[str, int] = {}  # by voucher base type: not payments
+    notes: list[str] = []
+    unverified_gates: list[str]
