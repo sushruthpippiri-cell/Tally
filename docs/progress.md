@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P11 (aging and payment behaviour) — **complete locally** 2026-09-29, CI pending. Local suite PASS ([phase-11](test-reports/phase-11.md), 1,388 tests: 1,385 passed, 3 skipped — Windows-only; 89.9% line coverage). D-049 ACCEPTED with the owner's two additions (reused bill names marked unverified and listed; payment behaviour counts receipts only). Aging rules in [`docs/metrics.md`](metrics.md). Payment behaviour stays hidden until G25 passes; G25 and G31 join the pending G-E captures (the CHECKLIST gains a reused bill name). Next: P12 (stock) — waits for the owner.
+P11 (aging and payment behaviour) — **complete** 2026-09-29. CI green (`check` 36539892109, `capture-kit` 36539892090; `agent-windows` not triggered, last green 36534423546). Local suite PASS ([phase-11](test-reports/phase-11.md), 1,388 tests: 1,385 passed, 3 skipped — Windows-only; 89.9% line coverage). D-049 ACCEPTED with the owner's two additions (reused bill names marked unverified and listed; payment behaviour counts receipts only). Aging rules in [`docs/metrics.md`](metrics.md). Payment behaviour stays hidden until G25 passes; G25 and G31 join the pending G-E captures (the CHECKLIST gains a reused bill name). Next: P12 (stock) — waits for the owner.
 
 P10 (reconciliation) — **complete** 2026-09-29. CI green (`check` 36534423550, `agent-windows` 36534423546, `capture-kit` 36534423565). Local suite PASS ([phase-10](test-reports/phase-10.md), 1,327 tests: 1,324 passed, 3 skipped — Windows-only; 89.9% line coverage). D-048 ACCEPTED with the owner's three changes (independence stated and tested; explicit dates on every voucher request, post-dated vouchers included; stock compared within the same run). The basis is in [`docs/reconciliation-basis.md`](reconciliation-basis.md): **still to be reviewed by the accountant** (the phase's definition of done). New gates G36 and G37 (NOT TESTED) join the G-E captures. Next: P11 (aging and payment behaviour) — waits for the owner.
 
@@ -30,6 +30,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-29 | P11 CI | 7ab94eb | Green: `check` 36539892109, `capture-kit` 36539892090. `agent-windows` not triggered (nothing under `agent/` or `shared/` changed); last green 36534423546. |
 | 2026-09-29 | P11 phase report | (this commit) | [phase-11](test-reports/phase-11.md): 1,385 passed, 3 skipped (Windows-only), fresh DB, `make check` PASS. |
 | 2026-09-29 | P11.7 payment behaviour | 2cae95a | `GET …/analytics/payment-behaviour`: receipts only (D-049 #5), credit notes and journals excluded and counted in the notes, refunds and advances never settlements, trailing 365 days, insufficient history below 3; hidden until G25 passes. AC-51 = 14 days. |
 | 2026-09-29 | P11.6 aging API | e2afb4f | `GET …/analytics/aging`, `/aging/bills`, `/aging/allocations`: buckets, credit, advances, on-account, unmatched, net exposure, no-bill-details, unverified gates. "Today" in company time at IST midnight, a month end and the FY end; summary = Σ parties; a party's bills add up to its buckets less its credit. |
@@ -195,7 +196,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
-| 11 | [phase-11](test-reports/phase-11.md) | PASS - 1,388 tests, 0 failed, 3 skipped (Windows-only), 89.9% coverage; CI: pending |
+| 11 | [phase-11](test-reports/phase-11.md) | PASS - 1,388 tests, 0 failed, 3 skipped (Windows-only), 89.9% coverage; CI green: check 36539892109, capture-kit 36539892090 |
 | 10 | [phase-10](test-reports/phase-10.md) | PASS - 1,327 tests, 0 failed, 3 skipped (Windows-only), 89.9% coverage; CI green: check 36534423550, agent-windows 36534423546, capture-kit 36534423565 |
 | 09 | [phase-09.md](test-reports/phase-09.md) | PASS - 1,252 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI green: check 36460856648 |
 | 08 | [phase-08.md](test-reports/phase-08.md) | PASS - 1,204 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI green: check 36444202147, capture-kit 36444202153 |
