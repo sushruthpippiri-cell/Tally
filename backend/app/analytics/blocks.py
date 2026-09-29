@@ -29,7 +29,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.analytics.context import MetricContext
-from app.models.balances import LedgerOpeningBalance
+from app.models.balances import LedgerOpeningBalance, OpeningBillAllocation
 from app.models.enums import AccountingDirection, AllocationType, Nature, VoucherStatus
 from app.models.masters import Group, Ledger, StockItem, VoucherType
 from app.models.vouchers import BillAllocation, Voucher, VoucherEntry, VoucherItem
@@ -208,3 +208,70 @@ def unsupported_allocations(company_id: uuid.UUID) -> Select[Any]:
         )
         .order_by(V.voucher_date, V.voucher_number, B.id)
     )
+
+
+def bill_rows(ctx: MetricContext, party: Iterable[uuid.UUID], debit_positive: bool) -> Select[Any]:
+    """One row per bill allocation on a party ledger (customers or suppliers), on a voucher
+    with one of the filter's statuses dated on or before `filter.date_to` (the as-of date),
+    plus the ledger masters' opening bills as New References (D-022, D-049 #3). UNSUPPORTED
+    allocations are left out (AGE-BILL-2). `amount` keeps each allocation's own direction,
+    signed toward the side: receivable debit +, payable credit + (D-004, D-049 #1)."""
+
+    def signed(direction: Any, amount: Any) -> ColumnElement[Decimal]:
+        positive = AccountingDirection.DEBIT if debit_positive else AccountingDirection.CREDIT
+        return case((direction == positive, amount), else_=-amount)
+
+    allocations = (
+        select(
+            V.voucher_id,
+            V.voucher_date,
+            V.voucher_number,
+            VT.name.label("voucher_type_name"),
+            VT.base_voucher_type,
+            B.ledger_id,
+            L.name.label("ledger_name"),
+            signed(B.accounting_direction, B.amount_absolute).label("amount"),
+            B.reference_name,
+            B.allocation_type,
+            B.due_date,
+            literal("VOUCHER").label("source"),
+        )
+        .select_from(B)
+        .join(E, and_(E.company_id == B.company_id, E.voucher_entry_id == B.voucher_entry_id))
+        .join(V, and_(V.company_id == E.company_id, V.voucher_id == E.voucher_id))
+        .join(VT, and_(VT.company_id == V.company_id, VT.voucher_type_id == V.voucher_type_id))
+        .join(L, and_(L.company_id == B.company_id, L.ledger_id == B.ledger_id))
+        .where(
+            B.company_id == ctx.company_id,
+            V.company_id == ctx.company_id,
+            V.status.in_(ctx.filter.statuses),
+            V.voucher_date <= ctx.filter.date_to,
+            B.allocation_type != AllocationType.UNSUPPORTED,
+            in_class(party),
+        )
+    )
+    o = OpeningBillAllocation
+    opening = (
+        select(
+            cast(null(), UUID(as_uuid=True)).label("voucher_id"),
+            o.bill_date.label("voucher_date"),
+            cast(null(), String).label("voucher_number"),
+            literal("Opening bill").label("voucher_type_name"),
+            cast(null(), String).label("base_voucher_type"),
+            o.ledger_id,
+            L.name.label("ledger_name"),
+            signed(o.accounting_direction, o.amount_absolute).label("amount"),
+            o.reference_name,
+            literal(AllocationType.NEW_REF.value).label("allocation_type"),
+            o.due_date,
+            literal("OPENING").label("source"),
+        )
+        .select_from(o)
+        .join(L, and_(L.company_id == o.company_id, L.ledger_id == o.ledger_id))
+        .where(
+            o.company_id == ctx.company_id,
+            o.financial_year_start == ctx.books_from,
+            in_class(party),
+        )
+    )
+    return select(union_all(allocations, opening).subquery())

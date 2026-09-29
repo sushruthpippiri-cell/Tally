@@ -30,8 +30,10 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.analytics import blocks
+from app.analytics import aging, blocks
+from app.analytics.context import AnalyticsFilter, MetricContext, load
 from app.analytics.returns import CREDIT_NOTE, DEBIT_NOTE, UNLINKED, linked_notes
+from app.core import periods
 from app.core.errors import AppError
 from app.core.gates import gate_passed
 from app.core.permissions import CompanyContext
@@ -424,6 +426,51 @@ async def _unsupported_allocations(session: AsyncSession, ctx: CompanyContext) -
     return blocks.unsupported_allocations(ctx.company_id)
 
 
+async def _aging_context(session: AsyncSession, ctx: CompanyContext) -> MetricContext:
+    """Aging as of today in the company's time zone (D-049 #4)."""
+    company = await session.get(Company, ctx.company_id)
+    assert company is not None
+    today = periods.today(company.company_timezone)
+    return await load(session, ctx, AnalyticsFilter(today, today))
+
+
+def _both_sides(build: Callable[[str], Select[Any]]) -> Select[Any]:
+    parts = [
+        select(literal(side).label("side"), q.subquery())
+        for side, q in ((s, build(s)) for s in ("receivable", "payable"))
+    ]
+    return select(union_all(*parts).subquery())
+
+
+async def _over_settled_bills(session: AsyncSession, ctx: CompanyContext) -> Select[Any]:
+    mctx = await _aging_context(session, ctx)
+
+    def build(side: str) -> Select[Any]:
+        b = aging.bills(mctx, side, [30, 60, 90]).subquery()
+        return select(
+            b.c.ledger_name, b.c.reference_name, b.c.bill_date, (-b.c.outstanding).label("credit")
+        ).where(b.c.bucket == aging.CREDIT)
+
+    return _both_sides(build)
+
+
+async def _unmatched_settlements(session: AsyncSession, ctx: CompanyContext) -> Select[Any]:
+    mctx = await _aging_context(session, ctx)
+    return _both_sides(lambda side: aging.unmatched_settlements(mctx, side))
+
+
+async def _bill_reference_reused(session: AsyncSession, ctx: CompanyContext) -> Select[Any]:
+    mctx = await _aging_context(session, ctx)
+
+    def build(side: str) -> Select[Any]:
+        b = aging.bills(mctx, side, [30, 60, 90]).subquery()
+        return select(b.c.ledger_name, b.c.reference_name, b.c.bill_date, b.c.outstanding).where(
+            b.c.reused
+        )
+
+    return _both_sides(build)
+
+
 def _before_g32() -> bool:
     return not gate_passed("G32")
 
@@ -554,6 +601,33 @@ for _check in (
         "Advance or On Account, so they are left out of aging (AGE-BILL-2). Until the "
         "allocation-type gate (G25) passes, the expected names are a draft.",
         _unsupported_allocations,
+    ),
+    Check(
+        "over_settled_bills",
+        "Bills settled for more than they were raised",
+        "WARNING",
+        "More was received (or paid) against these bills than they were raised for. They are "
+        "shown as a credit in aging, never in a bucket. Check the settlements in Tally.",
+        _over_settled_bills,
+    ),
+    Check(
+        "unmatched_settlements",
+        "Settlements against no known bill",
+        "WARNING",
+        "These Against References name a bill that is not among the synced active bills (for "
+        "example its voucher is cancelled). They count in the party's net exposure, never in "
+        "a bucket.",
+        _unmatched_settlements,
+    ),
+    Check(
+        "bill_reference_reused",
+        "Bill reference reused",
+        "WARNING",
+        "More than one voucher raised a bill with this name for the same party (for example "
+        "invoice numbers restarting each year). Aging treats them as one bill, aged from the "
+        "earliest, and marks it unverified until the bill-details gate (G31) shows how Tally "
+        "keeps them apart.",
+        _bill_reference_reused,
     ),
 ):
     register(_check)

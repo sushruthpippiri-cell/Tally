@@ -35,7 +35,7 @@ MetricName = StrEnum(  # type: ignore[misc]
     {
         name.upper(): name.replace("_", "-")
         for name in query.METRICS
-        if name not in query.RECONCILIATION_ONLY
+        if name not in query.NOT_IN_METRIC_API
     },
 )
 STANDARD = {

@@ -9,7 +9,7 @@ from sqlalchemy import update
 from app.analytics import query
 from app.models.masters import Ledger
 from tests.analytics.books import Books
-from tests.factories import Entry
+from tests.factories import Bill, Entry
 
 DAY = date(2025, 8, 14)
 # metric -> (voucher type, entries of one contributing voucher, the classified ledger in it)
@@ -62,6 +62,21 @@ CASES: dict[str, tuple[str, list[Entry], str]] = {
     # reconciliation-only (D-048 #4): Tally's totals are compared on these bases
     "recon_receipts": ("Receipt", [("Cash", "DEBIT", "100"), ("Loan", "CREDIT", "100")], "Cash"),
     "recon_payments": ("Payment", [("Rent", "DEBIT", "100"), ("Cash", "CREDIT", "100")], "Cash"),
+    # aging (D-049 #9): the bill allocation on the party's entry is the row
+    "receivable_bills": (
+        "Sales",
+        [("Customer A", "DEBIT", "100"), ("Sales", "CREDIT", "100")],
+        "Customer A",
+    ),
+    "payable_bills": (
+        "Purchase",
+        [("Purchases", "DEBIT", "100"), ("Supplier S", "CREDIT", "100")],
+        "Supplier S",
+    ),
+}
+BILLS: dict[str, list[Bill]] = {
+    "receivable_bills": [(0, "NEW_REF", "S-1", "100")],
+    "payable_bills": [(1, "NEW_REF", "P-1", "100")],
 }
 OPENINGS = [
     "Customer A",
@@ -101,7 +116,8 @@ async def test_cancelled_missing_and_unresolved_never_count(books: Books, metric
     for ledger in OPENINGS:
         await books.opening(ledger, "DEBIT", "0")
     items = [("Soap", "1", "100", "100")] if metric == "product_revenue" else None
-    await books.voucher(vtype, DAY, entries, items=items)
+    bills = BILLS.get(metric)
+    await books.voucher(vtype, DAY, entries, items=items, bills=bills)
 
     async def figure(**flags: bool) -> Decimal | None:
         ctx = await books.ctx(**flags)
@@ -112,13 +128,16 @@ async def test_cancelled_missing_and_unresolved_never_count(books: Books, metric
 
     standard = await figure()
     assert standard not in (None, Decimal(0))
-    await books.voucher(vtype, DAY, entries, items=items, status="CANCELLED")
-    await books.voucher(vtype, DAY, entries, items=items, status="MISSING_IN_TALLY")
+    await books.voucher(vtype, DAY, entries, items=items, bills=bills, status="CANCELLED")
+    await books.voucher(vtype, DAY, entries, items=items, bills=bills, status="MISSING_IN_TALLY")
     if classified:
         broken = await _unresolved_copy(books, classified)
         await books.voucher(
-            vtype, DAY, [(broken if e[0] == classified else e[0], *e[1:]) for e in entries]
-        )  # type: ignore[misc]
+            vtype,
+            DAY,
+            [(broken if e[0] == classified else e[0], *e[1:]) for e in entries],  # type: ignore[misc]
+            bills=bills,
+        )
     assert await figure() == standard
     assert await figure(include_cancelled=True) == 2 * standard
     assert await figure(include_cancelled=True, include_missing=True) == 3 * standard

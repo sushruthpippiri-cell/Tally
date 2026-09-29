@@ -363,7 +363,8 @@ async def make_cost_centre(session: AsyncSession, company: Company, name: str) -
 Entry = tuple[str, str, str]  # (ledger name, "DEBIT" | "CREDIT", amount)
 # (stock item name, quantity, rate, amount[, unit]); the unit defaults to the item's base unit
 Item = tuple[str, str, str, str] | tuple[str, str, str, str, str]
-Bill = tuple[int, str, str, str]  # (entry index, allocation type, reference, amount)
+# (entry index, allocation type, reference, amount[, due date])
+Bill = tuple[int, str, str, str] | tuple[int, str, str, str, date | None]
 Centre = tuple[int, str, str]  # (entry index, cost centre name, amount)
 
 DEFAULT_ENTRIES: list[Entry] = [("Customer A", "DEBIT", "10000"), ("Sales", "CREDIT", "10000")]
@@ -429,7 +430,7 @@ async def make_voucher(
         )
     session.add_all(rows)
     await session.flush()
-    for entry_idx, allocation_type, reference, amount in bills or []:
+    for entry_idx, allocation_type, reference, amount, *due in bills or []:
         entry = rows[entry_idx]
         session.add(
             BillAllocation(
@@ -439,6 +440,7 @@ async def make_voucher(
                 allocation_type_raw=allocation_type,
                 allocation_type=allocation_type,
                 reference_name=reference,
+                due_date=due[0] if due else None,
                 amount_absolute=Decimal(amount),
                 accounting_direction=entry.accounting_direction,
             )
