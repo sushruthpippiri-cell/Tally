@@ -185,7 +185,7 @@ Records in an upload are sorted by ALTERID ascending; the backend commits chunks
 ### D-027 Uploads when another Agent holds the lease — SUPERSEDED by D-039 #1
 A batch upload is accepted if the caller holds the collection lease or no unexpired lease is held (it is then re-acquired). If another Agent holds it, the upload gets 409 `SYNC_LOCKED` and stays in the local queue. Stale-record protection handles ordering (SYNC-4.4).
 
-### D-028 Browser token storage — PROPOSED (review in P16)
+### D-028 Browser token storage — SUPERSEDED by D-051
 Access token in memory; refresh token in `sessionStorage`; bearer headers only (so CSRF does not apply, SEC-1.5).
 
 ### D-029 Incremental sync before gates pass — ACCEPTED
@@ -477,3 +477,16 @@ Loading an analytics context runs `SET LOCAL plan_cache_mode = force_custom_plan
 | 8 | `stock.measurement_period_days` is one of 30, 60, 90, 180 (FR-STK-1) | SRS 11.1. |
 | 9 | Every stock response lists `unverified_gates` (G18, G27 while not PASSED) | Same marker as P10/P11. |
 | 10 | **Stale snapshots (owner):** the response warns, naming the date, when the newest snapshot is older than `stock.snapshot_stale_days` (default 2) days | An Agent offline for days would otherwise classify everything on an old snapshot silently. |
+
+### D-051 Browser sessions, money and dates in the frontend — ACCEPTED (product owner, 2026-09-30)
+| # | Choice | Why |
+|---|---|---|
+| 1 | **Access token in memory only** (a module variable, 30 minutes); **nothing in `localStorage` or `sessionStorage`** (a test scans the built bundle). **Refresh token in a cookie** `tally_refresh`: `HttpOnly; Secure; SameSite=Strict; Path=/api/auth` (setting `REFRESH_COOKIE_PATH`), 24 h. `/auth/login` and `/auth/refresh` set it and no longer return the refresh token in the body; `/auth/refresh` reads only the cookie; `POST /auth/logout` revokes it and clears the cookie. Rotation and reuse detection stay as D-033 #2/#4. Supersedes D-028 | Script can never read the long-lived token; a reload restores the session with one refresh. |
+| 2 | **CSRF (SEC-1.5):** only `/auth/refresh` and `/auth/logout` use the cookie. They also require the header `X-Tally-Request: 1` (a cross-site form cannot send it; a cross-site fetch would need a preflight the backend refuses) and, when an `Origin` header is present, an allowed origin. Every other endpoint is bearer-only | SameSite=Strict plus a custom header and an Origin check: defence in depth. |
+| 3 | **Several tabs** serialise refreshes with the Web Locks API and share the new access token over a `BroadcastChannel` | Two tabs presenting the same rotated token would trip reuse detection and log the user out everywhere. |
+| 4 | **Same origin:** the app calls `/api/*`; the dev server and the production reverse proxy strip `/api` before the backend. **CSP** for the app: `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests`; API responses carry `default-src 'none'; frame-ancestors 'none'` | No CORS needed for the app; no inline script or style anywhere. |
+| 5 | **Money is formatted by our own pure function (owner):** the decimal string is rounded to 2 places on its digits (half away from zero: "1.005" → ₹1.01), grouped the Indian way (₹1,23,45,678.90), never converted to a JavaScript number. `Intl.NumberFormat` is not used for money: older engines, still common on Indian Android phones, turn the string into a float first. No component adds amounts; every total shown comes from the backend (lint rule + test) | The same digits on every device. |
+| 6 | **Dates** are shown in the company's time zone (TZ-1.1): a DATE is formatted from its parts, never through `new Date()`; a timestamp through `Intl.DateTimeFormat` with `timeZone = company_timezone` | An owner abroad sees the reports' day boundaries. |
+| 7 | **Warnings are never hidden:** one `Warnings` component shows unverified gates, notes, warnings (stale snapshot, INITIAL_SYNC_INCOMPLETE, NO_ACTIVE_SCHEDULE) next to the figure, never collapsed or dismissible; an unavailable balance is never shown as ₹0 | Owner. |
+| 8 | **Safari (owner):** WebKit does not keep a `Secure` cookie on plain `http://localhost`, so the by-hand check in Safari (and Chrome) uses the HTTPS dev setup from P7 (`make dev-tls`, then `npm run dev:https`); see `frontend/README.md` | The session must work in both browsers the owner uses. |
+| 9 | **MSW** is a test-only dependency (component tests); Playwright mocks the API with `page.route` | No mock code in the app bundle. |
