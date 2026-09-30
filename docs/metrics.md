@@ -83,5 +83,22 @@ API: `GET /companies/{id}/analytics/{metric}` and `…/{metric}/drilldown`, with
   - hidden until gate G25 passes (FR-PAY-6).
 - **Unverified gates.** Every aging and payment-behaviour response lists G25 and G31 while they have not passed.
 
+## Stock movement (P12: D-050, SRS 11)
+- **Current stock** is Tally's own closing quantity: the item's latest snapshot dated on or before today (FR-STK-15). Every item shows the snapshot date it used (FR-STK-16). An item with no snapshot is **Stock unknown**, never zero. When the newest snapshot is older than `stock.snapshot_stale_days` (2) days, the response warns and names its date.
+- **The period** is the last `stock.measurement_period_days` days ending today in the company's time zone (30, 60, 90 or 180; default 90).
+- **Sales** come from the `product_revenue` detail query (P9): the item's lines on ACTIVE sales vouchers, less the lines of linked credit notes. **Last sale** is the latest sales line; a return is not a sale.
+- **Fast-moving is ranked by sales value** (FR-STK-20, owner): the items sold in the period whose value is at or above the 75th percentile (`stock.fast_percentile`, PostgreSQL `percentile_cont`) of the values of all items sold in the period. Ties at the threshold are all fast; one item sold is fast.
+- **Classes, first match wins:**
+  1. Fast (sold in the period, at or above the threshold);
+  2. Normal (sold in the period, below it);
+  3. Stock unknown (not sold in the period, no snapshot);
+  4. Not classified (not sold in the period, stock zero or less; left out of the movement views, FR-STK-19);
+  5. **No sale since the books began** (the SRS's "Never sold", FR-STK-12/13): stock above zero and no sale in the synced history. The synced history starts at the company's books-beginning date, so an item sold before it (for example in last year's Tally company) is here too; the response names the date;
+  6. Dead (no sale for `stock.dead_stock_days`, 180, or more);
+  7. Slow (last sale more than `stock.slow_threshold_days`, 90, and less than 180 days ago);
+  8. Normal with "no sale in selected period" (last sale within 90 days but outside a shorter period).
+  Every active item is in exactly one class.
+- **Units.** Classes never compare quantities. Quantities are shown per unit and never added across units; an item seen in more than one unit is flagged, the limitation is stated, and Data Quality lists it (FR-STK-10). Conversion to the base unit waits for gate G27.
+
 ## Speed (PERF-1.1)
 Measured at the SRS 17.2 size (100,000 vouchers, 500,000 entries, 94,000 inventory lines): see `docs/benchmarks/p8-analytics.md` and the P8 and P9 benchmark entries in `docs/progress.md`. Analytics statements are planned for their own dates (D-047). To reproduce: `make bench-data && make bench-analytics`.

@@ -77,6 +77,13 @@ def _choice(*options: str) -> Validator:
     return check
 
 
+def _period_days(value: Any) -> int:
+    """FR-STK-1: 30, 60, 90 or 180 days."""
+    if isinstance(value, bool) or value not in (30, 60, 90, 180):
+        raise ValueError("must be one of: 30, 60, 90, 180")
+    return int(value)
+
+
 def _bucket_boundaries(value: Any) -> list[int]:
     if not isinstance(value, list) or not value:
         raise ValueError("must be a non-empty list of days")
@@ -152,13 +159,12 @@ _SPECS = [
     SettingSpec("aging.bucket_boundaries", JSON, [30, 60, 90], _bucket_boundaries),
     SettingSpec("payment.window_days", INT, 365, _POSITIVE),
     SettingSpec("payment.min_settlements", INT, 3, _POSITIVE),
-    SettingSpec("stock.measurement_period_days", INT, 90, _POSITIVE),
+    SettingSpec("stock.measurement_period_days", INT, 90, _period_days),
     SettingSpec("stock.fast_percentile", INT, 75, _int(1, 99)),
     SettingSpec("stock.slow_threshold_days", INT, 90, _POSITIVE),
     SettingSpec("stock.dead_stock_days", INT, 180, _POSITIVE),
-    SettingSpec(
-        "stock.fast_ranking_basis", JSON, "quantity", _choice("quantity", "value")
-    ),  # D-016
+    # D-050 #10: warn when the newest stock snapshot is older than this many days
+    SettingSpec("stock.snapshot_stale_days", INT, 2, _POSITIVE),
     SettingSpec("reconciliation.money_absolute_tolerance", DEC, "1.00", _decimal()),
     SettingSpec("reconciliation.money_percentage_tolerance", DEC, "0.01", _decimal()),
     SettingSpec("reconciliation.quantity_absolute_tolerance", DEC, "0", _decimal()),

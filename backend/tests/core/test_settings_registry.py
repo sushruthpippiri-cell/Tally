@@ -50,8 +50,8 @@ SRS_18_2 = {
     "anomaly.max_multiplier": None,  # "Not set (rule inactive)"
     "anomaly.duplicate_window_days": 3,
 }
-ADDITIONS = {  # D-016, phase-02 P2.8
-    "stock.fast_ranking_basis": "quantity",
+ADDITIONS = {  # phase-02 P2.8; D-050 #10 (stock.fast_ranking_basis retired by FR-STK-20)
+    "stock.snapshot_stale_days": 2,
     "sync.keylist_max_missing_ratio": "0.2",
     "agent.command_lease_seconds": 300,
 }
@@ -83,7 +83,8 @@ VALID: list[tuple[str, Any, Any]] = [
     ("anomaly.max_multiplier", "5", "5"),
     ("anomaly.max_multiplier", None, None),
     ("analytics.quarter_mode", "calendar", "calendar"),
-    ("stock.fast_ranking_basis", "value", "value"),
+    ("stock.measurement_period_days", 30, 30),
+    ("stock.measurement_period_days", 180, 180),
     ("cashflow.include_journal", False, False),
     (
         "classification.sales_groups",
@@ -122,7 +123,8 @@ INVALID: list[tuple[str, Any]] = [
     ("agent.poll_interval_seconds", 0),
     ("agent.command_lease_seconds", 179),  # D-035 #11: >= 3 progress intervals
     ("analytics.quarter_mode", "fiscal"),
-    ("stock.fast_ranking_basis", "margin"),
+    ("stock.measurement_period_days", 45),  # FR-STK-1: 30/60/90/180 only
+    ("stock.snapshot_stale_days", 0),
     ("cashflow.include_journal", "false"),
     ("analytics.taxable_value_mode", 1),
     ("classification.sales_groups", []),  # non-empty
