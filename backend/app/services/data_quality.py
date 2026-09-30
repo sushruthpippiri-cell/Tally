@@ -30,14 +30,14 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.analytics import aging, blocks
+from app.analytics import aging, blocks, stock
 from app.analytics.context import AnalyticsFilter, MetricContext, load
 from app.analytics.returns import CREDIT_NOTE, DEBIT_NOTE, UNLINKED, linked_notes
 from app.core import periods
 from app.core.errors import AppError
 from app.core.gates import gate_passed
 from app.core.permissions import CompanyContext
-from app.models.balances import LedgerOpeningBalance
+from app.models.balances import LedgerOpeningBalance, StockSnapshot
 from app.models.company import Company
 from app.models.defaults import PREDEFINED_GROUPS
 from app.models.enums import (
@@ -426,8 +426,8 @@ async def _unsupported_allocations(session: AsyncSession, ctx: CompanyContext) -
     return blocks.unsupported_allocations(ctx.company_id)
 
 
-async def _aging_context(session: AsyncSession, ctx: CompanyContext) -> MetricContext:
-    """Aging as of today in the company's time zone (D-049 #4)."""
+async def _today_context(session: AsyncSession, ctx: CompanyContext) -> MetricContext:
+    """Analytics as of today in the company's time zone (D-049 #4, D-050 #2)."""
     company = await session.get(Company, ctx.company_id)
     assert company is not None
     today = periods.today(company.company_timezone)
@@ -443,7 +443,7 @@ def _both_sides(build: Callable[[str], Select[Any]]) -> Select[Any]:
 
 
 async def _over_settled_bills(session: AsyncSession, ctx: CompanyContext) -> Select[Any]:
-    mctx = await _aging_context(session, ctx)
+    mctx = await _today_context(session, ctx)
 
     def build(side: str) -> Select[Any]:
         b = aging.bills(mctx, side, [30, 60, 90]).subquery()
@@ -455,12 +455,33 @@ async def _over_settled_bills(session: AsyncSession, ctx: CompanyContext) -> Sel
 
 
 async def _unmatched_settlements(session: AsyncSession, ctx: CompanyContext) -> Select[Any]:
-    mctx = await _aging_context(session, ctx)
+    mctx = await _today_context(session, ctx)
     return _both_sides(lambda side: aging.unmatched_settlements(mctx, side))
 
 
+async def _items_without_snapshot(session: AsyncSession, ctx: CompanyContext) -> Select[Any]:
+    """D-050 #5: their stock is unknown, never zero."""
+    return (
+        select(StockItem.stock_item_id, StockItem.name)
+        .where(
+            StockItem.company_id == ctx.company_id,
+            StockItem.status == MasterStatus.ACTIVE,
+            ~exists().where(
+                StockSnapshot.company_id == ctx.company_id,
+                StockSnapshot.stock_item_id == StockItem.stock_item_id,
+            ),
+        )
+        .order_by(StockItem.name)
+    )
+
+
+async def _multi_unit_items(session: AsyncSession, ctx: CompanyContext) -> Select[Any]:
+    mctx = await _today_context(session, ctx)
+    return stock.multi_unit_items(mctx, mctx.filter.date_to).order_by("stock_item_name")
+
+
 async def _bill_reference_reused(session: AsyncSession, ctx: CompanyContext) -> Select[Any]:
-    mctx = await _aging_context(session, ctx)
+    mctx = await _today_context(session, ctx)
 
     def build(side: str) -> Select[Any]:
         b = aging.bills(mctx, side, [30, 60, 90]).subquery()
@@ -628,6 +649,24 @@ for _check in (
         "earliest, and marks it unverified until the bill-details gate (G31) shows how Tally "
         "keeps them apart.",
         _bill_reference_reused,
+    ),
+    Check(
+        "stock_items_without_snapshot",
+        "Stock items with no closing-stock snapshot",
+        "WARNING",
+        "No closing quantity has been received from Tally for these items, so their stock is "
+        'unknown (never taken as zero) and they are classed "Stock unknown" unless sold in '
+        "the period. Run a sync; the Agent reads Tally's closing stock every run.",
+        _items_without_snapshot,
+    ),
+    Check(
+        "multi_unit_items",
+        "Items sold in more than one unit",
+        "INFO",
+        "These items appear in more than one unit, and conversion to the base unit waits for "
+        "the unit gate (G27), so their quantities are shown per unit and never added together. "
+        "Their movement class uses sales value and is not affected.",
+        _multi_unit_items,
     ),
 ):
     register(_check)
