@@ -3,7 +3,7 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P12 (stock analytics) — **complete locally** 2026-09-30, CI pending. Local suite PASS ([phase-12](test-reports/phase-12.md), 1,438 tests: 1,435 passed, 3 skipped — Windows-only; 90.0% line coverage). FR-STK-20 ACCEPTED (fast-moving by sales value) and D-050 ACCEPTED with the owner's two additions ("No sale since <books_from>" label; stale-snapshot warning). Stock rules in [`docs/metrics.md`](metrics.md). FR-STK-8/9 wait for G27. Next: P13 (frontend foundation) — waits for the owner.
+P12 (stock analytics) — **complete** 2026-09-30. CI green (`check` 36712395193; `capture-kit` and `agent-windows` not triggered, last green 36539892090 / 36534423546). Local suite PASS ([phase-12](test-reports/phase-12.md), 1,438 tests: 1,435 passed, 3 skipped — Windows-only; 90.0% line coverage). FR-STK-20 ACCEPTED (fast-moving by sales value) and D-050 ACCEPTED with the owner's two additions ("No sale since <books_from>" label; stale-snapshot warning). Stock rules in [`docs/metrics.md`](metrics.md). FR-STK-8/9 wait for G27. Next: P13 (frontend foundation) — waits for the owner.
 
 P11 (aging and payment behaviour) — **complete** 2026-09-29. CI green (`check` 36539892109, `capture-kit` 36539892090; `agent-windows` not triggered, last green 36534423546). Local suite PASS ([phase-11](test-reports/phase-11.md), 1,388 tests: 1,385 passed, 3 skipped — Windows-only; 89.9% line coverage). D-049 ACCEPTED with the owner's two additions (reused bill names marked unverified and listed; payment behaviour counts receipts only). Aging rules in [`docs/metrics.md`](metrics.md). Payment behaviour stays hidden until G25 passes; G25 and G31 join the pending G-E captures (the CHECKLIST gains a reused bill name). Next: P12 (stock) — waits for the owner.
 
@@ -32,6 +32,7 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 ## Done
 | Date | Phase.Task | Commit | Notes |
 |---|---|---|---|
+| 2026-09-30 | P12 CI | 20fa690 | Green: `check` 36712395193. `capture-kit` and `agent-windows` not triggered (none of their paths changed); last green 36539892090, 36534423546. |
 | 2026-09-30 | P12 phase report | (this commit) | [phase-12](test-reports/phase-12.md): 1,435 passed, 3 skipped (Windows-only), fresh DB, `make check` PASS. |
 | 2026-09-30 | P12.5 stock API | 651f111 | `GET …/analytics/stock`: counts per class, items with snapshot date, "No sale since <books_from>", per-unit quantities, class filter (Never sold on its own, Not classified hidden unless asked), stale-snapshot warning, unit limitation, unverified gates. Days since last sale in company time at IST midnight, a month end and the FY end (90→91, 179→180). |
 | 2026-09-30 | P12.1–P12.4 classification | 2f8a41b | `app/analytics/stock.py` over `product_revenue` and snapshots; truth table incl. 89/90/91/179/180 and the period gap/overlap; percentile with 1, 2 and 4 items and ties; NUMERIC percentile equals `percentile_cont`; partition property; linked returns net the value; Data Quality: items without a snapshot, multi-unit items. |
@@ -202,7 +203,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
-| 12 | [phase-12](test-reports/phase-12.md) | PASS - 1,438 tests, 0 failed, 3 skipped (Windows-only), 90.0% coverage; CI: pending |
+| 12 | [phase-12](test-reports/phase-12.md) | PASS - 1,438 tests, 0 failed, 3 skipped (Windows-only), 90.0% coverage; CI green: check 36712395193 |
 | 11 | [phase-11](test-reports/phase-11.md) | PASS - 1,388 tests, 0 failed, 3 skipped (Windows-only), 89.9% coverage; CI green: check 36539892109, capture-kit 36539892090 |
 | 10 | [phase-10](test-reports/phase-10.md) | PASS - 1,327 tests, 0 failed, 3 skipped (Windows-only), 89.9% coverage; CI green: check 36534423550, agent-windows 36534423546, capture-kit 36534423565 |
 | 09 | [phase-09.md](test-reports/phase-09.md) | PASS - 1,252 tests, 0 failed, 3 skipped (Windows-only), 89.5% coverage; CI green: check 36460856648 |
