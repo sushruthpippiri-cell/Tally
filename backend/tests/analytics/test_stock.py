@@ -145,7 +145,7 @@ async def test_the_period_decides_the_gap_and_the_overlap(
     assert (await classes(books, t))["Soap"].movement_class == expected
 
 
-@pytest.mark.req("FR-STK-15")
+@pytest.mark.req_partial("FR-STK-15")  # Tally-computed quantity: GATE-G18 live capture
 async def test_the_latest_snapshot_on_or_before_today_is_the_stock(books: Books) -> None:
     await snap(books, "Soap", "7", days_ago=3)
     await snap(books, "Soap", "9", days_ago=1)
@@ -322,7 +322,7 @@ thresholds_st = st.builds(
 )
 
 
-@pytest.mark.req("FR-STK-7")
+@pytest.mark.req_partial("FR-STK-7")  # stored per company: tests/core (P2); used: the API tests
 @settings(
     max_examples=40, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture]
 )

@@ -10,13 +10,15 @@ from app.core.periods import Granularity
 from app.core.permissions import CompanyContext, Permission, require
 from app.schemas.aging import AgingOut, AllocationsOut, BillsOut, PaymentBehaviourOut, Side
 from app.schemas.analytics import DrilldownOut, MetricOut, RankingOut
-from app.services import aging, analytics
+from app.schemas.stock import MovementClass, StockOut
+from app.services import aging, analytics, stock
 from app.services.analytics import MetricName, RankBy, RankingKind
 
 router = APIRouter(prefix="/companies/{company_id}/analytics", tags=["analytics"])
 VIEW = Depends(require(Permission.VIEW_FINANCIALS))
 FROM = Query(None, alias="from")  # `from` is a Python keyword
 TO = Query(None, alias="to")
+CLASS = Query(None, alias="class")  # `class` is a Python keyword
 
 
 TOP_N = Query(None, ge=1, le=100)  # default: the analytics.top_n_default setting (TOPN-1.1)
@@ -89,6 +91,18 @@ async def payment_behaviour(
     ctx: CompanyContext = VIEW, session: AsyncSession = Depends(get_session)
 ) -> PaymentBehaviourOut:
     return await aging.payment_behaviour(session, ctx)
+
+
+@router.get("/stock", summary="Stock movement classes (SRS 11)")
+async def stock_movement(
+    period_days: int | None = None,  # 30, 60, 90 or 180 (FR-STK-1)
+    movement_class: MovementClass | None = CLASS,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500),
+    ctx: CompanyContext = VIEW,
+    session: AsyncSession = Depends(get_session),
+) -> StockOut:
+    return await stock.view(session, ctx, period_days, movement_class, page, page_size)
 
 
 @router.get("/{metric}")
