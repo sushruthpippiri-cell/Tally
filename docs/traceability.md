@@ -5,9 +5,9 @@ a test marked `@pytest.mark.req` fully proves it; `@pytest.mark.req_partial` tes
 listed separately and never count as covered (CLAUDE.md).
 
 - Requirement IDs in the SRS: **356**
-- Fully covered by at least one test: **173**
+- Fully covered by at least one test: **190**
 - Partially covered only: **59**
-- Not covered yet: **124**
+- Not covered yet: **107**
 
 ## Covered
 
@@ -124,6 +124,20 @@ listed separately and never count as covered (CLAUDE.md).
 | FR-PAY-4 | backend/tests/api/test_payment_behaviour.py::test_only_receipts_count_and_the_rest_is_listed |
 | FR-PAY-5 | backend/tests/api/test_payment_behaviour.py::test_fewer_than_three_settlements_is_insufficient_history |
 | FR-PAY-6 | backend/tests/api/test_payment_behaviour.py::test_hidden_until_the_allocation_type_gate_passes |
+| FR-STK-1 | backend/tests/analytics/test_stock.py::test_the_period_decides_the_gap_and_the_overlap<br>backend/tests/api/test_stock_api.py::test_the_period_can_be_chosen_per_request |
+| FR-STK-2 | backend/tests/analytics/test_stock.py::test_the_percentile_threshold |
+| FR-STK-3 | backend/tests/analytics/test_stock.py::test_the_truth_table |
+| FR-STK-4 | backend/tests/analytics/test_stock.py::test_the_truth_table |
+| FR-STK-5 | backend/tests/analytics/test_stock.py::test_the_truth_table |
+| FR-STK-12 | backend/tests/analytics/test_stock.py::test_the_truth_table |
+| FR-STK-19 | backend/tests/analytics/test_stock.py::test_the_truth_table |
+| FR-STK-6 | backend/tests/analytics/test_stock.py::test_cancelled_sales_never_count_and_linked_returns_net_the_value |
+| FR-STK-13 | backend/tests/analytics/test_stock.py::test_the_truth_table |
+| FR-STK-14 | backend/tests/api/test_stock_api.py::test_counts_classes_labels_and_filters |
+| FR-STK-20 | backend/tests/analytics/test_stock.py::test_the_percentile_threshold |
+| FR-STK-10 | backend/tests/api/test_stock_api.py::test_the_unit_limitation_is_stated_and_quantities_are_per_unit |
+| FR-STK-16 | backend/tests/analytics/test_stock.py::test_a_snapshot_of_40_and_no_sale_for_200_days_is_dead_with_its_date<br>backend/tests/api/test_stock_api.py::test_counts_classes_labels_and_filters |
+| FR-STK-17 | backend/tests/api/test_stock_api.py::test_counts_classes_labels_and_filters |
 | RBAC-1.1 | backend/tests/api/test_route_access.py::test_user_of_another_company_gets_403_and_no_data<br>backend/tests/api/test_route_access.py::test_each_role_gets_exactly_what_srs_14_1_allows |
 | RBAC-1.2 | backend/tests/api/test_route_access.py::test_roles_are_held_per_company |
 | SEC-1.1 | backend/tests/api/test_auth.py::test_login_issues_tokens_that_expire_within_24h |
@@ -181,6 +195,9 @@ listed separately and never count as covered (CLAUDE.md).
 | AC-49 | backend/tests/analytics/test_aging.py::test_on_account_is_its_own_line |
 | AC-50 | backend/tests/analytics/test_aging.py::test_customer_and_supplier_advances_stay_on_their_sides |
 | AC-51 | backend/tests/api/test_payment_behaviour.py::test_ac51_part_settlements_average_14_days_to_pay |
+| AC-52 | backend/tests/analytics/test_stock.py::test_stock_and_no_sale_ever_is_never_sold_not_slow_or_dead |
+| AC-53 | backend/tests/analytics/test_stock.py::test_a_snapshot_of_40_and_no_sale_for_200_days_is_dead_with_its_date |
+| AC-54 | backend/tests/analytics/test_stock.py::test_an_item_sold_in_two_units_is_flagged_and_its_quantities_kept_apart |
 | AC-59 | backend/tests/api/test_settings.py::test_accountant_gets_403_on_settings_and_user_management |
 | AC-60 | backend/tests/api/test_route_access.py::test_user_of_another_company_gets_403_and_no_data<br>backend/tests/api/test_route_access.py::test_each_role_gets_exactly_what_srs_14_1_allows |
 | AC-62 | backend/tests/api/test_analytics.py::test_daily_grouping_and_today_follow_the_company_time_zone |
@@ -225,8 +242,8 @@ listed separately and never count as covered (CLAUDE.md).
 | REC-1.1 | backend/tests/core/test_periods.py::test_reconciliation_periods_are_this_years_months_the_year_to_date_and_last_year<br>backend/tests/reconciliation/test_compare.py::test_sales_credits_are_raw_credits_on_sales_ledgers_in_every_period |
 | AGE-BILL-5 | backend/tests/sync/test_bill_types.py::test_each_allocation_type_is_stored_and_an_unknown_one_is_listed |
 | FR-PAY-2 | backend/tests/api/test_payment_behaviour.py::test_ac51_part_settlements_average_14_days_to_pay |
-| FR-STK-10 | backend/tests/analytics/test_ranking.py::test_quantities_are_ranked_per_unit_and_multi_unit_items_are_flagged |
-| FR-STK-15 | backend/tests/sync/test_snapshots.py::test_snapshots_are_stored_and_a_resend_replaces_them |
+| FR-STK-7 | backend/tests/analytics/test_stock.py::test_every_item_is_in_exactly_one_class_for_any_allowed_settings |
+| FR-STK-15 | backend/tests/analytics/test_stock.py::test_the_latest_snapshot_on_or_before_today_is_the_stock<br>backend/tests/sync/test_snapshots.py::test_snapshots_are_stored_and_a_resend_replaces_them |
 | FR-4.1 | backend/tests/api/test_reconciliation_api.py::test_the_sync_status_carries_the_latest_reconciliation |
 | FR-4.4 | backend/tests/api/test_agent_management.py::test_agents_view_lists_status_versions_heartbeat_uptime_and_queue |
 | FR-4.5 | backend/tests/api/test_data_quality.py::test_every_check_runs_and_a_new_company_has_nothing_to_report |
@@ -238,7 +255,7 @@ listed separately and never count as covered (CLAUDE.md).
 | LOG-1.1 | backend/tests/api/test_auth.py::test_login_success_and_failure_are_audited<br>backend/tests/api/test_settings.py::test_update_stores_override_and_audits_before_after<br>backend/tests/api/test_users.py::test_roles_are_replaced_and_audited |
 | LOG-1.2 | backend/tests/core/test_audit.py::test_record_writes_every_log_1_2_field |
 | NFR-REL-2 | backend/tests/races/test_crash.py::test_killed_mid_voucher_leaves_nothing_of_that_chunk<br>backend/tests/sync/test_ingest_vouchers.py::test_a_failure_mid_voucher_leaves_it_absent_or_entirely_the_previous_version |
-| TZ-1.1 | backend/tests/api/test_aging_api.py::test_today_is_the_companys_local_date<br>backend/tests/api/test_schedules.py::test_next_fire_is_computed_in_the_company_time_zone<br>backend/tests/core/test_periods.py::test_2358_ist_belongs_to_the_local_day<br>backend/tests/core/test_periods.py::test_today_is_the_company_day_not_the_server_day |
+| TZ-1.1 | backend/tests/api/test_aging_api.py::test_today_is_the_companys_local_date<br>backend/tests/api/test_schedules.py::test_next_fire_is_computed_in_the_company_time_zone<br>backend/tests/api/test_stock_api.py::test_days_since_last_sale_use_the_companys_local_date<br>backend/tests/core/test_periods.py::test_2358_ist_belongs_to_the_local_day<br>backend/tests/core/test_periods.py::test_today_is_the_company_day_not_the_server_day |
 | TZ-1.2 | backend/tests/core/test_periods.py::test_2358_ist_belongs_to_the_local_day |
 | Q-1.1 | backend/tests/core/test_periods.py::test_financial_by_default_calendar_when_chosen |
 | TEST-1.1 | shared/tests/test_contract_fixtures.py::test_fixture_parses_to_its_expected_result |
@@ -253,7 +270,7 @@ listed separately and never count as covered (CLAUDE.md).
 
 ## Not covered yet
 
-SEC-2, SEC-2.4, AGT-5.2, AGT-5.5, AGT-4.1, AGT-4.4, AGT-6.1, AGT-6.2, VER-1.3, ACC-DATA-3, SYNC-5.1, SYNC-5.5, DR-VE-1, DR-VE-2, DR-ML-5, VAL-1.3, ACC-7.1, ACC-8.1, ACC-6, ACC-4.6, FR-STK-1, FR-STK-2, FR-STK-3, FR-STK-4, FR-STK-5, FR-STK-12, FR-STK-19, FR-STK-6, FR-STK-13, FR-STK-14, FR-STK-7, FR-STK-20, FR-STK-8, FR-STK-9, FR-STK-16, FR-STK-17, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.5, FR-3.6, FR-3.7, FR-3.8, FR-3.9, FR-4.2, FR-4.3, FR-DD-1, FR-DD-2, FR-DD-3, FR-DD-4, EXP-1.1, EXP-1.2, EXP-1.3, EXP-1.4, EXP-1.5, EXP-1.6, SEC-1.5, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, SEC-1.11, SEC-1.12, PERF-1.1, PERF-1.2, PERF-1.3, PERF-1.4, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-2.2, TEST-4.1, TEST-5.1, TEST-5.2, AC-39, AC-52, AC-53, AC-54, AC-55, AC-56, AC-57, AC-58, AC-61, AC-64, AC-65, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
+SEC-2, SEC-2.4, AGT-5.2, AGT-5.5, AGT-4.1, AGT-4.4, AGT-6.1, AGT-6.2, VER-1.3, ACC-DATA-3, SYNC-5.1, SYNC-5.5, DR-VE-1, DR-VE-2, DR-ML-5, VAL-1.3, ACC-7.1, ACC-8.1, ACC-6, ACC-4.6, FR-STK-8, FR-STK-9, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.5, FR-3.6, FR-3.7, FR-3.8, FR-3.9, FR-4.2, FR-4.3, FR-DD-1, FR-DD-2, FR-DD-3, FR-DD-4, EXP-1.1, EXP-1.2, EXP-1.3, EXP-1.4, EXP-1.5, EXP-1.6, SEC-1.5, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, SEC-1.11, SEC-1.12, PERF-1.1, PERF-1.2, PERF-1.3, PERF-1.4, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-2.2, TEST-4.1, TEST-5.1, TEST-5.2, AC-39, AC-55, AC-56, AC-57, AC-58, AC-61, AC-64, AC-65, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
 
 ## Marked in tests but not found in the SRS
 
