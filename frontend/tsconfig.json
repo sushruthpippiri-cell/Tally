@@ -12,6 +12,7 @@
     "noFallthroughCasesInSwitch": true,
     "exactOptionalPropertyTypes": false,
     "isolatedModules": true,
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]

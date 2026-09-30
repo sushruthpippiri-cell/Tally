@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type ProxyOptions } from "vite";
-import { SECURITY_HEADERS } from "./security/csp";
+import { SECURITY_HEADERS } from "./security/csp.ts";
 
 // The app calls /api/* on its own origin; the backend has no /api prefix (D-051 #4).
 const backend = process.env.BACKEND_URL ?? "http://localhost:8000";
