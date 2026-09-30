@@ -5,10 +5,12 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type ProxyOptions } from "vite";
 import { SECURITY_HEADERS } from "./security/csp.ts";
 
-// The app calls /api/* on its own origin; the backend has no /api prefix (D-051 #4).
+// The app calls /api/* on its own origin; the backend has no /api prefix (D-051 #4). The Host
+// header is kept (changeOrigin: false), as the production proxy must keep it: the refresh and
+// logout endpoints check the browser's Origin against it (CSRF, D-051 #2).
 const backend = process.env.BACKEND_URL ?? "http://localhost:8000";
 const api: Record<string, ProxyOptions> = {
-  "/api": { target: backend, changeOrigin: true, rewrite: (path) => path.replace(/^\/api/, "") },
+  "/api": { target: backend, changeOrigin: false, rewrite: (path) => path.replace(/^\/api/, "") },
 };
 
 export default defineConfig(({ mode }) => ({

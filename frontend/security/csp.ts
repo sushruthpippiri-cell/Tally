@@ -11,7 +11,8 @@ export const CSP = [
   "base-uri 'none'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "upgrade-insecure-requests",
+  // No upgrade-insecure-requests: WebKit applies it even to http://localhost (it broke Safari
+  // in development), and production is HTTPS with HSTS, where every 'self' source is https.
 ].join("; ");
 
 export const SECURITY_HEADERS: Record<string, string> = {

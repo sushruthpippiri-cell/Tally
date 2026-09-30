@@ -4415,19 +4415,6 @@
         "title": "ReconciliationTotalRecord",
         "type": "object"
       },
-      "RefreshRequest": {
-        "properties": {
-          "refresh_token": {
-            "title": "Refresh Token",
-            "type": "string"
-          }
-        },
-        "required": [
-          "refresh_token"
-        ],
-        "title": "RefreshRequest",
-        "type": "object"
-      },
       "RegisterRequest": {
         "properties": {
           "agent_name": {
@@ -5932,6 +5919,7 @@
         "type": "string"
       },
       "TokenResponse": {
+        "description": "The refresh token is never in the body: it is an HttpOnly cookie (D-051 #1).",
         "properties": {
           "access_token": {
             "title": "Access Token",
@@ -5941,10 +5929,6 @@
             "title": "Expires In",
             "type": "integer"
           },
-          "refresh_token": {
-            "title": "Refresh Token",
-            "type": "string"
-          },
           "token_type": {
             "default": "bearer",
             "title": "Token Type",
@@ -5953,7 +5937,6 @@
         },
         "required": [
           "access_token",
-          "refresh_token",
           "expires_in"
         ],
         "title": "TokenResponse",
@@ -7040,19 +7023,69 @@
         ]
       }
     },
+    "/auth/logout": {
+      "post": {
+        "operationId": "logout_auth_logout_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "tally_refresh",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tally Refresh"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/refresh": {
       "post": {
         "operationId": "refresh_auth_refresh_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RefreshRequest"
-              }
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "tally_refresh",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tally Refresh"
             }
-          },
-          "required": true
-        },
+          }
+        ],
         "responses": {
           "200": {
             "content": {

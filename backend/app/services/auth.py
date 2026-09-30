@@ -111,6 +111,20 @@ async def refresh(session: AsyncSession, refresh_token: str) -> TokenPair:
     return tokens
 
 
+async def logout(session: AsyncSession, refresh_token: str | None) -> None:
+    """D-051 #1: closes this session's refresh token; anything invalid is simply ignored."""
+    if not refresh_token:
+        return
+    try:
+        jti = uuid.UUID(str(decode_token(refresh_token, "refresh").get("jti")))
+    except (AppError, ValueError):
+        return
+    await session.execute(
+        delete(RefreshToken).where(RefreshToken.jti == jti, RefreshToken.used_at.is_(None))
+    )
+    await session.commit()
+
+
 async def _handle_possible_reuse(session: AsyncSession, jti: uuid.UUID) -> None:
     """A rotated token presented again was probably stolen: close every open session."""
     token = await session.get(RefreshToken, jti)

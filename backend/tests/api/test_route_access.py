@@ -44,7 +44,8 @@ NON_COMPANY_ROUTES: dict[tuple[str, str], Access] = {
     ("GET", "/health"): "public",  # liveness probe
     ("GET", "/health/db"): "public",  # readiness probe; reveals nothing but up/down
     ("POST", "/auth/login"): "public",  # SRS 19.2
-    ("POST", "/auth/refresh"): "public",  # authenticated by the refresh token in the body
+    ("POST", "/auth/refresh"): "public",  # authenticated by the HttpOnly refresh cookie (D-051)
+    ("POST", "/auth/logout"): "public",  # closes the session named by the refresh cookie
     ("GET", "/openapi.json"): "public",  # API schema; no data
     ("GET", "/docs"): "public",
     ("GET", "/docs/oauth2-redirect"): "public",

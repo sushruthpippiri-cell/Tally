@@ -14,10 +14,6 @@ class LoginRequest(BaseModel):
     password: str = Field(max_length=1024)
 
 
-class RefreshRequest(BaseModel):
-    refresh_token: str
-
-
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(max_length=1024)
     new_password: str
@@ -26,7 +22,8 @@ class ChangePasswordRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
+    """The refresh token is never in the body: it is an HttpOnly cookie (D-051 #1)."""
+
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
     expires_in: int  # seconds until the access token expires

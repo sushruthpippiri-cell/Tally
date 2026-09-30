@@ -44,4 +44,5 @@ deadletter.jsonl
 
 # Test-run logs, JUnit XML, e2e traces
 logs/
-dev-https/  # throwaway dev certificates (tally_tools.dev_backend)
+# throwaway dev certificates (tally_tools.dev_backend); git has no inline comments
+dev-https/

@@ -53,4 +53,9 @@ export default tseslint.config(
     },
   },
   { files: ["src/lib/integers.ts"], rules: { "no-restricted-syntax": "off" } },
+  // Tests read browser storage only to prove it stays empty.
+  {
+    files: ["**/*.test.{ts,tsx}", "e2e/**"],
+    rules: { "no-restricted-globals": "off", "no-restricted-properties": "off" },
+  },
 );

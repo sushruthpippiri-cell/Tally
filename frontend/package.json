@@ -18,7 +18,7 @@
     "gen:api": "openapi-typescript src/api/openapi.json -o src/api/schema.d.ts && prettier --write src/api/schema.d.ts",
     "gen:api:check": "openapi-typescript src/api/openapi.json | prettier --stdin-filepath src/api/schema.d.ts | diff -q - src/api/schema.d.ts",
     "e2e": "playwright test",
-    "e2e:live": "LIVE=1 playwright test --project=desktop e2e/live.spec.ts"
+    "e2e:live": "playwright test -c playwright.live.config.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",

@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     jwt_secret: SecretStr | None = None
     jwt_access_ttl_minutes: int = 30
     jwt_refresh_ttl_hours: int = 24
+    # D-051 #1: the refresh cookie is sent only to the auth endpoints, as the browser sees them
+    # (the app's /api prefix is stripped by the proxy before the backend).
+    refresh_cookie_path: str = "/api/auth"
     cors_origins: Annotated[list[str], NoDecode] = []
     # D-033 #5-6: X-Forwarded-For/-Proto are honoured only from these peers (CIDRs).
     trusted_proxies: Annotated[list[str], NoDecode] = []

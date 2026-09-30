@@ -30,6 +30,8 @@ _SECURITY_HEADERS = {
     "Referrer-Policy": "no-referrer",
 }
 HSTS = "max-age=31536000; includeSubDomains"
+API_CSP = "default-src 'none'; frame-ancestors 'none'"
+_DOCS = ("/docs", "/redoc")  # FastAPI's own pages load scripts; everything else is JSON
 
 
 def _trusted(host: str | None, proxies: list[Network]) -> bool:
@@ -113,6 +115,8 @@ def install_middleware(app: FastAPI, config: Settings) -> None:
         with bound_contextvars(request_id=request_id):
             response = await _handle(request, call_next, peer)
         response.headers.update(_SECURITY_HEADERS)
+        if not request.url.path.startswith(_DOCS):  # the API serves no pages (D-051 #4)
+            response.headers["Content-Security-Policy"] = API_CSP
         response.headers["X-Request-ID"] = request_id
         if prod:
             response.headers["Strict-Transport-Security"] = HSTS
@@ -142,6 +146,6 @@ def install_middleware(app: FastAPI, config: Settings) -> None:
         CORSMiddleware,
         allow_origins=config.cors_origins,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Tally-Request"],
         expose_headers=["X-Request-ID", "Retry-After"],
     )

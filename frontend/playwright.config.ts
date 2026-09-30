@@ -5,6 +5,7 @@ const timezoneId = "America/Los_Angeles";
 
 export default defineConfig({
   testDir: "e2e",
+  testIgnore: "live.spec.ts", // needs a real backend: npm run e2e:live
   outputDir: "../logs/e2e",
   reporter: [["list"], ["html", { outputFolder: "../logs/e2e-report", open: "never" }]],
   use: {
@@ -26,11 +27,9 @@ export default defineConfig({
       },
     },
   ],
-  webServer: process.env.LIVE
-    ? undefined
-    : {
-        command: "npm run build && npm run preview -- --port 4173 --strictPort",
-        port: 4173,
-        reuseExistingServer: !process.env.CI,
-      },
+  webServer: {
+    command: "npm run build && npm run preview -- --port 4173 --strictPort",
+    port: 4173,
+    reuseExistingServer: !process.env.CI,
+  },
 });
