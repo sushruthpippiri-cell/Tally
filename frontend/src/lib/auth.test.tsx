@@ -76,7 +76,12 @@ describe("refresh (D-051 #1-3)", () => {
     });
     const seen = refreshes(() => HttpResponse.json({ access_token: "mine", expires_in: 1800 }));
     const pending = refresh();
-    handleMessage({ type: "token", token: "from-the-other-tab", at: Date.now() + 1 });
+    handleMessage({
+      type: "token",
+      token: "from-the-other-tab",
+      mustChange: false,
+      at: Date.now() + 1,
+    });
     release();
     await expect(pending).resolves.toBe(true);
     expect(seen.calls).toHaveLength(0);

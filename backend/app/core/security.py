@@ -97,17 +97,23 @@ async def issue_refresh_token(session: AsyncSession, user_id: uuid.UUID) -> str:
 class TokenPair:
     access_token: str
     refresh_token: str
+    must_change_password: bool = False  # D-052: the UI goes straight to choosing a password
 
 
-async def issue_tokens(session: AsyncSession, user_id: uuid.UUID) -> TokenPair:
-    return TokenPair(create_access_token(user_id), await issue_refresh_token(session, user_id))
+async def issue_tokens(session: AsyncSession, user: User) -> TokenPair:
+    return TokenPair(
+        create_access_token(user.user_id),
+        await issue_refresh_token(session, user.user_id),
+        user.must_change_password,
+    )
 
 
-async def current_user(
+async def signed_in_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     session: AsyncSession = Depends(get_session),
 ) -> User:
-    """401 unless a valid access token names an active user (re-read on every request)."""
+    """401 unless a valid access token names an active user (re-read on every request). Only
+    change-password uses this directly; everything else goes through `current_user`."""
     if credentials is None:
         raise unauthenticated()
     claims = decode_token(credentials.credentials, "access")
@@ -118,4 +124,13 @@ async def current_user(
     user = (await session.execute(select(User).where(User.user_id == user_id))).scalar_one_or_none()
     if user is None or not user.is_active:
         raise unauthenticated()
+    return user
+
+
+async def current_user(user: User = Depends(signed_in_user)) -> User:
+    """`signed_in_user`, refused (403) until an initial password has been replaced (D-052)."""
+    if user.must_change_password:
+        raise AppError(
+            ErrorCode.PASSWORD_CHANGE_REQUIRED, "Choose a new password before continuing", 403
+        )
     return user

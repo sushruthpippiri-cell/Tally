@@ -214,6 +214,7 @@ The SRS defines 15 error codes (`TALLY_SERVER_DISABLED`, `TDL_NOT_LOADED`, `COMP
 | `HTTPS_REQUIRED` | Plain-HTTP request rejected in prod (400, SEC-1.3, D-033 #6) | P2 |
 | `CHUNK_FAILED` | An upload chunk that could not be written; it holds the watermark (D-040 #5) | P5 |
 | `AGENT_LOST` | A sync run closed because its command's lease lapsed (D-040 #3) | P5 |
+| `PASSWORD_CHANGE_REQUIRED` | Signed in with an initial password an Owner chose; only change-password is allowed (403, D-052) | P13 |
 
 
 ### D-031 Phase 1 schema choices not covered by the SRS — ACCEPTED (product owner, 2026-09-23)
@@ -490,3 +491,15 @@ Loading an analytics context runs `SET LOCAL plan_cache_mode = force_custom_plan
 | 7 | **Warnings are never hidden:** one `Warnings` component shows unverified gates, notes, warnings (stale snapshot, INITIAL_SYNC_INCOMPLETE, NO_ACTIVE_SCHEDULE) next to the figure, never collapsed or dismissible; an unavailable balance is never shown as ₹0 | Owner. |
 | 8 | **Safari (owner):** WebKit does not keep a `Secure` cookie on plain `http://localhost`, so the by-hand check in Safari (and Chrome) uses the HTTPS dev setup from P7 (`make dev-tls`, then `npm run dev:https`); see `frontend/README.md`. **Confirmed while implementing:** WebKit stores the cookie over plain http but does not send it back, so a reload loses the session; `npm run e2e:live` runs sign-in, reload and sign-out against a real backend in Chrome over http and WebKit over HTTPS | The session must work in both browsers the owner uses. |
 | 9 | **MSW** is a test-only dependency (component tests); Playwright mocks the API with `page.route` | No mock code in the app bundle. |
+
+### D-052 Single-use initial passwords — ACCEPTED (product owner, 2026-10-02)
+An Owner chooses a new user's initial password, so the Owner knows it, and the audit log could not tell the Owner's actions from that user's (LOG-1.1). The initial password therefore works once: to choose the user's own.
+
+| # | Rule | Why |
+|---|---|---|
+| 1 | `users.must_change_password` (migration 0009) is set when `POST /companies/{id}/users` **creates** an account. Attaching an existing account to another company (D-033 #8) leaves it alone; existing accounts and the CLI's first Owner (who chooses their own password) start with it unset | Only a password someone else chose is suspect |
+| 2 | While it is set, every user-token route except `POST /auth/change-password` answers 403 `PASSWORD_CHANGE_REQUIRED`, enforced in `current_user` (the dependency behind every company route and `/companies`); login, refresh and logout still work | Enforced by the API, not only hidden by the UI; a sweep test covers every route |
+| 3 | Login and refresh report `must_change_password`; the UI sends that session to "Choose your password" and nowhere else, also on a `PASSWORD_CHANGE_REQUIRED` from any call | A reload keeps the requirement |
+| 4 | `POST /auth/change-password` clears the flag, closes every session (as before) and now returns a new session for the caller (TokenResponse + refresh cookie; was 204) | The user stays signed in on the device where they changed it |
+| 5 | A "Change password" page is linked from the company shell and the company list for every role | SEC-1.1 for every user, not only on first sign-in |
+

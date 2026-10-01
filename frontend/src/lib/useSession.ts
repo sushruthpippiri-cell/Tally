@@ -1,8 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { refresh } from "./auth";
-import { getAccessToken, onSessionChange } from "./session";
+import { getAccessToken, getMustChangePassword, onSessionChange } from "./session";
 
-export type SessionState = "restoring" | "signed-in" | "signed-out";
+export type SessionState = "restoring" | "signed-in" | "must-change-password" | "signed-out";
 
 let restore: Promise<boolean> | null = null;
 
@@ -10,6 +10,7 @@ let restore: Promise<boolean> | null = null;
  * HttpOnly cookie (D-051 #1). */
 export function useSession(): SessionState {
   const token = useSyncExternalStore(onSessionChange, getAccessToken);
+  const mustChange = useSyncExternalStore(onSessionChange, getMustChangePassword);
   const [restored, setRestored] = useState(token !== null);
   useEffect(() => {
     if (restored) return;
@@ -22,7 +23,7 @@ export function useSession(): SessionState {
       live = false;
     };
   }, [restored]);
-  if (token !== null) return "signed-in";
+  if (token !== null) return mustChange ? "must-change-password" : "signed-in";
   return restored ? "signed-out" : "restoring";
 }
 

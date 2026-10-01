@@ -37,6 +37,9 @@ class User(Base):
     password_hash: Mapped[str]  # bcrypt
     name: Mapped[str]
     is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+    # D-052: an account an Owner created signs in once with the password the Owner chose, then
+    # must choose its own before anything else; cleared by change-password.
+    must_change_password: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     created_at: Mapped[datetime] = created_at()
 
 

@@ -2302,6 +2302,7 @@
           "INVALID_COMMAND_STATE",
           "KEY_LIST_SUSPICIOUS",
           "GATE_NOT_PASSED",
+          "PASSWORD_CHANGE_REQUIRED",
           "VALIDATION_ERROR",
           "NOT_AUTHENTICATED",
           "FORBIDDEN",
@@ -5937,6 +5938,11 @@
             "title": "Expires In",
             "type": "integer"
           },
+          "must_change_password": {
+            "default": false,
+            "title": "Must Change Password",
+            "type": "boolean"
+          },
           "token_type": {
             "default": "bearer",
             "title": "Token Type",
@@ -6953,6 +6959,7 @@
     },
     "/auth/change-password": {
       "post": {
+        "description": "Closes every session, this one included, and opens a new one for the caller.",
         "operationId": "change_password_auth_change_password_post",
         "requestBody": {
           "content": {
@@ -6965,7 +6972,14 @@
           "required": true
         },
         "responses": {
-          "204": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
             "description": "Successful Response"
           },
           "422": {

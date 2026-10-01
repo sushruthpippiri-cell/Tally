@@ -48,6 +48,7 @@ async def test_owner_creates_a_user_who_can_then_log_in(
         "/auth/login", json={"email": "new@example.com", "password": "initial-pass"}
     )
     assert login.status_code == 200
+    assert login.json()["must_change_password"] is True  # D-052
     listed = await api.get(_users(company), headers=auth_header(owner))
     assert [(u["email"], u["roles"]) for u in listed.json()] == [
         ("new@example.com", ["ACCOUNTANT"]),
@@ -80,6 +81,7 @@ async def test_existing_email_is_attached_and_its_password_kept(
     assert r.json()["roles"] == ["ADMIN"]
     ok = await api.post("/auth/login", json={"email": "shared@example.com", "password": PASSWORD})
     assert ok.status_code == 200
+    assert ok.json()["must_change_password"] is False  # D-052: their own password, unaffected
     token = {"Authorization": f"Bearer {ok.json()['access_token']}"}
     mine = await api.get("/companies", headers=token)
     assert {c["name"]: c["my_roles"] for c in mine.json()} == {
@@ -214,3 +216,53 @@ async def test_users_of_other_companies_are_not_found(
     assert r.status_code == 404
     listed = await api.get(_users(company), headers=auth_header(owner))
     assert [u["email"] for u in listed.json()] == ["owner@example.com"]
+
+
+# --- D-052: the initial password works once ------------------------------------------------
+
+
+async def _bearer(r: httpx.Response) -> dict[str, str]:
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+async def test_a_new_account_must_choose_its_own_password_first(
+    api: httpx.AsyncClient, session: AsyncSession, company: Company, owner: User
+) -> None:
+    body = {"email": "new@example.com", "name": "New", "password": "initial-pass"}
+    created = await api.post(
+        _users(company), json={**body, "roles": ["OWNER"]}, headers=auth_header(owner)
+    )
+    assert created.status_code == 201, created.text
+    first = await api.post(
+        "/auth/login", json={"email": "new@example.com", "password": "initial-pass"}
+    )
+    token = await _bearer(first)
+    # Refused everywhere (every route: test_route_access), even with every permission.
+    for path in ("/companies", _users(company)):
+        r = await api.get(path, headers=token)
+        assert (r.status_code, r.json()["code"]) == (403, "PASSWORD_CHANGE_REQUIRED")
+    # A reload keeps the requirement.
+    cookie = first.headers["set-cookie"].split(";", 1)[0]  # Secure: httpx keeps it for https only
+    again = await api.post("/auth/refresh", headers={"Cookie": cookie, "X-Tally-Request": "1"})
+    assert again.json()["must_change_password"] is True
+
+    changed = await api.post(
+        "/auth/change-password",
+        json={"current_password": "initial-pass", "new_password": "my-own-password"},
+        headers=await _bearer(again),
+    )
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["must_change_password"] is False
+    assert changed.headers["set-cookie"].startswith(
+        "tally_refresh="
+    )  # a new session; the old ones are closed
+    assert (await api.get("/companies", headers=await _bearer(changed))).status_code == 200
+    # The password the Owner chose no longer signs in.
+    stale = await api.post(
+        "/auth/login", json={"email": "new@example.com", "password": "initial-pass"}
+    )
+    assert stale.status_code == 401
+    user = (await session.execute(select(User).where(User.email == "new@example.com"))).scalar_one()
+    assert user.must_change_password is False
+    actions = [(a.action, a.user_id) for a in await _audit(session)]
+    assert ("PASSWORD_CHANGED", user.user_id) in actions

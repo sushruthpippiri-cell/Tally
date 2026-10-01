@@ -82,7 +82,13 @@ async def add_user(session: AsyncSession, ctx: CompanyContext, data: UserCreate)
     action = "USER_ATTACHED"
     if user is None:
         action = "USER_CREATED"
-        user = User(email=data.email, name=data.name, password_hash=hash_password(data.password))
+        # D-052: the Owner knows this password, so it works once, for choosing the user's own.
+        user = User(
+            email=data.email,
+            name=data.name,
+            password_hash=hash_password(data.password),
+            must_change_password=True,
+        )
         session.add(user)
         await session.flush()
     elif await _roles_in(session, ctx.company_id, user.user_id):

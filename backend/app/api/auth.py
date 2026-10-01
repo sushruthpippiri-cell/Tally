@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.errors import AppError
-from app.core.security import TokenPair, current_user, unauthenticated
+from app.core.security import TokenPair, signed_in_user, unauthenticated
 from app.models.company import User
 from app.schemas.auth import ChangePasswordRequest, LoginRequest, TokenResponse
 from app.services import auth
@@ -39,7 +39,9 @@ def _respond(response: Response, tokens: TokenPair) -> TokenResponse:
     )
     response.headers["Cache-Control"] = "no-store"
     return TokenResponse(
-        access_token=tokens.access_token, expires_in=settings.jwt_access_ttl_minutes * 60
+        access_token=tokens.access_token,
+        expires_in=settings.jwt_access_ttl_minutes * 60,
+        must_change_password=tokens.must_change_password,
     )
 
 
@@ -93,11 +95,13 @@ async def logout(
     return response
 
 
-@router.post("/change-password", status_code=204)
+@router.post("/change-password")
 async def change_password(
     body: ChangePasswordRequest,
-    user: User = Depends(current_user),
+    response: Response,
+    user: User = Depends(signed_in_user),  # the one call allowed before D-052's change
     session: AsyncSession = Depends(get_session),
-) -> Response:
-    await auth.change_password(session, user, body.current_password, body.new_password)
-    return Response(status_code=204)
+) -> TokenResponse:
+    """Closes every session, this one included, and opens a new one for the caller."""
+    tokens = await auth.change_password(session, user, body.current_password, body.new_password)
+    return _respond(response, tokens)

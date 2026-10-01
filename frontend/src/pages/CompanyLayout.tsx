@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Link, Outlet, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
+import { CHANGE_PASSWORD } from "../components/RequireAuth";
 import { Shell, type NavItem } from "../components/Shell";
 import { Loading } from "../components/ui";
 import { can, CompanyProvider, useCompany, type Company } from "../lib/company";
@@ -52,6 +53,9 @@ export function CompanyLayout() {
           <>
             <Link to="/companies" className="text-sm underline">
               Switch company
+            </Link>
+            <Link to={CHANGE_PASSWORD} className="text-sm underline">
+              Change password
             </Link>
             <SignOut />
           </>

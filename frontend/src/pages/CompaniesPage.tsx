@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate } from "react-router-dom";
 import { api, ApiError } from "../api/client";
+import { CHANGE_PASSWORD } from "../components/RequireAuth";
 import { EmptyState, Loading } from "../components/ui";
 import type { Company } from "../lib/company";
 import { messageFor } from "../lib/errorMessages";
@@ -29,7 +30,12 @@ export function CompaniesPage() {
     <main className="mx-auto max-w-xl space-y-4 p-4">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Companies</h1>
-        <SignOut />
+        <div className="flex items-center gap-3">
+          <Link to={CHANGE_PASSWORD} className="text-sm underline">
+            Change password
+          </Link>
+          <SignOut />
+        </div>
       </div>
       {companies.data.length === 0 ? (
         <EmptyState>

@@ -15,7 +15,8 @@ import { getAccessToken, setAccessToken } from "./session";
 const CSRF_HEADERS = { "X-Tally-Request": "1" };
 const LOCK = "tally-refresh";
 
-type Message = { type: "token"; token: string; at: number } | { type: "signed-out" };
+type Message =
+  { type: "token"; token: string; mustChange: boolean; at: number } | { type: "signed-out" };
 
 const channel: BroadcastChannel | null =
   typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel("tally-auth");
@@ -26,7 +27,7 @@ let inflight: Promise<boolean> | null = null;
 export function handleMessage(message: Message): void {
   if (message.type === "token") {
     receivedAt = message.at;
-    setAccessToken(message.token);
+    setAccessToken(message.token, message.mustChange);
   } else {
     setAccessToken(null);
   }
@@ -34,9 +35,10 @@ export function handleMessage(message: Message): void {
 
 if (channel) channel.onmessage = (event: MessageEvent<Message>) => handleMessage(event.data);
 
-function signedIn(token: string): void {
-  setAccessToken(token);
-  channel?.postMessage({ type: "token", token, at: Date.now() } satisfies Message);
+function signedIn({ access_token: token, must_change_password }: Schemas["TokenResponse"]): void {
+  const mustChange = must_change_password ?? false;
+  setAccessToken(token, mustChange);
+  channel?.postMessage({ type: "token", token, mustChange, at: Date.now() } satisfies Message);
 }
 
 async function exchange(): Promise<boolean> {
@@ -49,7 +51,7 @@ async function exchange(): Promise<boolean> {
     setAccessToken(null);
     return false;
   }
-  signedIn(((await response.json()) as Schemas["TokenResponse"]).access_token);
+  signedIn((await response.json()) as Schemas["TokenResponse"]);
   return true;
 }
 
@@ -75,7 +77,16 @@ export async function login(email: string, password: string): Promise<void> {
     method: "POST",
     body: { email, password },
   });
-  signedIn(body.access_token);
+  signedIn(body);
+}
+
+/** Every session closes, this tab's included; the API opens a new one for it (D-052). */
+export async function changePassword(current: string, next: string): Promise<void> {
+  const body = await api<Schemas["TokenResponse"]>("/auth/change-password", {
+    method: "POST",
+    body: { current_password: current, new_password: next },
+  });
+  signedIn(body);
 }
 
 export async function logout(): Promise<void> {

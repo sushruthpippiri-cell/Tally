@@ -27,3 +27,6 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int  # seconds until the access token expires
+    # D-052: true until the initial password an Owner chose is replaced; every other call is
+    # refused with PASSWORD_CHANGE_REQUIRED meanwhile.
+    must_change_password: bool = False

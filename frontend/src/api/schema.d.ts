@@ -217,7 +217,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Change Password */
+    /**
+     * Change Password
+     * @description Closes every session, this one included, and opens a new one for the caller.
+     */
     post: operations["change_password_auth_change_password_post"];
     delete?: never;
     options?: never;
@@ -1767,6 +1770,7 @@ export interface components {
       | "INVALID_COMMAND_STATE"
       | "KEY_LIST_SUSPICIOUS"
       | "GATE_NOT_PASSED"
+      | "PASSWORD_CHANGE_REQUIRED"
       | "VALIDATION_ERROR"
       | "NOT_AUTHENTICATED"
       | "FORBIDDEN"
@@ -3097,6 +3101,11 @@ export interface components {
       /** Expires In */
       expires_in: number;
       /**
+       * Must Change Password
+       * @default false
+       */
+      must_change_password: boolean;
+      /**
        * Token Type
        * @default bearer
        */
@@ -3650,11 +3659,13 @@ export interface operations {
     };
     responses: {
       /** @description Successful Response */
-      204: {
+      200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["TokenResponse"];
+        };
       };
       /** @description Validation Error */
       422: {

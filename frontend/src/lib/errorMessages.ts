@@ -78,6 +78,7 @@ export const MESSAGES: Record<ErrorCode, Message> = {
   FORBIDDEN: "Your role in this company does not allow this.",
   NOT_FOUND: "That was not found. It may have been removed.",
   RATE_LIMITED: "Too many requests. Please wait a moment and try again.",
+  PASSWORD_CHANGE_REQUIRED: "Choose your own password before you continue.",
   HTTPS_REQUIRED: "This service only works over a secure (https) connection.",
 };
 

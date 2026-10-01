@@ -253,6 +253,31 @@ async def test_user_routes_accept_any_signed_in_user(
     assert r.status_code not in (401, 403), r.text
 
 
+# Every route a user's token opens, except the one that ends the requirement (D-052).
+PASSWORD_GATED = [
+    e
+    for e in ENDPOINTS
+    if _access(e) not in ("public", "agent") and e[1] != "/auth/change-password"
+]
+
+
+@pytest.mark.parametrize("endpoint", PASSWORD_GATED, ids=_id)
+async def test_an_initial_password_opens_nothing_but_change_password(
+    api: httpx.AsyncClient,
+    session: AsyncSession,
+    companies: tuple[Company, Company],
+    endpoint: tuple[str, str, RouteContext],
+) -> None:
+    """D-052: enforced by the API on every route, not only hidden by the UI. OWNER holds every
+    permission, so only the password requirement can refuse."""
+    _, b = companies
+    user = await make_user(session, b, RoleName.OWNER)
+    user.must_change_password = True
+    method, path, _ = endpoint
+    r = await _call(api, method, _url(path, b.company_id), auth_header(user))
+    assert (r.status_code, r.json()["code"]) == (403, "PASSWORD_CHANGE_REQUIRED"), r.text
+
+
 @pytest.mark.req_partial("SEC-2.0a")  # every Agent route needs the bearer; long random: P3.1
 @pytest.mark.parametrize("endpoint", AGENT_ROUTES, ids=_id)
 async def test_agent_routes_take_only_a_valid_agent_credential(

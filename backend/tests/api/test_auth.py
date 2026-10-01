@@ -212,7 +212,8 @@ async def test_change_password_closes_open_sessions(
         json={"current_password": PASSWORD, "new_password": "brand-new-password"},
         headers=auth_header(user),
     )
-    assert r.status_code == 204
+    assert r.status_code == 200
+    assert _cookie(r) != refresh  # the caller's new session
     assert (await _refresh(api, refresh)).status_code == 401
     assert (await _login(api, "a@example.com")).status_code == 401
     assert (await _login(api, "a@example.com", "brand-new-password")).status_code == 200
@@ -319,7 +320,7 @@ async def test_the_refresh_token_is_an_httponly_strict_cookie_for_the_auth_path_
         f"max-age={24 * 3600}",
     }
     assert r.headers["cache-control"] == "no-store"
-    assert set(r.json()) == {"access_token", "token_type", "expires_in"}
+    assert set(r.json()) == {"access_token", "token_type", "expires_in", "must_change_password"}
     rotated = await _refresh(api, _cookie(r))
     assert _attributes(rotated) >= {"httponly", "secure", "samesite=strict", "path=/api/auth"}
     assert "refresh_token" not in rotated.json()

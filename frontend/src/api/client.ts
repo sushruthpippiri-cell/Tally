@@ -1,4 +1,4 @@
-import { getAccessToken } from "../lib/session";
+import { getAccessToken, requirePasswordChange } from "../lib/session";
 import type { ErrorCode } from "./types";
 
 /** Every error the API returns has this body: `{code, message, details}` (rule 14). */
@@ -82,7 +82,11 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   if (response.status === 401 && refresher && (await refresher())) {
     response = await send(path, options);
   }
-  if (!response.ok) throw await toError(response);
+  if (!response.ok) {
+    const error = await toError(response);
+    if (error.code === "PASSWORD_CHANGE_REQUIRED") requirePasswordChange();
+    throw error;
+  }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }

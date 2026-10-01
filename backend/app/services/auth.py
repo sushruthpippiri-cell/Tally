@@ -76,7 +76,7 @@ async def login(session: AsyncSession, email: str, password: str) -> TokenPair:
         await _audit_login(session, key, user.user_id if user else None, "FAILURE")
         raise unauthenticated(INVALID_LOGIN)
     assert user is not None
-    tokens = await issue_tokens(session, user.user_id)
+    tokens = await issue_tokens(session, user)
     await _audit_login(session, key, user.user_id, "SUCCESS")
     return tokens
 
@@ -106,7 +106,7 @@ async def refresh(session: AsyncSession, refresh_token: str) -> TokenPair:
     user = await session.get(User, user_id)
     if user is None or not user.is_active:
         raise unauthenticated()
-    tokens = await issue_tokens(session, user_id)
+    tokens = await issue_tokens(session, user)
     await session.commit()
     return tokens
 
@@ -151,7 +151,9 @@ async def revoke_refresh_tokens(session: AsyncSession, user_id: uuid.UUID) -> No
     )
 
 
-async def change_password(session: AsyncSession, user: User, current: str, new: str) -> None:
+async def change_password(session: AsyncSession, user: User, current: str, new: str) -> TokenPair:
+    """Every open session closes; the caller gets a new one (D-052: also ends a first sign-in's
+    password requirement)."""
     if not verify_password(current, user.password_hash):
         await audit.record(
             session,
@@ -165,7 +167,9 @@ async def change_password(session: AsyncSession, user: User, current: str, new: 
         await session.commit()
         raise AppError(ErrorCode.FORBIDDEN, "Current password is incorrect", 403)
     user.password_hash = hash_password(new)
+    user.must_change_password = False
     await revoke_refresh_tokens(session, user.user_id)
+    tokens = await issue_tokens(session, user)
     await audit.record(
         session,
         company_id=None,
@@ -175,3 +179,4 @@ async def change_password(session: AsyncSession, user: User, current: str, new: 
         entity_id=str(user.user_id),
     )
     await session.commit()
+    return tokens
