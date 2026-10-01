@@ -42,6 +42,19 @@ async def test_list_shows_only_my_companies_with_my_roles(
     r = await api.get("/companies", headers=auth_header(user))
     assert r.status_code == 200
     assert [(c["name"], c["my_roles"]) for c in r.json()] == [("Mine", ["ACCOUNTANT", "ADMIN"])]
+    # The union of both roles' permissions (SRS 14.1): the admin's, plus the accountant's own.
+    assert r.json()[0]["my_permissions"] == [
+        "EXPORT",
+        "MANAGE_AGENTS",
+        "MANAGE_CUSTOM_FIELDS",
+        "MANAGE_SCHEDULES",
+        "MANAGE_SETTINGS",
+        "REVIEW_ANOMALIES",
+        "RUN_SYNC",
+        "VIEW_FINANCIALS",
+        "VIEW_LOGS",
+        "VIEW_RECON_AND_DQ",
+    ]
 
 
 @pytest.mark.parametrize(

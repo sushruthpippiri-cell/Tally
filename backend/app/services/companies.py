@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import audit
-from app.core.permissions import CompanyContext
+from app.core.permissions import ROLE_PERMISSIONS, CompanyContext
 from app.models.company import Company, Role, User, UserRole
 from app.models.enums import RoleName
 from app.schemas.companies import CompanyCreate, CompanyOut, CompanyUpdate
@@ -22,6 +22,7 @@ def _out(company: Company, roles: frozenset[RoleName] | list[RoleName]) -> Compa
         is_active=company.is_active,
         tally_guid=company.tally_guid,
         my_roles=sorted(roles),
+        my_permissions=sorted({p.value for r in roles for p in ROLE_PERMISSIONS[r]}),
     )
 
 

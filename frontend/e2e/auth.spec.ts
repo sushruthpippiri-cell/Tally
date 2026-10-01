@@ -36,6 +36,9 @@ async function mockAuth(page: Page): Promise<{ refreshes: number }> {
         : { status: 401, contentType: "application/json", body: '{"code":"NOT_AUTHENTICATED"}' },
     );
   });
+  await page.route("**/api/companies", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
   await page.route("**/api/auth/logout", (route) =>
     route.fulfill({
       status: 204,

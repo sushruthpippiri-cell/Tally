@@ -55,3 +55,6 @@ class CompanyOut(BaseModel):
     is_active: bool
     tally_guid: str | None
     my_roles: list[RoleName]
+    # What those roles allow here (SRS 14.1), so the UI can hide what it cannot do; the API
+    # still enforces every permission itself (RBAC-1.1).
+    my_permissions: list[str]

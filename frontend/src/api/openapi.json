@@ -1722,6 +1722,13 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "my_permissions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "My Permissions",
+            "type": "array"
+          },
           "my_roles": {
             "items": {
               "$ref": "#/components/schemas/RoleName"
@@ -1752,7 +1759,8 @@
           "company_timezone",
           "is_active",
           "tally_guid",
-          "my_roles"
+          "my_roles",
+          "my_permissions"
         ],
         "title": "CompanyOut",
         "type": "object"

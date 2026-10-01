@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth } from "./components/RequireAuth";
-import { logout } from "./lib/auth";
+import { CompaniesPage } from "./pages/CompaniesPage";
+import { CompanyLayout, RequirePermission, SECTIONS } from "./pages/CompanyLayout";
+import { ForbiddenPage } from "./pages/ForbiddenPage";
 import { LoginPage } from "./pages/LoginPage";
 
 export function makeQueryClient(): QueryClient {
@@ -10,17 +12,9 @@ export function makeQueryClient(): QueryClient {
   });
 }
 
-function SignOut() {
-  const navigate = useNavigate();
-  return (
-    <button
-      type="button"
-      className="rounded border border-slate-300 px-3 py-1"
-      onClick={() => void logout().then(() => navigate("/login", { replace: true }))}
-    >
-      Sign out
-    </button>
-  );
+/** Until P13.6-P13.10 build them, each section shows its name. */
+function Section({ title }: { title: string }) {
+  return <h1 className="text-xl font-semibold">{title}</h1>;
 }
 
 export function AppRoutes() {
@@ -31,13 +25,32 @@ export function AppRoutes() {
         path="/companies"
         element={
           <RequireAuth>
-            <main className="p-4">
-              <h1 className="text-xl font-semibold">Companies</h1>
-              <SignOut />
-            </main>
+            <CompaniesPage />
           </RequireAuth>
         }
       />
+      <Route
+        path="/c/:companyId"
+        element={
+          <RequireAuth>
+            <CompanyLayout />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<Navigate to="home" replace />} />
+        {SECTIONS.map((s) => (
+          <Route
+            key={s.to}
+            path={`${s.to}/*`}
+            element={
+              <RequirePermission permission={s.permission}>
+                <Section title={s.label} />
+              </RequirePermission>
+            }
+          />
+        ))}
+        <Route path="forbidden" element={<ForbiddenPage />} />
+      </Route>
       <Route path="*" element={<Navigate to="/companies" replace />} />
     </Routes>
   );

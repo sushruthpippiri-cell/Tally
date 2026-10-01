@@ -1579,6 +1579,8 @@ export interface components {
       financial_year_start: string;
       /** Is Active */
       is_active: boolean;
+      /** My Permissions */
+      my_permissions: string[];
       /** My Roles */
       my_roles: components["schemas"]["RoleName"][];
       /** Name */

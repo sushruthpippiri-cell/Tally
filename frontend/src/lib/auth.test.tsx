@@ -1,8 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AppRoutes } from "../App";
+import { renderApp } from "../test/render";
 import { server, withMockApi } from "../test/server";
 import { handleMessage, login, logout, refresh } from "./auth";
 import { getAccessToken, setAccessToken } from "./session";
@@ -86,16 +85,11 @@ describe("refresh (D-051 #1-3)", () => {
 });
 
 describe("a page load", () => {
-  function app(path: string) {
-    render(
-      <MemoryRouter initialEntries={[path]}>
-        <AppRoutes />
-      </MemoryRouter>,
-    );
-  }
+  const app = (path: string) => renderApp(path, { signedIn: false });
 
   it("restores the session from the cookie", async () => {
     refreshes(() => HttpResponse.json({ access_token: "a4", expires_in: 1800 }));
+    server.use(http.get("*/api/companies", () => HttpResponse.json([])));
     app("/companies");
     expect(await screen.findByRole("heading", { name: "Companies" })).toBeInTheDocument();
   });
