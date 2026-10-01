@@ -111,10 +111,12 @@ export function ConfirmDialog({
 export function SecretOnce({
   label,
   secret,
+  note,
   onClose,
 }: {
   label: string;
   secret: string;
+  note?: ReactNode;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -131,6 +133,7 @@ export function SecretOnce({
           This is shown only once. Copy it now; it cannot be shown again.
         </p>
         <code className="mb-3 block break-all rounded bg-slate-100 p-2 text-sm">{secret}</code>
+        {note && <p className="mb-3 text-sm">{note}</p>}
         <div className="flex justify-end gap-2">
           <button
             type="button"

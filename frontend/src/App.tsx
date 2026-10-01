@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { CHANGE_PASSWORD, RequireAuth } from "./components/RequireAuth";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage";
+import { AgentsPage } from "./pages/AgentsPage";
 import { CompaniesPage } from "./pages/CompaniesPage";
 import { CompanyLayout, RequirePermission, SECTIONS } from "./pages/CompanyLayout";
 import { ForbiddenPage } from "./pages/ForbiddenPage";
@@ -13,7 +15,11 @@ export function makeQueryClient(): QueryClient {
   });
 }
 
-/** Until P13.6-P13.10 build them, each section shows its name. */
+const PAGES: Record<string, ReactNode> = {
+  agents: <AgentsPage />,
+};
+
+/** A section not built yet shows its name. */
 function Section({ title }: { title: string }) {
   return <h1 className="text-xl font-semibold">{title}</h1>;
 }
@@ -53,7 +59,7 @@ export function AppRoutes() {
             path={`${s.to}/*`}
             element={
               <RequirePermission permission={s.permission}>
-                <Section title={s.label} />
+                {PAGES[s.to] ?? <Section title={s.label} />}
               </RequirePermission>
             }
           />
