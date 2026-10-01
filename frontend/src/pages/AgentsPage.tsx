@@ -3,7 +3,7 @@ import type { Schemas } from "../api/types";
 import { Badge, ConfirmDialog, EmptyState, SecretOnce, TimeText } from "../components/ui";
 import { Warnings } from "../components/Warnings";
 import { can, useCompany } from "../lib/company";
-import { MESSAGES } from "../lib/errorMessages";
+import { messageForCode } from "../lib/errorMessages";
 import { toInt } from "../lib/integers";
 import { ErrorText, Loaded, useCompanyAction, useCompanyQuery } from "../lib/queries";
 
@@ -112,7 +112,7 @@ function AgentCard({ agent, manage }: { agent: Agent; manage: boolean }) {
           role="alert"
           className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
         >
-          {MESSAGES[tally] as string}
+          {messageForCode(tally)}
           {agent.tally_status_since && (
             <>
               {" "}

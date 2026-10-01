@@ -90,3 +90,9 @@ export function messageFor(error: ApiError): string {
   const message = MESSAGES[error.code];
   return typeof message === "function" ? message(error) : message;
 }
+
+/** The message for a code stored with a record or command (e.g. a failed command's error_code). */
+export function messageForCode(code: string): string {
+  const message = (MESSAGES as Partial<Record<string, Message>>)[code];
+  return typeof message === "string" ? message : code;
+}

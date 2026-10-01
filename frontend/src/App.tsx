@@ -8,6 +8,7 @@ import { CompaniesPage } from "./pages/CompaniesPage";
 import { CompanyLayout, RequirePermission, SECTIONS } from "./pages/CompanyLayout";
 import { ForbiddenPage } from "./pages/ForbiddenPage";
 import { LoginPage } from "./pages/LoginPage";
+import { SyncPage } from "./pages/SyncPage";
 
 export function makeQueryClient(): QueryClient {
   return new QueryClient({
@@ -17,6 +18,7 @@ export function makeQueryClient(): QueryClient {
 
 const PAGES: Record<string, ReactNode> = {
   agents: <AgentsPage />,
+  sync: <SyncPage />,
 };
 
 /** A section not built yet shows its name. */

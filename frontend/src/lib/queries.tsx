@@ -9,13 +9,20 @@ import { messageFor } from "./errorMessages";
  * refreshes everything shown for that company. */
 export function useCompanyQuery<T>(
   path: string,
-  options: { query?: RequestOptions["query"]; refetchInterval?: number | false } = {},
+  options: {
+    query?: RequestOptions["query"];
+    /** Milliseconds, or decided from the latest answer (e.g. stop once a command is done). */
+    poll?: (data: T | undefined) => number | false;
+    enabled?: boolean;
+  } = {},
 ): UseQueryResult<T> {
   const { company_id } = useCompany();
+  const { poll } = options;
   return useQuery({
     queryKey: [company_id, path, options.query ?? {}],
     queryFn: () => api<T>(`/companies/${company_id}${path}`, { query: options.query }),
-    refetchInterval: options.refetchInterval,
+    refetchInterval: poll ? (query) => poll(query.state.data) : false,
+    enabled: options.enabled ?? true,
   });
 }
 
