@@ -58,7 +58,7 @@ async def test_a_voucher_shows_every_part_and_its_custom_fields(
             collection_type=CollectionType.VOUCHER,
             tally_field="TA_Salesman",
             field_key="salesman",
-            data_type="STRING",
+            data_type="TEXT",
         )
     )
     await books.session.flush()
