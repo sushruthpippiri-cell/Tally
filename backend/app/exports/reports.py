@@ -182,6 +182,11 @@ async def _metric_report(
 ) -> Report:
     metric_name = MetricName(name)
     summary_metrics = _SALES_SUMMARY if name == "sales" else (metric_name,)
+    # A companion figure (EXP-1.4's other two sales lines) is a different metric with its own
+    # group_by options, so it keeps the chosen FR-4.3 filters but not this section's `by`
+    # narrowing - which is exactly how the screen shows them, each section filtering `by` to
+    # its own levels (pages/AnalyticsPages.tsx).
+    companion = Narrowing(params.narrow.customer, params.narrow.product, params.narrow.cost_centre)
     figures = [
         await analytics.metric(
             session,
@@ -193,7 +198,7 @@ async def _metric_report(
             group_by=params.group_by if m == name else None,
             include_cancelled=params.include_cancelled,
             include_missing=params.include_missing,
-            narrow=params.narrow,
+            narrow=params.narrow if m == name else companion,
         )
         for m in summary_metrics
     ]

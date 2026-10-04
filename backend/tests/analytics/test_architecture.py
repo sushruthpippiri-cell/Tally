@@ -124,7 +124,7 @@ def test_no_analytics_query_reads_amount_raw() -> None:
     assert raw_amount_reads(_app_sources()) == []
 
 
-@pytest.mark.req_partial("ACC-4.4")  # the API and exports on top of it: P8.8, P14
+@pytest.mark.req_partial("ACC-4.4")  # the API and exports: tests/api/test_exports.py
 def test_every_metric_has_one_query_path() -> None:
     sources = _app_sources()
     assert metric_module_problems(sources) == []

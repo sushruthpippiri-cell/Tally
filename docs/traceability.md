@@ -5,9 +5,9 @@ a test marked `@pytest.mark.req` fully proves it; `@pytest.mark.req_partial` tes
 listed separately and never count as covered (CLAUDE.md).
 
 - Requirement IDs in the SRS: **356**
-- Fully covered by at least one test: **190**
-- Partially covered only: **59**
-- Not covered yet: **107**
+- Fully covered by at least one test: **209**
+- Partially covered only: **55**
+- Not covered yet: **92**
 
 ## Covered
 
@@ -103,10 +103,12 @@ listed separately and never count as covered (CLAUDE.md).
 | ACC-9.2 | backend/tests/analytics/test_balances.py::test_income_and_expense_ledgers_report_the_period_movement_only |
 | ACC-9.3 | backend/tests/analytics/test_balances.py::test_cash_and_bank_position_counts_bank_od_only_when_listed |
 | ACC-9.4 | backend/tests/analytics/test_balances.py::test_receivables_and_payables_on_a_date |
-| ACC-9.6 | backend/tests/analytics/test_balances.py::test_no_opening_row_is_unavailable_never_zero_and_a_zero_opening_is_a_figure |
+| ACC-9.6 | backend/tests/analytics/test_balances.py::test_no_opening_row_is_unavailable_never_zero_and_a_zero_opening_is_a_figure<br>backend/tests/exports/test_csv.py::test_an_unavailable_balance_is_empty_never_zero<br>backend/tests/exports/test_pdf.py::test_an_unavailable_figure_reads_unavailable_not_zero |
 | TOPN-1.1 | backend/tests/api/test_rankings.py::test_top_10_of_25_customers_and_view_all |
 | TOPN-1.2 | backend/tests/analytics/test_ranking.py::test_top_n_is_the_first_n_rows_of_the_full_list |
+| TOPN-1.3 | backend/tests/exports/test_other_reports.py::test_a_ranking_export_says_top_n_or_all_and_never_totals_its_rows |
 | TOPN-1.4 | backend/tests/api/test_rankings.py::test_top_10_of_25_customers_and_view_all |
+| ACC-4.4 | backend/tests/api/test_exports.py::test_the_dashboard_the_drilldown_and_the_export_call_one_query_function |
 | ACC-4.5 | backend/tests/analytics/test_every_metric.py::test_cancelled_missing_and_unresolved_never_count |
 | FR-2.4 | backend/tests/api/test_rankings.py::test_customers_and_products_by_revenue_and_quantity |
 | REC-1.2 | backend/tests/api/test_reconciliation_api.py::test_a_run_shows_tally_local_both_differences_and_the_result |
@@ -138,12 +140,27 @@ listed separately and never count as covered (CLAUDE.md).
 | FR-STK-10 | backend/tests/api/test_stock_api.py::test_the_unit_limitation_is_stated_and_quantities_are_per_unit |
 | FR-STK-16 | backend/tests/analytics/test_stock.py::test_a_snapshot_of_40_and_no_sale_for_200_days_is_dead_with_its_date<br>backend/tests/api/test_stock_api.py::test_counts_classes_labels_and_filters |
 | FR-STK-17 | backend/tests/api/test_stock_api.py::test_counts_classes_labels_and_filters |
+| FR-4.3 | backend/tests/api/test_drilldown.py::test_filters_narrow_the_figures_they_apply_to_and_say_so_otherwise |
+| FR-DD-1 | backend/tests/api/test_drilldown.py::test_revenue_to_customer_to_vouchers_to_voucher_detail |
+| FR-DD-2 | backend/tests/api/test_drilldown.py::test_product_revenue_to_product_to_its_lines |
+| FR-DD-3 | backend/tests/api/test_drilldown.py::test_expense_category_to_ledger_to_vouchers |
+| FR-DD-4 | backend/tests/api/test_drilldown.py::test_product_difference_to_contributing_vouchers |
+| FR-DD-5 | backend/tests/exports/test_properties.py::test_an_exports_rows_always_add_up_to_its_own_summary |
+| EXP-1.1 | backend/tests/api/test_exports.py::test_a_csv_export_downloads_with_its_report_and_range_in_the_name<br>backend/tests/exports/test_csv.py::test_the_header_block_names_the_report_company_range_and_time<br>backend/tests/exports/test_csv.py::test_a_tally_name_that_looks_like_a_formula_is_defused<br>backend/tests/exports/test_metric_report.py::test_the_header_names_the_company_the_range_and_the_generation_time<br>backend/tests/exports/test_metric_report.py::test_an_active_filter_is_named_in_the_header_by_name_not_id<br>backend/tests/exports/test_money.py::test_the_shared_fixture_holds_for_python<br>backend/tests/exports/test_other_reports.py::test_an_aging_export_is_as_of_a_date_with_a_column_per_bucket<br>backend/tests/exports/test_pdf.py::test_the_pdf_carries_the_title_company_range_and_figures |
+| EXP-1.2 | backend/tests/exports/test_pdf.py::test_a_chart_is_drawn_from_the_same_series_with_every_figure_written_on_it |
+| EXP-1.3 | backend/tests/exports/test_metric_report.py::test_every_metric_exports_rows_that_add_to_its_own_summary<br>backend/tests/exports/test_other_reports.py::test_every_analytics_section_exports<br>backend/tests/exports/test_properties.py::test_an_exports_rows_always_add_up_to_its_own_summary |
+| EXP-1.4 | backend/tests/api/test_exports.py::test_a_narrowed_sales_export_still_carries_its_three_figures<br>backend/tests/exports/test_csv.py::test_a_sales_export_shows_its_three_figures_on_separate_lines<br>backend/tests/exports/test_metric_report.py::test_a_sales_export_carries_all_three_figures_and_one_difference_label |
+| EXP-1.5 | backend/tests/exports/test_metric_report.py::test_a_mapped_custom_field_is_a_column_in_the_detail_rows |
+| EXP-1.6 | backend/tests/api/test_exports.py::test_a_user_without_access_to_the_company_gets_no_file |
 | RBAC-1.1 | backend/tests/api/test_route_access.py::test_user_of_another_company_gets_403_and_no_data<br>backend/tests/api/test_route_access.py::test_each_role_gets_exactly_what_srs_14_1_allows |
 | RBAC-1.2 | backend/tests/api/test_route_access.py::test_roles_are_held_per_company |
 | SEC-1.1 | backend/tests/api/test_auth.py::test_login_issues_tokens_that_expire_within_24h |
 | SEC-1.2 | backend/tests/api/test_route_access.py::test_user_of_another_company_gets_403_and_no_data<br>backend/tests/api/test_route_access.py::test_each_role_gets_exactly_what_srs_14_1_allows |
 | SEC-1.4 | backend/tests/api/test_middleware.py::test_cors_allows_only_configured_origins |
+| SEC-1.5 | backend/tests/api/test_auth.py::test_the_cookie_endpoints_refuse_cross_site_requests |
 | SEC-1.9 | backend/tests/api/test_middleware.py::test_100_per_minute_per_ip_then_1000_per_user |
+| SEC-1.11 | backend/tests/api/test_exports.py::test_a_user_without_access_to_the_company_gets_no_file<br>backend/tests/api/test_exports.py::test_another_companys_id_in_the_path_is_refused |
+| LOG-1.1 | backend/tests/api/test_exports.py::test_an_export_is_audited_with_the_range_it_took |
 | Q-1.2 | backend/tests/core/test_periods.py::test_financial_quarters_from_1_april<br>backend/tests/core/test_periods.py::test_1_january_start_gives_calendar_quarters |
 | TEST-1.2 | shared/tests/test_contract_fixtures.py::test_every_case_the_srs_lists_has_a_fixture |
 | TEST-1.3 | shared/tests/test_contract_fixtures.py::test_fixture_parses_to_its_expected_result |
@@ -183,6 +200,7 @@ listed separately and never count as covered (CLAUDE.md).
 | AC-36 | backend/tests/analytics/test_sales.py::test_an_unlinked_credit_note_is_not_subtracted_and_is_listed |
 | AC-37 | backend/tests/analytics/test_cash_flow.py::test_receipt_payment_and_an_own_transfer |
 | AC-38 | backend/tests/reconciliation/test_compare.py::test_a_bank_ledger_opening_plus_movements_matches_tallys_closing |
+| AC-39 | backend/tests/api/test_exports.py::test_screen_drilldown_csv_and_pdf_show_the_same_figure<br>backend/tests/api/test_exports.py::test_a_sync_committing_mid_download_cannot_break_the_file<br>backend/tests/api/test_exports.py::test_under_read_committed_the_same_download_would_not_add_up |
 | AC-40 | backend/tests/api/test_reconciliation_api.py::test_a_run_shows_tally_local_both_differences_and_the_result |
 | AC-41 | backend/tests/reconciliation/test_tolerance.py::test_the_srs_worked_examples |
 | AC-42 | backend/tests/reconciliation/test_tolerance.py::test_the_srs_worked_examples |
@@ -200,6 +218,7 @@ listed separately and never count as covered (CLAUDE.md).
 | AC-54 | backend/tests/analytics/test_stock.py::test_an_item_sold_in_two_units_is_flagged_and_its_quantities_kept_apart |
 | AC-59 | backend/tests/api/test_settings.py::test_accountant_gets_403_on_settings_and_user_management |
 | AC-60 | backend/tests/api/test_route_access.py::test_user_of_another_company_gets_403_and_no_data<br>backend/tests/api/test_route_access.py::test_each_role_gets_exactly_what_srs_14_1_allows |
+| AC-61 | backend/tests/api/test_exports.py::test_a_mapped_custom_field_reaches_the_export_without_changing_a_total |
 | AC-62 | backend/tests/api/test_analytics.py::test_daily_grouping_and_today_follow_the_company_time_zone |
 | AC-63 | backend/tests/analytics/test_query.py::test_total_series_breakdown_and_drilldown_sum_the_same_rows |
 | AC-66 | shared/tests/parser/test_parser.py::test_malformed_xml_is_logged_and_never_raises<br>shared/tests/test_parser_acceptance.py::test_the_malformed_fixture_logs_an_error_and_raises_nothing |
@@ -211,7 +230,7 @@ listed separately and never count as covered (CLAUDE.md).
 | AGT-1.1 | backend/tests/api/test_heartbeat.py::test_heartbeat_records_versions_uptime_and_queue<br>agent/tests/test_agent_sync.py::test_the_heartbeat_reports_versions_tally_and_the_queue |
 | AGT-1.6 | backend/tests/api/test_command_lifecycle.py::test_sync_now_is_claimed_run_and_completed_each_state_visible |
 | AGT-2.6 | agent/tests/test_queue.py::test_a_batch_that_keeps_failing_goes_to_the_dead_letter_file_with_the_rest_of_its_collection |
-| DR-UDF-2 | shared/tests/test_udf.py::test_values_are_typed_into_custom_fields |
+| DR-UDF-2 | shared/tests/test_udf.py::test_values_are_typed_into_custom_fields<br>backend/tests/api/test_vouchers.py::test_a_voucher_shows_every_part_and_its_custom_fields |
 | DR-UDF-3 | shared/tests/test_udf.py::test_a_missing_field_is_none_and_logged_once_per_run |
 | SYNC-1.3 | backend/tests/sync/test_ingest_masters.py::test_the_company_batch_stores_books_beginning_and_refuses_another_company |
 | SYNC-6.5 | shared/tests/parser/test_parser.py::test_one_bad_record_fails_alone_and_the_rest_parse<br>backend/tests/sync/test_ingest_masters.py::test_a_failing_record_is_skipped_and_holds_the_watermark_below_it |
@@ -236,8 +255,6 @@ listed separately and never count as covered (CLAUDE.md).
 | ACC-3.4 | backend/tests/analytics/test_cash_flow.py::test_journals_count_by_default_and_can_be_switched_off |
 | ACC-9.1 | backend/tests/analytics/test_balances.py::test_a_bank_ledger_is_its_opening_plus_net_movements |
 | ACC-9.5 | backend/tests/reconciliation/test_compare.py::test_a_voucher_the_shared_filter_wrongly_drops_fails_ledger_balance_only<br>backend/tests/reconciliation/test_compare.py::test_a_bank_ledger_opening_plus_movements_matches_tallys_closing |
-| TOPN-1.3 | backend/tests/api/test_rankings.py::test_top_10_of_25_customers_and_view_all |
-| ACC-4.4 | backend/tests/analytics/test_architecture.py::test_every_metric_has_one_query_path<br>backend/tests/analytics/test_sales.py::test_every_view_of_sales_sums_to_the_same_figure<br>backend/tests/api/test_analytics.py::test_every_view_of_every_metric_agrees |
 | FR-2.1 | backend/tests/analytics/test_query.py::test_total_series_breakdown_and_drilldown_sum_the_same_rows<br>backend/tests/analytics/test_sales.py::test_every_view_of_sales_sums_to_the_same_figure |
 | REC-1.1 | backend/tests/core/test_periods.py::test_reconciliation_periods_are_this_years_months_the_year_to_date_and_last_year<br>backend/tests/reconciliation/test_compare.py::test_sales_credits_are_raw_credits_on_sales_ledgers_in_every_period |
 | AGE-BILL-5 | backend/tests/sync/test_bill_types.py::test_each_allocation_type_is_stored_and_an_unknown_one_is_listed |
@@ -247,12 +264,10 @@ listed separately and never count as covered (CLAUDE.md).
 | FR-4.1 | backend/tests/api/test_reconciliation_api.py::test_the_sync_status_carries_the_latest_reconciliation |
 | FR-4.4 | backend/tests/api/test_agent_management.py::test_agents_view_lists_status_versions_heartbeat_uptime_and_queue |
 | FR-4.5 | backend/tests/api/test_data_quality.py::test_every_check_runs_and_a_new_company_has_nothing_to_report |
-| FR-DD-5 | backend/tests/analytics/test_query.py::test_total_series_breakdown_and_drilldown_sum_the_same_rows<br>backend/tests/analytics/test_sales.py::test_every_view_of_sales_sums_to_the_same_figure<br>backend/tests/api/test_analytics.py::test_every_view_of_every_metric_agrees |
 | SEC-1.3 | backend/tests/api/test_middleware.py::test_prod_rejects_plain_http_and_sends_hsts |
 | SEC-1.13 | backend/tests/models/test_config_audit.py::test_app_role_cannot_change_audit_logs<br>backend/tests/models/test_config_audit.py::test_even_the_owner_cannot_change_audit_logs |
 | SEC-1.14 | backend/tests/test_config.py::test_prod_missing_secrets_fails_startup<br>backend/tests/test_config.py::test_prod_with_all_secrets_ok_and_incremental_off_by_default |
 | SEC-1.15 | backend/tests/test_db_roles.py::test_app_role_cannot_create_tables_but_owner_can |
-| LOG-1.1 | backend/tests/api/test_auth.py::test_login_success_and_failure_are_audited<br>backend/tests/api/test_settings.py::test_update_stores_override_and_audits_before_after<br>backend/tests/api/test_users.py::test_roles_are_replaced_and_audited |
 | LOG-1.2 | backend/tests/core/test_audit.py::test_record_writes_every_log_1_2_field |
 | NFR-REL-2 | backend/tests/races/test_crash.py::test_killed_mid_voucher_leaves_nothing_of_that_chunk<br>backend/tests/sync/test_ingest_vouchers.py::test_a_failure_mid_voucher_leaves_it_absent_or_entirely_the_previous_version |
 | TZ-1.1 | backend/tests/api/test_aging_api.py::test_today_is_the_companys_local_date<br>backend/tests/api/test_schedules.py::test_next_fire_is_computed_in_the_company_time_zone<br>backend/tests/api/test_stock_api.py::test_days_since_last_sale_use_the_companys_local_date<br>backend/tests/core/test_periods.py::test_2358_ist_belongs_to_the_local_day<br>backend/tests/core/test_periods.py::test_today_is_the_company_day_not_the_server_day |
@@ -270,10 +285,10 @@ listed separately and never count as covered (CLAUDE.md).
 
 ## Not covered yet
 
-SEC-2, SEC-2.4, AGT-5.2, AGT-5.5, AGT-4.1, AGT-4.4, AGT-6.1, AGT-6.2, VER-1.3, ACC-DATA-3, SYNC-5.1, SYNC-5.5, DR-VE-1, DR-VE-2, DR-ML-5, VAL-1.3, ACC-7.1, ACC-8.1, ACC-6, ACC-4.6, FR-STK-8, FR-STK-9, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.5, FR-3.6, FR-3.7, FR-3.8, FR-3.9, FR-4.2, FR-4.3, FR-DD-1, FR-DD-2, FR-DD-3, FR-DD-4, EXP-1.1, EXP-1.2, EXP-1.3, EXP-1.4, EXP-1.5, EXP-1.6, SEC-1.5, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, SEC-1.11, SEC-1.12, PERF-1.1, PERF-1.2, PERF-1.3, PERF-1.4, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-2.2, TEST-4.1, TEST-5.1, TEST-5.2, AC-39, AC-55, AC-56, AC-57, AC-58, AC-61, AC-64, AC-65, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
+SEC-2, SEC-2.4, AGT-5.2, AGT-5.5, AGT-4.1, AGT-4.4, AGT-6.1, AGT-6.2, VER-1.3, ACC-DATA-3, SYNC-5.1, SYNC-5.5, DR-VE-1, DR-VE-2, DR-ML-5, VAL-1.3, ACC-7.1, ACC-8.1, ACC-6, ACC-4.6, FR-STK-8, FR-STK-9, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.5, FR-3.6, FR-3.7, FR-3.8, FR-3.9, FR-4.2, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, SEC-1.12, PERF-1.1, PERF-1.2, PERF-1.3, PERF-1.4, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-2.2, TEST-4.1, TEST-5.1, TEST-5.2, AC-55, AC-56, AC-57, AC-58, AC-64, AC-65, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
 
 ## Marked in tests but not found in the SRS
 
 These are additions (see `docs/decisions.md`) or typos.
 
-SEC-2.0a, SEC-2.0b
+D-053, SEC-2.0a, SEC-2.0b

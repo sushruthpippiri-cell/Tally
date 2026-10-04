@@ -20,6 +20,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.analytics import query as analytics_query
 from app.api import exports
 from app.core import db as core_db
 from app.core.permissions import CompanyContext
@@ -457,3 +458,57 @@ async def test_a_client_that_disconnects_mid_download_releases_its_session(
         reports.PAGE = original
     # The engine's pool is back to idle: nothing is still checked out.
     assert core_db.get_engine().pool.checkedout() == 0
+
+
+@pytest.mark.req("ACC-4.4")
+async def test_the_dashboard_the_drilldown_and_the_export_call_one_query_function(
+    client: httpx.AsyncClient, committed: Factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ACC-4.4 in full: not merely that the three agree, but that each of them gets its figure
+    from the one shared query function. Everything in `app/analytics/query.py` reads a metric's
+    single `detail_query`, and an architecture guard stops anything else calling it."""
+    books, owner, _ = await _books(committed)
+    head = auth_header(owner)
+    asked: list[tuple[str, str]] = []
+    original = analytics_query.total
+
+    async def counted(session: object, ctx: object, metric: str) -> object:
+        asked.append(("total", metric))
+        return await original(session, ctx, metric)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(analytics_query, "total", counted)
+    base = f"/companies/{books.company.company_id}/analytics/sales"
+    assert (await client.get(base, params=RANGE, headers=head)).status_code == 200
+    assert (await client.get(f"{base}/drilldown", params=RANGE, headers=head)).status_code == 200
+    assert (await client.get(url(books, "sales"), params=RANGE, headers=head)).status_code == 200
+    assert (
+        await client.get(url(books, "sales"), params={**RANGE, "format": "pdf"}, headers=head)
+    ).status_code == 200
+    # Six times for sales: the dashboard figure, the drill-down's own total, and - in each of
+    # the two exports - the summary line and the total behind its paged rows. Nothing computes
+    # a figure of its own.
+    assert [m for _, m in asked if m == "sales"] == ["sales"] * 6
+    # EXP-1.4's other two sales lines come from their own metrics, through the same function.
+    assert ("total", "product_revenue") in asked
+    assert ("total", "product_difference") in asked
+
+
+@pytest.mark.req("EXP-1.4")
+async def test_a_narrowed_sales_export_still_carries_its_three_figures(
+    client: httpx.AsyncClient, committed: Factory
+) -> None:
+    """Found by the FR-DD-5 property test: a sales export narrowed by one of its own group_by
+    keys used to pass that `by` to Product-attributed Revenue too, which has no `ledger` option
+    and refused it with a 422. Each section narrows only itself, exactly as the screen does."""
+    books, owner, _ = await _books(committed)
+    ledger = books.ledgers["Sales"].ledger_id
+    r = await client.get(
+        url(books, "sales"),
+        params={**RANGE, "by": f"ledger:{ledger}", "group_by": "ledger"},
+        headers=auth_header(owner),
+    )
+    assert r.status_code == 200, r.text
+    labels = [row[0] for row in parse(r.text) if row]
+    assert "Total Sales Revenue" in labels
+    assert "Product-attributed Revenue" in labels
+    assert summary_of(r.text, "Total Sales Revenue") == Decimal("400.00")

@@ -187,7 +187,7 @@ async def test_another_companys_sales_never_count(books: Books, session: AsyncSe
     assert await sales(other) == Decimal("5")
 
 
-@pytest.mark.req_partial("ACC-4.4", "FR-DD-5", "FR-2.1")  # API/exports: P8.8, P14
+@pytest.mark.req_partial("ACC-4.4", "FR-DD-5", "FR-2.1")  # API/exports: tests/api/test_exports.py
 async def test_every_view_of_sales_sums_to_the_same_figure(books: Books, g26_passed: None) -> None:
     await _invoice_and_note(books, "INV-1")
     await sale(books, "450", "POS Invoice")
