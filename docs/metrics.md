@@ -1,4 +1,4 @@
-# Metrics (Phases 8–9)
+# Metrics (Phases 8–14)
 
 What each figure means, in plain English, and where its SQL lives. Written for the accountant reviewing the rules and for later phases building on them. The binding decisions are in `docs/decisions.md`: D-001, D-020, D-021, D-039 #5, D-044, D-045, D-046, D-047.
 
@@ -37,6 +37,12 @@ API: `GET /companies/{id}/analytics/{metric}` and `…/{metric}/drilldown`, with
 | Customer-attributed Revenue (`customer-revenue`) | Total Sales Revenue split by customer. A sale with exactly one customer ledger among its entries is that customer's; a cash sale (no customer) or a sale naming two or more customers is **Unattributed Customer Revenue**, never split by guesswork (ACC-6.1–6.3). A linked return comes off **the bucket its original sale was counted in** (D-046 #1). The rows are exactly Total Sales' rows, so customers + Unattributed always equal Total Sales (ACC-6.4) | one per sales entry, with `party_id` (NULL = Unattributed) | as sales | customer | `metrics/customer_revenue.py` → `returns.attributed` |
 | Supplier-attributed purchases (`supplier-purchases`) | The same for Purchase Value and suppliers (Sundry Creditors) (ACC-1.4) | one per purchase entry | as purchases | supplier | `metrics/supplier_purchases.py` → `returns.attributed` |
 | Product-attributed Revenue (`product-revenue`) | The inventory lines (`voucher_items.amount`) of sales vouchers, less the lines of linked credit notes (ACC-1.8, D-046 #2–3). Lines are before tax | one per inventory line, with item, quantity and unit | + sale, − return | product | `metrics/product_revenue.py` → `blocks.items` |
+
+### Filters, drill-down narrowing and the product difference (P14: D-053)
+- **Filters (FR-4.3).** `customer`, `product` and `cost_centre` narrow only the metrics whose rows carry that dimension: customer → Customer-attributed Revenue and Receivables; product → Product-attributed Revenue; cost centre → Expenses. Any other figure is not narrowed, and the response lists the filter in `filters_applied.not_applicable` (the screen says so). Total Sales Revenue is never narrowed by customer: a customer's sales are their Customer-attributed Revenue.
+- **Narrowing (`by`).** `by=<group_by option>:<key>`, repeatable, keeps only the rows of one breakdown value (`key` `none` is the NULL bucket: Unattributed, "(No cost centre)"). The metric endpoint with `by` gives the next level's breakdown; the drill-down with `by` gives the rows. Both apply in `query.detail`, so the drill-down total is the figure expanded (FR-DD-5).
+- **Product difference** (`product-difference`). Its own metric: Total Sales Revenue's rows (+) and Product-attributed Revenue's lines (−), leaving out vouchers where they cancel out. Its total is Total Sales − Product-attributed; grouped by voucher it lists the contributing vouchers (FR-DD-4). The response carries the one label (ACC-VAL-1).
+- **Drill-down pages** are ordered by date, number, voucher, ledger and then every other column, so no row repeats or goes missing between pages.
 
 ### Balances (D-039 #5, D-044 #6, D-045 #3)
 - **The rule.** A balance on date D = the ledger's opening at the start of the books (`books_from`) + every ACTIVE movement from then to D. One opening serves every later year.
