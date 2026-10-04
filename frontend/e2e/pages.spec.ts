@@ -34,7 +34,7 @@ test("company switch: the list, then the chosen company", async ({ page }) => {
   await page.goto("/companies");
   await page.getByRole("link", { name: /Gupta Stores/ }).click();
   await expect(page).toHaveURL(/\/c\/c-2\/home$/);
-  await expect(page.getByText("Gupta Stores").first()).toBeVisible();
+  await expect(page.getByText("Gupta Stores").filter({ visible: true }).first()).toBeVisible();
   await expectNoHorizontalScroll(page);
 });
 
