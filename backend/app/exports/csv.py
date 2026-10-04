@@ -68,7 +68,7 @@ async def render(report: Report) -> AsyncIterator[str]:
         # EXP-1.4: on a sales export these are three separate lines.
         yield out.row(
             _text(line.label),
-            csv_amount(line.amount),
+            _cell(line.amount, line.kind),
             line.direction or "",
             _text(line.note),
         )

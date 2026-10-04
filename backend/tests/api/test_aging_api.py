@@ -165,3 +165,24 @@ async def test_as_of_and_the_allocation_drilldown(
         ("NEW_REF", "10000.0000", "Sales"),
         ("AGST_REF", "-6000.0000", "Receipt"),
     ]
+
+
+async def test_a_side_with_no_bills_at_all_is_zero_not_an_error(
+    api: httpx.AsyncClient, books: Books, owner: User
+) -> None:
+    """GROUPING SETS emits a row per set even over no input, and SUM() of nothing is NULL, so
+    both sides of a company that has never had a bill used to fail the schema. Every figure of
+    an empty side is zero: nothing is unavailable."""
+    for side in ("receivable", "payable"):
+        body = await _get(api, owner, _url(books), side=side)
+        total = body["total"]
+        assert D(total["bucket_total"]) == D(0)
+        assert all(D(v) == D(0) for v in total["buckets"].values())
+        assert D(total["credit"]) == D(0)
+        assert D(total["unadjusted_advances"]) == D(0)
+        assert D(total["on_account"]) == D(0)
+        assert D(total["unmatched_settlements"]) == D(0)
+        assert D(total["net_exposure"]) == D(0)
+        assert body["parties"] == []
+        # The buckets are the real ones, never a NULL key from the empty grouping set.
+        assert set(total["buckets"]) == {b["key"] for b in body["bucket_order"]}

@@ -17,10 +17,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import AppError
 from app.core.periods import Granularity, now_local
 from app.core.permissions import CompanyContext
+from app.exports.money import format_quantity
 from app.exports.report import Bar, Chart, Column, Report, SummaryLine, humanize
 from app.models.company import Company
 from app.schemas.analytics import DrilldownOut, DrillRow, MetricOut
-from app.services import analytics, custom_fields, masters
+from app.services import aging, analytics, custom_fields, masters, stock
 from app.services.analytics import NO_NARROWING, MetricName, Narrowing, RankBy
 from tally_contract.enums import CollectionType
 from tally_contract.errors import ErrorCode
@@ -300,6 +301,266 @@ async def _metric_rows(
         page = await _page(session, ctx, name, params, page.page + 1)
 
 
+# --- rankings (TOPN-1.3, TOPN-1.4) -------------------------------------------------------
+
+_RANKINGS = {"customers": "Customers", "suppliers": "Suppliers", "products": "Products"}
+
+
+async def _ranking_report(
+    session: AsyncSession, ctx: CompanyContext, kind: str, params: ExportParams
+) -> Report:
+    out = await analytics.ranking(
+        session,
+        ctx,
+        kind,  # type: ignore[arg-type]
+        date_from=params.date_from,
+        date_to=params.date_to,
+        top_n=params.top_n,
+        view_all=params.view_all,
+        rank_by=params.rank_by,
+    )
+    company = await _company(session, ctx)
+    by_quantity = out.rank_by == "quantity"
+    columns = [
+        Column("rank", "Rank", "integer"),
+        Column("name", _RANKINGS[kind].rstrip("s")),
+        *(
+            [Column("quantity", "Quantity", "quantity"), Column("unit", "Unit")]
+            if by_quantity
+            else [Column("amount", "Amount", "amount")]
+        ),
+    ]
+    if by_quantity:
+        columns.append(Column("multiple_units", "Sold in more than one unit"))
+    # TOPN-1.4: the reference total and the figures shown apart, never a total of the rows.
+    summary = [
+        SummaryLine(out.reference_total.label, out.reference_total.amount),
+        *([SummaryLine(f.label, f.amount)] if (f := out.product_attributed) is not None else []),
+        *([SummaryLine(d.label, d.amount)] if (d := out.difference) is not None else []),
+        *([SummaryLine(u.label, u.amount)] if (u := out.unattributed) is not None else []),
+    ]
+    return Report(
+        title=f"{out.label} {_RANKINGS[kind]} by {out.rank_by}",
+        company_name=company.name,
+        company_timezone=out.company_timezone,
+        meta=await _meta(
+            session,
+            ctx,
+            out.company_timezone,
+            date_from=out.filters_applied.date_from,
+            date_to=out.filters_applied.date_to,
+            extra=[("Listed", out.label), ("Items in all", str(out.total_count))],
+            narrow=params.narrow,
+            not_applicable=out.filters_applied.not_applicable,
+        ),
+        summary=summary,
+        columns=columns,
+        rows=_listed([r.model_dump() for r in out.rows]),
+        total_rows=len(out.rows),
+        notes=out.notes,
+        slug=f"{kind}-by-{out.rank_by}",
+    )
+
+
+async def _listed(rows: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
+    """A report whose rows the service already returned in full."""
+    for row in rows:
+        yield row
+
+
+# --- aging (SRS 10) ----------------------------------------------------------------------
+
+
+async def _aging_report(
+    session: AsyncSession, ctx: CompanyContext, side: str, params: ExportParams
+) -> Report:
+    out = await aging.summary(session, ctx, side, params.date_to)
+    company = await _company(session, ctx)
+    total = out.total
+    columns = [
+        Column("ledger_name", "Party"),
+        *(Column(f"bucket:{b.key}", b.label, "amount") for b in out.bucket_order),
+        Column("bucket_total", "Total outstanding", "amount"),
+        Column("credit", "Credit (over-settled)", "amount"),
+        Column("unadjusted_advances", "Unadjusted advances", "amount"),
+        Column("on_account", "On-Account / Unallocated", "amount"),
+        Column("unmatched_settlements", "Unmatched settlements", "amount"),
+        Column("net_exposure", "Net exposure", "amount"),
+    ]
+    notes = list(out.unverified_gates)
+    notes += [
+        f"{n.ledger_name}: {n.note} - balance "
+        + (
+            "unavailable"
+            if n.balance.amount is None
+            else f"{n.balance.amount} {n.balance.direction}"
+        )
+        for n in out.no_bill_details
+    ]
+    return Report(
+        title=f"{side.capitalize()}s aging",
+        company_name=company.name,
+        company_timezone=out.company_timezone,
+        meta=await _meta(session, ctx, out.company_timezone, as_of=out.as_of, narrow=params.narrow),
+        summary=[
+            SummaryLine("Total outstanding", total.bucket_total),
+            SummaryLine("Credit (over-settled)", total.credit),
+            SummaryLine("Unadjusted advances", total.unadjusted_advances),
+            SummaryLine("On-Account / Unallocated", total.on_account),
+            SummaryLine("Unmatched settlements", total.unmatched_settlements),
+            SummaryLine("Net exposure", total.net_exposure),
+        ],
+        columns=columns,
+        rows=_listed([_aging_row(p) for p in out.parties]),
+        total_rows=len(out.parties),
+        notes=notes,
+        slug=f"aging-{side}",
+    )
+
+
+def _aging_row(party: Any) -> dict[str, Any]:
+    row = party.model_dump()
+    return {**row, **{f"bucket:{k}": v for k, v in party.buckets.items()}}
+
+
+# --- payment behaviour (SRS 10.4) --------------------------------------------------------
+
+
+async def _payment_report(session: AsyncSession, ctx: CompanyContext) -> Report:
+    out = await aging.payment_behaviour(session, ctx)
+    company = await _company(session, ctx)
+    tz = company.company_timezone
+    rows = [c.model_dump() for c in out.customers]
+    notes = list(out.notes) + list(out.unverified_gates)
+    if not out.available:
+        notes.insert(0, out.reason or "not available")
+    overall = out.overall
+    extra = []
+    if out.window_from and out.window_to:
+        extra.append(
+            ("Window", f"after {out.window_from.isoformat()} to {out.window_to.isoformat()}")
+        )
+    return Report(
+        title="Customer payment behaviour",
+        company_name=company.name,
+        company_timezone=tz,
+        meta=await _meta(session, ctx, tz, extra=extra),
+        summary=[
+            SummaryLine(
+                "Settlements counted",
+                None if overall is None else Decimal(overall.settlements),
+                kind="integer",
+            ),
+            SummaryLine("Settled amount", None if overall is None else overall.settled_amount),
+            SummaryLine(
+                "Average days to pay",
+                None if overall is None else overall.avg_days_to_pay,
+                note="insufficient history" if overall and overall.insufficient_history else None,
+                kind="integer",
+            ),
+            SummaryLine(
+                "Average days past due",
+                None if overall is None else overall.avg_days_past_due,
+                kind="integer",
+            ),
+        ],
+        columns=[
+            Column("ledger_name", "Customer"),
+            Column("settlements", "Settlements", "integer"),
+            Column("settled_amount", "Settled amount", "amount"),
+            Column("avg_days_to_pay", "Average days to pay", "integer"),
+            Column("avg_days_past_due", "Average days past due", "integer"),
+            Column("insufficient_history", "Insufficient history"),
+        ],
+        rows=_listed(rows),
+        total_rows=len(rows),
+        notes=notes,
+        slug="payment-behaviour",
+    )
+
+
+# --- stock (SRS 11) ----------------------------------------------------------------------
+
+
+async def _stock_report(session: AsyncSession, ctx: CompanyContext, params: ExportParams) -> Report:
+    first = await stock.view(session, ctx, params.period_days, params.movement_class, 1, PAGE)
+    company = await _company(session, ctx)
+    tz = company.company_timezone
+    extra = [
+        ("Measurement period", f"{first.period_from.isoformat()} to {first.period_to.isoformat()}"),
+        ("Snapshot dates", _snapshots(first)),
+    ]
+    if params.movement_class:
+        extra.append(("Class", params.movement_class))
+    notes = (
+        list(first.warnings)
+        + list(first.notes)
+        + list(first.limitations)
+        + list(first.unverified_gates)
+    )
+    return Report(
+        title="Stock movement",
+        company_name=company.name,
+        company_timezone=tz,
+        meta=await _meta(session, ctx, tz, as_of=first.today, extra=extra),
+        summary=[SummaryLine(c.label, Decimal(c.count), kind="integer") for c in first.classes]
+        + [
+            SummaryLine(
+                f"Fast-moving threshold (top {first.fast_percentile}% by sales value)",
+                first.fast_threshold,
+            )
+        ],
+        columns=[
+            Column("name", "Item"),
+            Column("label", "Movement"),
+            Column("note", "Note"),
+            Column("stock", "Stock", "quantity"),
+            Column("stock_unit", "Stock unit"),
+            Column("snapshot_date", "Snapshot date", "date"),
+            Column("last_sale_date", "Last sale", "date"),
+            Column("days_since_last_sale", "Days since last sale", "integer"),
+            Column("period_sales_value", "Sales value in period", "amount"),
+            Column("period_quantities", "Quantity sold in period"),
+            Column("multi_unit", "Sold in more than one unit"),
+        ],
+        rows=_stock_rows(session, ctx, params, first),
+        total_rows=first.total_items,
+        notes=notes,
+        slug="stock",
+    )
+
+
+def _snapshots(out: Any) -> str:
+    oldest, newest = out.snapshot_dates.oldest, out.snapshot_dates.newest
+    if oldest is None:
+        return "no snapshot"
+    return (
+        oldest.isoformat() if oldest == newest else f"{oldest.isoformat()} to {newest.isoformat()}"
+    )
+
+
+async def _stock_rows(
+    session: AsyncSession, ctx: CompanyContext, params: ExportParams, first: Any
+) -> AsyncIterator[dict[str, Any]]:
+    page, seen, number = first, 0, 1
+    while True:
+        for item in page.items:
+            row = item.model_dump()
+            # FR-STK-10: quantities per unit, written side by side, never added together.
+            row["period_quantities"] = "; ".join(
+                f"{format_quantity(q.quantity)} {q.unit or ''}".strip()
+                for q in item.period_quantities
+            )
+            yield row
+        seen += len(page.items)
+        if seen >= page.total_items or not page.items:
+            return
+        number += 1
+        page = await stock.view(
+            session, ctx, params.period_days, params.movement_class, number, PAGE
+        )
+
+
 # --- dispatch ----------------------------------------------------------------------------
 
 
@@ -308,4 +569,22 @@ async def build(
 ) -> Report:
     if report in _TITLES:
         return await _metric_report(session, ctx, report, params)
+    if report in _RANKINGS:
+        return await _ranking_report(session, ctx, report, params)
+    if report in ("aging-receivable", "aging-payable"):
+        return await _aging_report(session, ctx, report.removeprefix("aging-"), params)
+    if report == "payment-behaviour":
+        return await _payment_report(session, ctx)
+    if report == "stock":
+        return await _stock_report(session, ctx, params)
     raise AppError(ErrorCode.VALIDATION_ERROR, f"Unknown report: {report}", 422)
+
+
+REPORTS: tuple[str, ...] = (
+    *_TITLES,
+    *_RANKINGS,
+    "aging-receivable",
+    "aging-payable",
+    "payment-behaviour",
+    "stock",
+)

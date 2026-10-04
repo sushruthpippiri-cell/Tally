@@ -21,6 +21,7 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from sqlalchemy import (
+    ColumnElement,
     Date,
     Integer,
     Select,
@@ -165,14 +166,21 @@ async def aging(
     refs = _references(ctx, side).subquery()
     advance = case((~refs.c.is_bill & refs.c.is_advance, refs.c.advance), else_=refs.c.advance_only)
     unmatched = case((~refs.c.is_bill & ~refs.c.is_advance, refs.c.settled), else_=0)
+    # GROUPING SETS still emits one row per set when the input is empty, and SUM() over no rows
+    # is NULL - so a side with no bills at all would hand the schema a NULL where it wants a
+    # figure. These are counts of money that exist: nothing is zero.
+
+    def summed(column: Any) -> ColumnElement[Decimal]:
+        return func.coalesce(func.sum(column), 0)
+
     others = await session.execute(
         select(
             refs.c.ledger_id,
             refs.c.ledger_name,
-            func.sum(-advance),
-            func.sum(-refs.c.on_account),
-            func.sum(-unmatched),
-            func.sum(refs.c.net),
+            summed(-advance),
+            summed(-refs.c.on_account),
+            summed(-unmatched),
+            summed(refs.c.net),
         ).group_by(func.grouping_sets(tuple_(refs.c.ledger_id, refs.c.ledger_name), tuple_()))
     )
     parties: dict[Any, Party] = {}
@@ -183,6 +191,8 @@ async def aging(
         return parties[ledger_id]
 
     for ledger_id, name, bucket, amount in by_bucket.tuples():
+        if bucket is None:
+            continue  # the same empty-input artefact: every bill row has a bucket
         p = party(ledger_id, name)
         if bucket == CREDIT:
             p.credit = -amount

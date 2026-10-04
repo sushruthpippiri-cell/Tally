@@ -24,12 +24,14 @@ class Column:
 
 @dataclass(frozen=True)
 class SummaryLine:
-    """A figure of the report, as the screen shows it beside the title (EXP-1.1, EXP-1.4)."""
+    """A figure of the report, as the screen shows it beside the title (EXP-1.1, EXP-1.4).
+    `kind` is "integer" for a count (a stock class), not money."""
 
     label: str
     amount: Decimal | None
     direction: str | None = None  # "Dr" / "Cr" on a balance
     note: str | None = None  # e.g. why it is unavailable (ACC-9.6)
+    kind: CellKind = "amount"
 
 
 @dataclass(frozen=True)
