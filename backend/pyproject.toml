@@ -17,6 +17,8 @@ dependencies = [
   "pyjwt>=2.14.0",
   "bcrypt>=5.0.0",
   "apscheduler>=3.10,<4",
+  # PDF exports (P14.7). Needs pango on the host: brew install pango / libpango in Docker.
+  "weasyprint>=62",
 ]
 
 [build-system]

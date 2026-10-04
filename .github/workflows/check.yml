@@ -34,8 +34,12 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
-      - name: Install poppler (SRS transcription tests)
-        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      # poppler: the SRS transcription tests, and pdftotext/pdffonts in the export tests.
+      # Pango: WeasyPrint. No font package - the PDF's fonts are bundled (D-053 #7b).
+      - name: Install poppler and Pango
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils libpango-1.0-0 libpangoft2-1.0-0
       - name: Create roles and databases
         run: |
           for f in deploy/postgres/init/*.sh; do

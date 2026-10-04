@@ -13,6 +13,11 @@ RUN mkdir -p agent/tally_agent tools/tally_tools \
  && uv sync --frozen --no-dev --no-editable --package tally-backend
 
 FROM python:3.12-slim-bookworm AS runtime
+# WeasyPrint renders PDF exports through Pango and cairo (P14.7). No font package: the PDF's
+# fonts are bundled in the wheel (backend/app/exports/fonts/README.md, D-053 #7b).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 \
+ && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --create-home --uid 10001 tally
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=tally:tally backend/alembic /app/alembic

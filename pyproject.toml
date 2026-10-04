@@ -63,7 +63,8 @@ check_untyped_defs = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["apscheduler.*"]  # APScheduler 3.x ships no type information
+# APScheduler 3.x and WeasyPrint ship no type information.
+module = ["apscheduler.*", "weasyprint.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
