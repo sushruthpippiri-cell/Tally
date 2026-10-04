@@ -62,6 +62,10 @@ def _style(report: Report) -> str:
 @page {{
   size: A4 landscape;
   margin: 14mm 12mm 16mm 12mm;
+  /* The running header and footer are page margin boxes: they inherit from the page context,
+     not from body, so without this they fall back to whatever serif the machine happens to
+     have - and the file would not look the same in Docker as it does here. */
+  font-family: {FONT_STACK};
   @top-left {{ content: "{_css(report.company_name)}"; font-size: 8pt; color: #475569; }}
   @top-right {{ content: "{_css(report.title)}"; font-size: 8pt; color: #475569; }}
   @bottom-left {{ content: "{_css(_range(report))}"; font-size: 8pt; color: #475569; }}
@@ -70,7 +74,7 @@ def _style(report: Report) -> str:
     font-size: 8pt; color: #475569;
   }}
 }}
-body {{ font-family: {FONT_STACK}; font-size: 8.5pt; color: #0f172a; }}
+html, body {{ font-family: {FONT_STACK}; font-size: 8.5pt; color: #0f172a; }}
 h1 {{ font-size: 15pt; margin: 0 0 1mm; }}
 h2 {{ font-size: 10pt; margin: 5mm 0 1.5mm; }}
 .company {{ font-size: 10pt; margin: 0 0 3mm; color: #334155; }}

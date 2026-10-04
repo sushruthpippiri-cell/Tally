@@ -276,3 +276,37 @@ async def test_a_two_thousand_row_pdf_renders_whole_in_reasonable_time(tmp_path:
     pages = int(re.search(r"Page 1 of (\d+)", text).group(1))  # type: ignore[union-attr]
     assert pages > 1
     assert took < 30, took  # measured at ~3 s on the dev Mac; this only catches a collapse
+
+
+@pytest.mark.req("D-053")
+async def test_only_the_bundled_faces_are_ever_embedded(tmp_path: Path) -> None:
+    """Nothing may come from the machine's own fonts, or the same report would not look the same
+    here, in CI and in Docker - which is the whole reason the fonts are bundled (D-054 #5).
+
+    This caught a real one: the running header and footer are page margin boxes, which inherit
+    from the page context rather than from body, so they were being set in whatever serif the
+    machine offered.
+    """
+    data = await pdf_export.render(
+        a_report(
+            company_name=DEVANAGARI,
+            summary=[SummaryLine("Total Sales Revenue", Decimal("1234567.89"))],
+            charts=[Chart("By month", [Bar("Apr 2025", Decimal("1"))])],
+            rows=rows_of(
+                [{"voucher_date": "2025-05-02", "ledger_name": TELUGU, "amount": Decimal("1")}]
+            ),
+            total_rows=1,
+        )
+    )
+    # NotoSansTelugu-Regular.ttf is embedded as "NotoSansTelugu"; DejaVuSans-Bold keeps its
+    # weight. Compare on the file stem with any "-Regular" and the dashes dropped.
+    bundled = {
+        f.stem.replace("-Regular", "").replace("-", "")
+        for f in Path(pdf_export.FONTS).glob("*.ttf")
+    }
+    used = {
+        line.split()[0].split("+")[-1].replace("-", "")
+        for line in fonts_of(data, tmp_path).splitlines()[2:]
+        if line.strip()
+    }
+    assert used <= bundled, f"not from fonts/: {used - bundled}"
