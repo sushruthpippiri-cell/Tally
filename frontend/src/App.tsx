@@ -7,7 +7,9 @@ import { AgentsPage } from "./pages/AgentsPage";
 import { CompaniesPage } from "./pages/CompaniesPage";
 import { CompanyLayout, RequirePermission, SECTIONS } from "./pages/CompanyLayout";
 import { ForbiddenPage } from "./pages/ForbiddenPage";
+import { DataQualityPage } from "./pages/DataQualityPage";
 import { LoginPage } from "./pages/LoginPage";
+import { ReconciliationPage } from "./pages/ReconciliationPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SyncPage } from "./pages/SyncPage";
 import { UsersPage } from "./pages/UsersPage";
@@ -23,6 +25,8 @@ const PAGES: Record<string, ReactNode> = {
   sync: <SyncPage />,
   settings: <SettingsPage />,
   users: <UsersPage />,
+  "data-quality": <DataQualityPage />,
+  reconciliation: <ReconciliationPage />,
 };
 
 /** A section not built yet shows its name. */
