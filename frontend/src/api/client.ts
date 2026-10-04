@@ -23,6 +23,8 @@ export interface RequestOptions {
   body?: unknown;
   query?: Query;
   headers?: Record<string, string>;
+  /** "text" for a plain-text answer (a TDL file); JSON otherwise. */
+  as?: "text";
 }
 
 /** Tries once more after a 401, when a refresher is installed (lib/auth.ts, P13.3). */
@@ -88,5 +90,6 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     throw error;
   }
   if (response.status === 204) return undefined as T;
+  if (options.as === "text") return (await response.text()) as T;
   return (await response.json()) as T;
 }

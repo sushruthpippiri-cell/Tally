@@ -41,6 +41,19 @@ export function useCompanyAction<T, V = void>(
   });
 }
 
+/** A 422's per-field messages, by setting key or request field (both shapes the API sends). */
+export function fieldErrors(error: unknown): Record<string, string> {
+  if (!(error instanceof ApiError) || error.code !== "VALIDATION_ERROR") return {};
+  const list = (error.details as { errors?: unknown } | null)?.errors;
+  if (!Array.isArray(list)) return {};
+  const out: Record<string, string> = {};
+  for (const item of list as { key?: string; message?: string; loc?: unknown[]; msg?: string }[]) {
+    const key = item.key ?? String(item.loc?.at(-1) ?? "");
+    out[key] = item.message ?? item.msg ?? "is not valid";
+  }
+  return out;
+}
+
 export function errorText(error: unknown): string {
   return error instanceof ApiError ? messageFor(error) : "Something went wrong. Please try again.";
 }

@@ -25,7 +25,7 @@ export const SECTIONS: readonly (NavItem & { permission: string })[] = [
 export function CompanyLayout() {
   const { companyId = "" } = useParams();
   const company = useQuery({
-    queryKey: ["company", companyId],
+    queryKey: [companyId, "/"], // under the company's key, so its actions refresh it too
     queryFn: () => api<Company>(`/companies/${companyId}`),
   });
   if (company.isPending) return <Loading label="Loading the company" />;
