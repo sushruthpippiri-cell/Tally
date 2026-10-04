@@ -24,8 +24,9 @@ export interface RequestOptions {
   body?: unknown;
   query?: Query;
   headers?: Record<string, string>;
-  /** "text" for a plain-text answer (a TDL file); JSON otherwise. */
-  as?: "text";
+  /** "text" for a plain-text answer (a TDL file), "blob" for a download (a CSV or PDF
+   * export); JSON otherwise. */
+  as?: "text" | "blob";
 }
 
 /** Tries once more after a 401, when a refresher is installed (lib/auth.ts, P13.3). */
@@ -45,7 +46,9 @@ function url(path: string, query?: Query): string {
 }
 
 async function send(path: string, options: RequestOptions): Promise<Response> {
-  const headers: Record<string, string> = { Accept: "application/json", ...options.headers };
+  const accept =
+    options.as === "text" ? "text/plain" : options.as === "blob" ? "*/*" : "application/json";
+  const headers: Record<string, string> = { Accept: accept, ...options.headers };
   const token = getAccessToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
@@ -93,5 +96,6 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
   if (response.status === 204) return undefined as T;
   if (options.as === "text") return (await response.text()) as T;
+  if (options.as === "blob") return (await response.blob()) as T;
   return (await response.json()) as T;
 }

@@ -2,6 +2,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { Schemas } from "../api/types";
 import { Figure, Money } from "../components/Money";
 import { ScrollableTable } from "../components/ScrollableTable";
+import { ExportLinks } from "../components/ExportLinks";
 import { Warnings } from "../components/Warnings";
 import { Badge, DateText, EmptyState } from "../components/ui";
 import { useCompany } from "../lib/company";
@@ -36,7 +37,10 @@ export function AgingPage() {
     });
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-semibold">Aging</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">Aging</h1>
+        <ExportLinks report={`aging-${side}`} />
+      </div>
       <label className="flex flex-col text-xs">
         Side
         <select

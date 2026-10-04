@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Schemas } from "../api/types";
 import { Money } from "../components/Money";
 import { ScrollableTable } from "../components/ScrollableTable";
+import { ExportLinks } from "../components/ExportLinks";
 import { Warnings } from "../components/Warnings";
 import { DateText, EmptyState } from "../components/ui";
 import { formatQuantity } from "../lib/format";
@@ -20,7 +21,10 @@ export function StockPage() {
   });
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-semibold">Stock</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">Stock</h1>
+        <ExportLinks report="stock" extra={{ period_days: period?.toString(), class: movement }} />
+      </div>
       <Loaded query={query} label="Loading stock">
         {(s) => (
           <>
