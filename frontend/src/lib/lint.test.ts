@@ -28,11 +28,32 @@ describe("lint guards", () => {
     ]);
   });
 
-  it("allow whole-number conversion only in lib/integers.ts", async () => {
+  it("allow number conversion only in lib/integers.ts and lib/chartNumber.ts", async () => {
     const eslint = new ESLint();
-    const [result] = await eslint.lintText('export const n = Number("12");', {
-      filePath: "src/lib/integers.ts",
-    });
-    expect(result?.messages).toEqual([]);
+    const lint = async (filePath: string) =>
+      (await eslint.lintText('export const n = Number("12");', { filePath }))[0]?.messages.map(
+        (m) => m.ruleId,
+      );
+    expect(await lint("src/lib/integers.ts")).toEqual([]);
+    expect(await lint("src/lib/chartNumber.ts")).toEqual([]);
+    // nowhere else: not the chart component, not the money formatter, not a look-alike name
+    for (const other of [
+      "src/components/Chart.tsx",
+      "src/lib/format.ts",
+      "src/pages/SalesPage.tsx",
+      "src/lib/chartNumbers.ts",
+    ]) {
+      expect(await lint(other)).toEqual(["no-restricted-syntax"]);
+    }
+  });
+
+  it("allow Recharts only in components/Chart.tsx (D-053 #5)", async () => {
+    const eslint = new ESLint();
+    const source = 'import { BarChart } from "recharts";\nexport const c = BarChart;';
+    const lint = async (filePath: string) =>
+      (await eslint.lintText(source, { filePath }))[0]?.messages.map((m) => m.ruleId);
+    expect(await lint("src/components/Chart.tsx")).toEqual([]);
+    expect(await lint("src/pages/HomePage.tsx")).toEqual(["no-restricted-imports"]);
+    expect(await lint("src/components/Money.tsx")).toEqual(["no-restricted-imports"]);
   });
 });

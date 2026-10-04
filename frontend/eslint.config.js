@@ -4,8 +4,9 @@ import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
 // D-051 #5: money is a decimal string end to end and is never turned into a JavaScript number.
-// Every total shown comes from the backend. Whole numbers that are not money (a page number, a
-// batch size) go through src/lib/integers.ts, the one file exempt from this rule.
+// Every total shown comes from the backend. Two files are exempt from this rule, and only they:
+// src/lib/integers.ts (whole numbers that are not money: a page number, a batch size) and
+// src/lib/chartNumber.ts (a chart bar's size, never shown as text; D-053 #5).
 export const NO_NUMBER_CONVERSION = [
   {
     selector: "CallExpression[callee.name=/^(Number|parseFloat|parseInt)$/]",
@@ -21,6 +22,14 @@ export const NO_NUMBER_CONVERSION = [
   {
     selector: "UnaryExpression[operator='+']",
     message: "No unary +: money stays a string (D-051 #5).",
+  },
+];
+
+// D-053 #5: charts are drawn only by src/components/Chart.tsx, whose texts are the backend's.
+export const NO_CHART_LIBRARY = [
+  {
+    name: "recharts",
+    message: "Charts go through components/Chart.tsx (D-053 #5): it shows only backend figures.",
   },
 ];
 
@@ -42,6 +51,7 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "no-restricted-syntax": ["error", ...NO_NUMBER_CONVERSION],
       "no-restricted-globals": ["error", ...NO_BROWSER_STORAGE],
+      "no-restricted-imports": ["error", ...NO_CHART_LIBRARY],
       "no-restricted-properties": [
         "error",
         ...["localStorage", "sessionStorage"].map((property) => ({
@@ -52,7 +62,11 @@ export default tseslint.config(
       ],
     },
   },
-  { files: ["src/lib/integers.ts"], rules: { "no-restricted-syntax": "off" } },
+  {
+    files: ["src/lib/integers.ts", "src/lib/chartNumber.ts"],
+    rules: { "no-restricted-syntax": "off" },
+  },
+  { files: ["src/components/Chart.tsx"], rules: { "no-restricted-imports": "off" } },
   // Tests read browser storage only to prove it stays empty.
   {
     files: ["**/*.test.{ts,tsx}", "e2e/**"],
