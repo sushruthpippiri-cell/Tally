@@ -1,16 +1,62 @@
 import { Link } from "react-router-dom";
 import type { Schemas } from "../api/types";
+import { FilterBar } from "../components/FilterBar";
+import { Figure } from "../components/Money";
 import { Badge, TimeText } from "../components/ui";
 import { Warnings } from "../components/Warnings";
 import { can, useCompany } from "../lib/company";
+import { useFilters, withFilters } from "../lib/filters";
 import { Loaded, useCompanyQuery } from "../lib/queries";
 import { OVERALL_TONE } from "./ReconciliationPage";
 import { RunBadge } from "./SyncPage";
 
 const card = "space-y-2 rounded border border-slate-200 bg-white p-3";
 
-/** P13.10: last sync, reconciliation and Agent health, with every warning they carry. The full
- * home dashboard arrives in P14. */
+// FR-4.1's figures: (metric, title, the section it opens)
+const FIGURES: [string, string, string][] = [
+  ["sales", "Sales", "sales"],
+  ["cash-bank-position", "Cash and bank", "balances"],
+  ["receivables", "Receivables", "balances"],
+  ["payables", "Payables", "balances"],
+];
+
+/** One FR-4.1 figure for the chosen period: the backend's, never ₹0 for an unavailable one. */
+function FigureCard({
+  metric,
+  title,
+  section,
+}: {
+  metric: string;
+  title: string;
+  section: string;
+}) {
+  const company = useCompany();
+  const { filters } = useFilters();
+  const query = useCompanyQuery<Schemas["MetricOut"]>(`/analytics/${metric}`, {
+    query: { from: filters.from, to: filters.to },
+  });
+  return (
+    <div className={card}>
+      <h2 className="font-semibold">{title}</h2>
+      <Loaded query={query} label={`Loading ${title}`}>
+        {(m) => (
+          <p className="text-xl font-semibold">
+            <Figure figure={m.summary} />
+          </p>
+        )}
+      </Loaded>
+      <Link
+        to={`/c/${company.company_id}/${section}${withFilters({ from: filters.from, to: filters.to })}`}
+        className="text-sm underline"
+      >
+        See {title.toLowerCase()}
+      </Link>
+    </div>
+  );
+}
+
+/** FR-4.1: sales for the chosen period, cash and bank, receivables and payables, the last sync
+ * and the reconciliation status, and Agent health, with every warning they carry. */
 export function HomePage() {
   const company = useCompany();
   const tz = company.company_timezone;
@@ -20,6 +66,12 @@ export function HomePage() {
   return (
     <section className="space-y-4">
       <h1 className="text-xl font-semibold">Home</h1>
+      <FilterBar pickers={false} />
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-3">
+        {FIGURES.map(([metric, title, section]) => (
+          <FigureCard key={metric} metric={metric} title={title} section={section} />
+        ))}
+      </div>
       <div className="grid gap-3 md:grid-cols-3">
         <Loaded query={status} label="Loading sync status">
           {(s) => (

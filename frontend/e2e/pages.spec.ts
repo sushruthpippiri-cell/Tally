@@ -2,7 +2,28 @@ import { expect, test } from "@playwright/test";
 import { expectNoHorizontalScroll, watchCsp } from "./fixtures";
 import { agent, command, mockApi } from "./mockApi";
 
-const ROUTES = ["home", "sync", "agents", "reconciliation", "data-quality", "settings", "users"];
+const ROUTES = [
+  "home",
+  "sales",
+  "purchases",
+  "cash-flow",
+  "balances",
+  "aging",
+  "payment-behaviour",
+  "customers",
+  "products",
+  "expenses",
+  "unclassified",
+  "stock",
+  "analytics/sales/drilldown",
+  "vouchers/v-1",
+  "sync",
+  "agents",
+  "reconciliation",
+  "data-quality",
+  "settings",
+  "users",
+];
 
 for (const section of ROUTES) {
   test(`${section}: fits the screen with long names and wide tables, under the CSP (NFR-UI-1)`, async ({

@@ -1,19 +1,32 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { Link, Outlet, useParams } from "react-router-dom";
+import { Link, Outlet, useLocation, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
+import type { Schemas } from "../api/types";
 import { CHANGE_PASSWORD } from "../components/RequireAuth";
 import { Shell, type NavItem } from "../components/Shell";
 import { Loading } from "../components/ui";
 import { can, CompanyProvider, useCompany, type Company } from "../lib/company";
+import { readFilters, withFilters } from "../lib/filters";
 import { messageFor } from "../lib/errorMessages";
 import { ForbiddenPage } from "./ForbiddenPage";
 import { SignOut } from "./SignOut";
 
-/** FR-4.2's operational sections (the analytics sections arrive in P14), each with the
- * permission its API needs (SRS 14.1). */
+/** FR-4.2's sections, each with the permission its API needs (SRS 14.1). Payment Behaviour
+ * is listed only once its gate has passed (FR-PAY-6); Anomalies arrives in P15. */
 export const SECTIONS: readonly (NavItem & { permission: string })[] = [
   { to: "home", label: "Home", permission: "VIEW_FINANCIALS" },
+  { to: "sales", label: "Sales", permission: "VIEW_FINANCIALS" },
+  { to: "purchases", label: "Purchases", permission: "VIEW_FINANCIALS" },
+  { to: "cash-flow", label: "Cash Flow", permission: "VIEW_FINANCIALS" },
+  { to: "balances", label: "Balances", permission: "VIEW_FINANCIALS" },
+  { to: "aging", label: "Aging", permission: "VIEW_FINANCIALS" },
+  { to: "payment-behaviour", label: "Payment Behaviour", permission: "VIEW_FINANCIALS" },
+  { to: "customers", label: "Customers", permission: "VIEW_FINANCIALS" },
+  { to: "products", label: "Products", permission: "VIEW_FINANCIALS" },
+  { to: "expenses", label: "Expenses", permission: "VIEW_FINANCIALS" },
+  { to: "unclassified", label: "Unclassified Adjustments", permission: "VIEW_FINANCIALS" },
+  { to: "stock", label: "Stock", permission: "VIEW_FINANCIALS" },
   { to: "sync", label: "Sync", permission: "RUN_SYNC" },
   { to: "agents", label: "Agents", permission: "VIEW_FINANCIALS" },
   { to: "reconciliation", label: "Reconciliation", permission: "VIEW_RECON_AND_DQ" },
@@ -24,9 +37,17 @@ export const SECTIONS: readonly (NavItem & { permission: string })[] = [
 
 export function CompanyLayout() {
   const { companyId = "" } = useParams();
+  const location = useLocation();
   const company = useQuery({
     queryKey: [companyId, "/"], // under the company's key, so its actions refresh it too
     queryFn: () => api<Company>(`/companies/${companyId}`),
+  });
+  // FR-PAY-6: Payment Behaviour is listed only once its gate has passed (the page's own key)
+  const payment = useQuery({
+    queryKey: [companyId, "/analytics/payment-behaviour", {}],
+    queryFn: () =>
+      api<Schemas["PaymentBehaviourOut"]>(`/companies/${companyId}/analytics/payment-behaviour`),
+    enabled: company.isSuccess && can(company.data, "VIEW_FINANCIALS"),
   });
   if (company.isPending) return <Loading label="Loading the company" />;
   if (company.isError) {
@@ -40,10 +61,13 @@ export function CompanyLayout() {
       </p>
     );
   }
-  const nav = SECTIONS.filter((s) => can(company.data, s.permission)).map((s) => ({
-    to: `/c/${companyId}/${s.to}`,
-    label: s.label,
-  }));
+  // FR-4.3: moving between sections keeps the filters
+  const keep = withFilters(readFilters(new URLSearchParams(location.search)));
+  const nav = SECTIONS.filter(
+    (s) =>
+      can(company.data, s.permission) &&
+      (s.to !== "payment-behaviour" || payment.data?.available === true),
+  ).map((s) => ({ to: `/c/${companyId}/${s.to}${keep}`, label: s.label }));
   return (
     <CompanyProvider company={company.data}>
       <Shell

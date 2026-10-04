@@ -16,7 +16,8 @@ export class ApiError extends Error {
 
 export const API_BASE = "/api"; // same origin; the proxy strips it (D-051 #4)
 
-type Query = Record<string, string | number | boolean | null | undefined>;
+// A list is sent as the key repeated (`by=a&by=b`, D-053 #2).
+type Query = Record<string, string | number | boolean | readonly string[] | null | undefined>;
 
 export interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -36,7 +37,8 @@ export function setRefresher(fn: (() => Promise<boolean>) | null): void {
 function url(path: string, query?: Query): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query ?? {})) {
-    if (value !== null && value !== undefined) params.set(key, String(value));
+    if (Array.isArray(value)) for (const item of value) params.append(key, item);
+    else if (value !== null && value !== undefined) params.set(key, String(value));
   }
   const search = params.toString();
   return `${API_BASE}${path}${search ? `?${search}` : ""}`;
