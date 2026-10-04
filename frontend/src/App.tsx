@@ -8,6 +8,7 @@ import { CompaniesPage } from "./pages/CompaniesPage";
 import { CompanyLayout, RequirePermission, SECTIONS } from "./pages/CompanyLayout";
 import { ForbiddenPage } from "./pages/ForbiddenPage";
 import { DataQualityPage } from "./pages/DataQualityPage";
+import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { ReconciliationPage } from "./pages/ReconciliationPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -21,6 +22,7 @@ export function makeQueryClient(): QueryClient {
 }
 
 const PAGES: Record<string, ReactNode> = {
+  home: <HomePage />,
   agents: <AgentsPage />,
   sync: <SyncPage />,
   settings: <SettingsPage />,
