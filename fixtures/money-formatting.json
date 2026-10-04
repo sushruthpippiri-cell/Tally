@@ -1,0 +1,31 @@
+{
+  "_comment": "Read by backend/tests/exports/test_money.py and frontend/src/lib/format.test.ts, so app/exports/money.py and src/lib/format.ts cannot drift (D-053 #6, #7). `money` is the screen/PDF form: rounded to two places half away from zero, Indian grouping, with the rupee sign. `csv` is the Excel form: the exact decimal, trailing zeros past two places trimmed, no sign, no grouping, never rounded.",
+  "cases": [
+    { "value": "12345678.9000", "money": "₹1,23,45,678.90", "csv": "12345678.90" },
+    { "value": "100000", "money": "₹1,00,000.00", "csv": "100000.00" },
+    { "value": "1000", "money": "₹1,000.00", "csv": "1000.00" },
+    { "value": "100", "money": "₹100.00", "csv": "100.00" },
+    { "value": "99999", "money": "₹99,999.00", "csv": "99999.00" },
+    { "value": "1234567", "money": "₹12,34,567.00", "csv": "1234567.00" },
+    { "value": "1.005", "money": "₹1.01", "csv": "1.005" },
+    { "value": "-1.005", "money": "-₹1.01", "csv": "-1.005" },
+    { "value": "0.005", "money": "₹0.01", "csv": "0.005" },
+    { "value": "-0.005", "money": "-₹0.01", "csv": "-0.005" },
+    { "value": "999.995", "money": "₹1,000.00", "csv": "999.995" },
+    { "value": "123456.789", "money": "₹1,23,456.79", "csv": "123456.789" },
+    { "value": "0", "money": "₹0.00", "csv": "0.00" },
+    { "value": "-0.004", "money": "₹0.00", "csv": "-0.004" },
+    { "value": "-0.000", "money": "₹0.00", "csv": "0.00" },
+    { "value": "-1E-3", "money": "₹0.00", "csv": "-0.001" },
+    { "value": "12.3", "money": "₹12.30", "csv": "12.30" },
+    { "value": "-2500.5", "money": "-₹2,500.50", "csv": "-2500.50" },
+    { "value": "1E+2", "money": "₹100.00", "csv": "100.00" },
+    { "value": "+5", "money": "₹5.00", "csv": "5.00" },
+    { "value": "0.0000", "money": "₹0.00", "csv": "0.00" },
+    { "value": "  42  ", "money": "₹42.00", "csv": "42.00" },
+    { "value": "0.30000000000000004", "money": "₹0.30", "csv": "0.30000000000000004" },
+    { "value": "9007199254740993.00", "money": "₹9,00,71,99,25,47,40,993.00", "csv": "9007199254740993.00" },
+    { "value": "1234567890123456789012345.678", "money": "₹12,34,56,78,90,12,34,56,78,90,12,345.68", "csv": "1234567890123456789012345.678" }
+  ],
+  "refused": ["", "abc", "1.2.3", "₹100", "1,000", "1_000", "nan", "inf", "0x10", "--1", "."]
+}

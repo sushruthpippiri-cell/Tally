@@ -1,32 +1,26 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { formatDate, formatMoney, formatTimestamp } from "./format";
 
+/** The same cases backend/tests/exports/test_money.py asserts, so this function and
+ * app/exports/money.py cannot drift (D-053 #6, #7). The `csv` column is the backend's. */
+const fixture = JSON.parse(
+  readFileSync("../fixtures/money-formatting.json", "utf-8"), // Vitest runs with root = frontend/
+) as { cases: { value: string; money: string; csv: string }[]; refused: string[] };
+
 describe("formatMoney (D-051 #5: our own function, no float, no Intl)", () => {
-  it.each([
-    ["12345678.9000", "₹1,23,45,678.90"],
-    ["100000", "₹1,00,000.00"],
-    ["1.005", "₹1.01"], // a float would give 1.00
-    ["-1.005", "-₹1.01"],
-    ["999.995", "₹1,000.00"],
-    ["0", "₹0.00"],
-    ["-0.004", "₹0.00"], // never "-₹0.00"
-    ["12.3", "₹12.30"],
-    ["-2500.5", "-₹2,500.50"],
-    ["1E+2", "₹100.00"],
-    ["0.0000", "₹0.00"],
-    ["  42  ", "₹42.00"],
-    // 25 digits: far beyond a float's 15-17
-    ["1234567890123456789012345.678", "₹12,34,56,78,90,12,34,56,78,90,12,345.68"],
-  ])("%s -> %s", (value, shown) => {
-    expect(formatMoney(value)).toBe(shown);
+  it.each(fixture.cases.map((c) => [c.value, c.money]))("%s -> %s", (value, shown) => {
+    expect(formatMoney(value as string)).toBe(shown);
   });
 
-  it("never touches a float: 0.1 + 0.2 stays exact", () => {
-    expect(formatMoney("0.30000000000000004")).toBe("₹0.30");
-    expect(formatMoney("9007199254740993.00")).toBe("₹9,00,71,99,25,47,40,993.00"); // 2^53 + 1
+  it("covers the 25-digit and 2^53 + 1 cases, far beyond a float", () => {
+    const values = fixture.cases.map((c) => c.value);
+    expect(values).toContain("1234567890123456789012345.678");
+    expect(values).toContain("9007199254740993.00");
+    expect(values).toContain("0.30000000000000004");
   });
 
-  it.each(["", "abc", "1.2.3", "₹100", "1,000"])("refuses %j", (value) => {
+  it.each(fixture.refused)("refuses %j", (value) => {
     expect(() => formatMoney(value)).toThrow("not a decimal amount");
   });
 });
