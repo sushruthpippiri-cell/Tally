@@ -18,16 +18,27 @@ from app.models.enums import VoucherStatus
 from app.services.settings import get_setting
 from tally_contract.errors import ErrorCode
 
+# (a metric's group_by option, its key) narrowing the rows to one breakdown value; a None key is
+# the NULL bucket (Unattributed, "(No cost centre)") (D-053 #2)
+By = tuple[tuple[str, str | None], ...]
+CHOSEN = ("customer", "product", "cost_centre")
+
 
 @dataclass(frozen=True)
 class AnalyticsFilter:
     """FR-4.3. Standard figures count ACTIVE vouchers only; the include flags widen that on
-    request (ACC-4.5)."""
+    request (ACC-4.5). `customer`, `product` and `cost_centre` narrow only the metrics that
+    declare them (`FILTERS`); `by` narrows to one value of a breakdown (D-053 #1, #2). Both
+    are applied in `query.detail`, so every view of the figure sees the same rows."""
 
     date_from: date
     date_to: date
     include_cancelled: bool = False
     include_missing: bool = False
+    customer: uuid.UUID | None = None
+    product: uuid.UUID | None = None
+    cost_centre: uuid.UUID | None = None
+    by: By = ()
 
     def __post_init__(self) -> None:
         if self.date_from > self.date_to:
@@ -40,6 +51,11 @@ class AnalyticsFilter:
             *([VoucherStatus.CANCELLED] if self.include_cancelled else []),
             *([VoucherStatus.MISSING_IN_TALLY] if self.include_missing else []),
         ]
+
+    @property
+    def chosen(self) -> dict[str, uuid.UUID]:
+        """The FR-4.3 filters that are set, by name."""
+        return {name: v for name in CHOSEN if (v := getattr(self, name)) is not None}
 
 
 @dataclass(frozen=True)

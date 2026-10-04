@@ -14,6 +14,7 @@ from app.analytics.context import MetricContext
 
 KIND = "balance"
 GROUP_BY = {"ledger": ("ledger_id", "ledger_name")}
+FILTERS = {"customer": "ledger_id"}  # FR-4.3 (D-053 #1)
 
 
 def detail_query(ctx: MetricContext) -> Select[Any]:

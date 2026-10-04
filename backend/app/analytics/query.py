@@ -5,6 +5,7 @@ Totals, series, breakdowns and drill-downs are all built here from the metric's 
 `detail_query` (tests/analytics/test_architecture.py).
 """
 
+import uuid
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -25,7 +26,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.analytics.context import MetricContext
+from app.analytics.context import AnalyticsFilter, MetricContext
 from app.analytics.metrics import (
     cash_bank_position,
     cash_flow,
@@ -44,12 +45,16 @@ from app.analytics.metrics import (
     supplier_purchases,
     unclassified_adjustments,
 )
+from app.analytics.metrics import product_difference as difference_metric
+from app.core.errors import AppError
 from app.core.periods import Granularity, period_key
+from tally_contract.errors import ErrorCode
 
 METRICS: dict[str, ModuleType] = {
     "sales": sales,
     "customer_revenue": customer_revenue,
     "product_revenue": product_revenue,
+    "product_difference": difference_metric,
     "purchases": purchases,
     "supplier_purchases": supplier_purchases,
     "expenses": expenses,
@@ -71,7 +76,58 @@ NOT_IN_METRIC_API = frozenset(
 
 
 def detail(metric: str, ctx: MetricContext) -> Select[Any]:
-    return METRICS[metric].detail_query(ctx)  # type: ignore[no-any-return]
+    """The metric's rows, narrowed by the filter's FR-4.3 choices that apply to it and by its
+    `by` keys (D-053 #1, #2)."""
+    rows: Select[Any] = METRICS[metric].detail_query(ctx)
+    narrowing = _narrowing(metric, ctx.filter)
+    if not narrowing:
+        return rows
+    sub = rows.subquery()
+    return select(sub).where(
+        *(
+            sub.c[col].is_(None) if key is None else sub.c[col] == _typed(sub.c[col], key)
+            for col, key in narrowing
+        )
+    )
+
+
+def not_applicable(metric: str, flt: AnalyticsFilter) -> list[str]:
+    """The chosen FR-4.3 filters this metric's rows cannot be narrowed by: never applied
+    silently, the response names them (D-053 #1)."""
+    filters = getattr(METRICS[metric], "FILTERS", {})
+    return [name for name in flt.chosen if name not in filters]
+
+
+def _narrowing(metric: str, flt: AnalyticsFilter) -> list[tuple[str, Any]]:
+    module = METRICS[metric]
+    filters: dict[str, str] = getattr(module, "FILTERS", {})
+    options: dict[str, tuple[str, str]] = getattr(module, "GROUP_BY", {})
+    found: list[tuple[str, Any]] = [
+        (filters[name], value) for name, value in flt.chosen.items() if name in filters
+    ]
+    for option, key in flt.by:
+        if option not in options:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                f"by: '{option}' is not one of {sorted(options)} for this metric",
+                422,
+            )
+        found.append((options[option][0], key))
+    return found
+
+
+def _typed(column: ColumnElement[Any], key: Any) -> Any:
+    """A `by` key as its column's type: an id must be a UUID (else 422)."""
+    try:
+        kind = column.type.python_type
+    except NotImplementedError:
+        return key
+    if kind is uuid.UUID and not isinstance(key, uuid.UUID):
+        try:
+            return uuid.UUID(key)
+        except ValueError:
+            raise AppError(ErrorCode.VALIDATION_ERROR, f"'{key}' is not an id", 422) from None
+    return key
 
 
 def bucket(
@@ -168,15 +224,12 @@ async def breakdown(
 async def drilldown(
     session: AsyncSession, ctx: MetricContext, metric: str, *, offset: int = 0, limit: int = 100
 ) -> tuple[list[dict[str, Any]], int]:
-    """A page of the contributing rows (by date, voucher), and how many there are in all."""
+    """A page of the contributing rows (by date, voucher), and how many there are in all.
+    Ordered by every column after those, so tied rows never move between pages (D-053 #4)."""
     rows = detail(metric, ctx).subquery()
     count = await session.scalar(select(func.count()).select_from(rows))
-    page = await session.execute(
-        select(rows)
-        .order_by(rows.c.voucher_date, rows.c.voucher_number, rows.c.voucher_id, rows.c.ledger_name)
-        .offset(offset)
-        .limit(limit)
-    )
+    first = (rows.c.voucher_date, rows.c.voucher_number, rows.c.voucher_id, rows.c.ledger_name)
+    page = await session.execute(select(rows).order_by(*first, *rows.c).offset(offset).limit(limit))
     return [dict(r) for r in page.mappings()], int(count or 0)
 
 
@@ -203,9 +256,12 @@ async def product_difference(session: AsyncSession, ctx: MetricContext) -> Diffe
         await total(session, ctx, "sales"),
         await total(session, ctx, "product_revenue"),
     )
-    label = NON_PRODUCT_REVENUE if ctx.product_basis_verified else PRODUCT_ATTRIBUTION_DIFFERENCE
-    amount = None if sales is None or product is None else sales - product
-    return Difference(label, amount, product, sales)
+    amount = await total(session, ctx, "product_difference")  # one query path (D-053 #3)
+    return Difference(difference_label(ctx), amount, product, sales)
+
+
+def difference_label(ctx: MetricContext) -> str:
+    return NON_PRODUCT_REVENUE if ctx.product_basis_verified else PRODUCT_ATTRIBUTION_DIFFERENCE
 
 
 @dataclass(frozen=True)

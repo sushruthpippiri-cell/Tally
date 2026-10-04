@@ -9,11 +9,24 @@ note is linked and every note is unclassified (ACC-5.5).
 import uuid
 from typing import Any
 
-from sqlalchemy import ColumnElement, Select, and_, case, false, func, or_, select, union_all
+from sqlalchemy import (
+    ColumnElement,
+    Select,
+    String,
+    and_,
+    case,
+    cast,
+    false,
+    func,
+    null,
+    or_,
+    select,
+    union_all,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import aliased
 
-from app.analytics.blocks import VT, E, L, V, entries, in_class, party_bucket
+from app.analytics.blocks import VT, E, L, V, entries, in_class, items, party_bucket
 from app.analytics.context import MetricContext
 from app.models.enums import (
     AccountingDirection,
@@ -169,3 +182,43 @@ def attributed(ctx: MetricContext, note: BaseVoucherType) -> Select[Any]:
     return select(both, ledger.name.label("party_name")).outerjoin(
         ledger, and_(ledger.company_id == ctx.company_id, ledger.ledger_id == both.c.party_id)
     )
+
+
+def product_lines(ctx: MetricContext) -> Select[Any]:
+    """Product-attributed Revenue's rows (ACC-1.8, D-046 #2-3): the inventory lines of
+    vouchers of base type SALES (+) and of linked credit notes (-)."""
+    sale = VT.base_voucher_type == BaseVoucherType.SALES
+    returned = and_(
+        VT.base_voucher_type == CREDIT_NOTE,
+        V.voucher_id.in_(linked_notes(ctx.company_id, ctx.returns_linkable, CREDIT_NOTE)),
+    )
+    return items(ctx, case((sale, 1), else_=-1)).where(or_(sale, returned))
+
+
+def sales_less_products(ctx: MetricContext) -> Select[Any]:
+    """The product difference's rows (ACC-1.9/1.10, D-053 #3): Total Sales Revenue's rows (+)
+    and Product-attributed Revenue's lines (-), on the vouchers where they do not cancel out.
+    So its total is Total Sales Revenue - Product-attributed Revenue, and its vouchers are the
+    ones that contribute to the difference (FR-DD-4)."""
+    sold = gross_less_returns(ctx, CREDIT_NOTE).add_columns(
+        cast(null(), UUID(as_uuid=True)).label("stock_item_id"),
+        cast(null(), String).label("stock_item_name"),
+    )
+    lines = product_lines(ctx).subquery()
+    unsold = select(
+        lines.c.voucher_id,
+        lines.c.voucher_date,
+        lines.c.voucher_number,
+        lines.c.voucher_type_name,
+        lines.c.base_voucher_type,
+        lines.c.ledger_id,
+        lines.c.ledger_name,
+        (-lines.c.amount).label("amount"),
+        lines.c.stock_item_id,
+        lines.c.stock_item_name,
+    )
+    rows = union_all(sold, unsold).subquery()
+    contributing = (
+        select(rows.c.voucher_id).group_by(rows.c.voucher_id).having(func.sum(rows.c.amount) != 0)
+    )
+    return select(rows).where(rows.c.voucher_id.in_(contributing))

@@ -29,3 +29,10 @@ class VoucherTypeOut(BaseModel):
     base_voucher_type: str
     resolution_status: str
     status: str
+
+
+class OptionOut(BaseModel):
+    """A choice for an FR-4.3 filter picker."""
+
+    id: uuid.UUID
+    name: str
