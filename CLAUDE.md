@@ -119,3 +119,10 @@ A read-only analytics platform that sits beside TallyPrime. A Windows **Tally Sy
 5. New assumption? Add a `D-0xx` entry (status PROPOSED) to `docs/decisions.md` and mention it in your summary.
 6. Blocked on a Tally fact or a business decision? Stop, record it under Questions in `docs/progress.md`, and ask.
 7. End of session: update `docs/progress.md`. Never leave work uncommitted; never start the next phase unasked.
+
+## Branches, PRs and merging (from P14 on)
+Every phase goes through one branch and one pull request; nothing is committed straight to `main`.
+- **Branch** `phase-NN` from an up-to-date `main` (or a worktree on it). All of the phase's sessions commit to it, one commit per task (step 4), each gated on `make check`.
+- **Pull request**: push the branch and open a **draft** PR to `main` after the first session, titled `Phase NN: <name>`. CI (`check`, `frontend`; `agent-windows` and `capture-kit` when their paths change) runs on the PR. A failing run is fixed on the branch, never skipped.
+- **Merge** only when the owner says so and the PR's latest CI run is green: mark it ready, merge with a **merge commit** (`gh pr merge N --merge --delete-branch`; never squash or rebase, so the per-task commits stay), then remove the worktree, pull `main`, and check that CI on `main` is green.
+- **The phase is done** (Testing and logs above) once the phase report is committed on the branch, the PR is merged, and CI on `main` is green. `docs/progress.md` records the PR number and the CI runs.
