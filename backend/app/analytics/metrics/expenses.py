@@ -26,6 +26,7 @@ GROUP_BY = {
     "group": ("group_id", "group_name"),
     "cost_centre": ("cost_centre_id", "cost_centre_name"),
 }
+FILTERS = {"cost_centre": "cost_centre_id"}  # FR-4.3 (D-053 #1)
 
 
 def detail_query(ctx: MetricContext) -> Select[Any]:

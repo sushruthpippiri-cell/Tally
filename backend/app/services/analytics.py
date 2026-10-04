@@ -1,20 +1,24 @@
 """The analytics API over `app.analytics.query` (P8.8). Every figure here comes from the
 metric's one detail query through query.py (ACC-4.4); nothing is computed on its own."""
 
+import uuid
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Literal
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analytics import query
-from app.analytics.context import AnalyticsFilter, MetricContext, load
+from app.analytics.context import AnalyticsFilter, By, MetricContext, load
 from app.analytics.metrics import customer_revenue, supplier_purchases
 from app.core.errors import AppError
 from app.core.periods import Granularity, financial_year_of, today
 from app.core.permissions import CompanyContext
 from app.models.company import Company
+from app.models.vouchers import Voucher
 from app.schemas.analytics import (
     BreakdownRow,
     DrilldownOut,
@@ -60,6 +64,31 @@ MAX_NAMED = 20
 NO_OPENING_CHECK = "ledgers_without_opening_balance"
 
 
+@dataclass(frozen=True)
+class Narrowing:
+    """FR-4.3's filters and the drill-down's `by` keys, as the request sent them (D-053)."""
+
+    customer: uuid.UUID | None = None
+    product: uuid.UUID | None = None
+    cost_centre: uuid.UUID | None = None
+    by: tuple[str, ...] = ()
+
+    def parsed_by(self) -> By:
+        """ "option:key" pairs; the key "none" is the NULL bucket."""
+        found = []
+        for text in self.by:
+            option, sep, key = text.partition(":")
+            if not sep or not option or not key:
+                raise AppError(
+                    ErrorCode.VALIDATION_ERROR, f"by must be '<group_by>:<key>', not '{text}'", 422
+                )
+            found.append((option, None if key == "none" else key))
+        return tuple(found)
+
+
+NO_NARROWING = Narrowing()
+
+
 def _key(metric: MetricName) -> str:
     return str(metric.value).replace("-", "_")
 
@@ -83,6 +112,7 @@ async def _context(
     date_to: date | None,
     include_cancelled: bool,
     include_missing: bool,
+    narrow: Narrowing = NO_NARROWING,
 ) -> MetricContext:
     """Dates default to the financial year to date, in the company's time zone (TZ-1.x)."""
     company = await session.get(Company, ctx.company_id)
@@ -91,11 +121,22 @@ async def _context(
     now = today(company.company_timezone)
     date_to = date_to or now
     date_from = date_from or financial_year_of(date_to, company.financial_year_start).start
-    flt = AnalyticsFilter(date_from, date_to, include_cancelled, include_missing)
+    flt = AnalyticsFilter(
+        date_from,
+        date_to,
+        include_cancelled,
+        include_missing,
+        customer=narrow.customer,
+        product=narrow.product,
+        cost_centre=narrow.cost_centre,
+        by=narrow.parsed_by(),
+    )
     return await load(session, ctx, flt)
 
 
-def _applied(mc: MetricContext, granularity: Granularity, group_by: str | None) -> FiltersApplied:
+def _applied(
+    mc: MetricContext, granularity: Granularity, group_by: str | None, metric: str | None = None
+) -> FiltersApplied:
     f = mc.filter
     return FiltersApplied(
         date_from=f.date_from,
@@ -104,6 +145,11 @@ def _applied(mc: MetricContext, granularity: Granularity, group_by: str | None) 
         group_by=group_by,
         include_cancelled=f.include_cancelled,
         include_missing=f.include_missing,
+        customer=f.customer,
+        product=f.product,
+        cost_centre=f.cost_centre,
+        by=[f"{option}:{'none' if key is None else key}" for option, key in f.by],
+        not_applicable=query.not_applicable(metric, f) if metric else list(f.chosen),
     )
 
 
@@ -152,10 +198,13 @@ async def metric(
     group_by: str | None,
     include_cancelled: bool,
     include_missing: bool,
+    narrow: Narrowing = NO_NARROWING,
 ) -> MetricOut:
     key = _key(name)
     group, (dim_key, dim_label) = _dimension(key, group_by)
-    mc = await _context(session, ctx, date_from, date_to, include_cancelled, include_missing)
+    mc = await _context(
+        session, ctx, date_from, date_to, include_cancelled, include_missing, narrow
+    )
     balance = _is_balance(key)
     missing = await query.unavailable(session, mc, key, MAX_NAMED) if balance else (0, [])
     summary = _figure(await query.total(session, mc, key), balance)
@@ -171,8 +220,9 @@ async def metric(
     rows = await query.breakdown(session, mc, key, dim_key, dim_label)
     return MetricOut(
         metric=str(name.value),
-        filters_applied=_applied(mc, granularity, group),
+        filters_applied=_applied(mc, granularity, group, key),
         company_timezone=mc.company_timezone,
+        label=query.difference_label(mc) if key == "product_difference" else None,
         summary=summary,
         series=series,
         breakdown=[
@@ -187,11 +237,29 @@ async def metric(
     )
 
 
-def _row(r: dict[str, Any]) -> DrillRow:
+def _row(r: dict[str, Any], custom: dict[uuid.UUID, dict[str, Any]]) -> DrillRow:
     return DrillRow(
         **{k: r[k] for k in STANDARD},
         dimensions={k: None if v is None else str(v) for k, v in r.items() if k not in STANDARD},
+        custom_fields=custom.get(r["voucher_id"]),
     )
+
+
+async def _custom_fields(
+    session: AsyncSession, company_id: uuid.UUID, rows: list[dict[str, Any]]
+) -> dict[uuid.UUID, dict[str, Any]]:
+    """The page's vouchers' mapped UDF values (DR-UDF-2): shown, never summed."""
+    ids = {r["voucher_id"] for r in rows if r["voucher_id"] is not None}
+    if not ids:
+        return {}
+    found = await session.execute(
+        select(Voucher.voucher_id, Voucher.custom_fields).where(
+            Voucher.company_id == company_id,
+            Voucher.voucher_id.in_(ids),
+            Voucher.custom_fields.is_not(None),
+        )
+    )
+    return {voucher_id: fields for voucher_id, fields in found.tuples() if fields}
 
 
 async def drilldown(
@@ -205,20 +273,24 @@ async def drilldown(
     include_missing: bool,
     page: int,
     page_size: int,
+    narrow: Narrowing = NO_NARROWING,
 ) -> DrilldownOut:
     key = _key(name)
-    mc = await _context(session, ctx, date_from, date_to, include_cancelled, include_missing)
+    mc = await _context(
+        session, ctx, date_from, date_to, include_cancelled, include_missing, narrow
+    )
     rows, count = await query.drilldown(
         session, mc, key, offset=(page - 1) * page_size, limit=page_size
     )
+    custom = await _custom_fields(session, mc.company_id, rows)
     return DrilldownOut(
         metric=str(name.value),
-        filters_applied=_applied(mc, "day", None),
+        filters_applied=_applied(mc, "day", None, key),
         total=await query.total(session, mc, key),
         total_rows=count,
         page=page,
         page_size=page_size,
-        rows=[_row(r) for r in rows],
+        rows=[_row(r, custom) for r in rows],
     )
 
 

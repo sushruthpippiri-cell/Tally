@@ -23,6 +23,7 @@ MONEY_TABLE_MODULES = (
     "analytics/blocks.py",
     "analytics/returns.py",
     "analytics/metrics/",
+    "services/vouchers.py",  # voucher detail: display only (P14.1)
 )
 METRICS_DIR = "analytics/metrics/"
 

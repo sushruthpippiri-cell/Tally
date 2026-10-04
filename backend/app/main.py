@@ -17,6 +17,7 @@ from app.api import (
     schedules,
     sync,
     users,
+    vouchers,
 )
 from app.api import settings as settings_api
 from app.core.config import Settings, get_settings
@@ -59,6 +60,7 @@ def create_app(config: Settings | None = None) -> FastAPI:
         masters,
         analytics,
         reconciliation,
+        vouchers,
     ):
         app.include_router(module.router)
     get_logger(__name__).info("app_started", env=config.env)

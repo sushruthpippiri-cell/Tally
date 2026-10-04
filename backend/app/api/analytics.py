@@ -12,7 +12,7 @@ from app.schemas.aging import AgingOut, AllocationsOut, BillsOut, PaymentBehavio
 from app.schemas.analytics import DrilldownOut, MetricOut, RankingOut
 from app.schemas.stock import MovementClass, StockOut
 from app.services import aging, analytics, stock
-from app.services.analytics import MetricName, RankBy, RankingKind
+from app.services.analytics import MetricName, Narrowing, RankBy, RankingKind
 
 router = APIRouter(prefix="/companies/{company_id}/analytics", tags=["analytics"])
 VIEW = Depends(require(Permission.VIEW_FINANCIALS))
@@ -21,6 +21,20 @@ TO = Query(None, alias="to")
 CLASS = Query(None, alias="class")  # `class` is a Python keyword
 
 
+BY = Query([], description="Repeatable '<group_by option>:<key>'; key 'none' is the NULL bucket")
+
+
+def narrowing(
+    customer: uuid.UUID | None = None,
+    product: uuid.UUID | None = None,
+    cost_centre: uuid.UUID | None = None,
+    by: list[str] = BY,
+) -> Narrowing:
+    """FR-4.3's filters and the drill-down's narrowing (D-053 #1, #2)."""
+    return Narrowing(customer, product, cost_centre, tuple(by))
+
+
+NARROW = Depends(narrowing)
 TOP_N = Query(None, ge=1, le=100)  # default: the analytics.top_n_default setting (TOPN-1.1)
 
 
@@ -114,6 +128,7 @@ async def metric(
     group_by: str | None = None,
     include_cancelled: bool = False,
     include_missing: bool = False,
+    narrow: Narrowing = NARROW,
     ctx: CompanyContext = VIEW,
     session: AsyncSession = Depends(get_session),
 ) -> MetricOut:
@@ -127,6 +142,7 @@ async def metric(
         group_by=group_by,
         include_cancelled=include_cancelled,
         include_missing=include_missing,
+        narrow=narrow,
     )
 
 
@@ -139,6 +155,7 @@ async def drilldown(
     include_missing: bool = False,
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1, le=500),
+    narrow: Narrowing = NARROW,
     ctx: CompanyContext = VIEW,
     session: AsyncSession = Depends(get_session),
 ) -> DrilldownOut:
@@ -152,4 +169,5 @@ async def drilldown(
         include_missing=include_missing,
         page=page,
         page_size=page_size,
+        narrow=narrow,
     )

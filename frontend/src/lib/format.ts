@@ -98,3 +98,15 @@ export function formatTimestamp(value: string, timeZone: string): string {
     hourCycle: "h23",
   }).format(new Date(value));
 }
+
+/** A quantity or rate as sent, without trailing zeros ("400.000000" -> "400", "2.500" -> "2.5"):
+ * trimmed as text, never converted (D-051 #5). */
+export function formatQuantity(value: string): string {
+  return value.includes(".") ? value.replace(/\.?0+$/, "") : value;
+}
+
+/** A field key for a heading: "stock_item_name" -> "Stock item name". */
+export function humanize(key: string): string {
+  const words = key.replace(/[_-]/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}

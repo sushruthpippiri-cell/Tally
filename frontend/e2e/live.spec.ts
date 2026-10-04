@@ -40,8 +40,26 @@ test("every page loads against the real backend", async ({ page }) => {
   });
   const [first] = (await companies.json()) as { company_id: string }[];
   test.skip(!first, "the user has no company");
+  const visit = async (path: string) => {
+    await page.goto(`/c/${first?.company_id}/${path}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByText(/Something went wrong|could not be loaded/)).toHaveCount(0);
+  };
   for (const section of [
     "home",
+    "sales",
+    "purchases",
+    "cash-flow",
+    "balances",
+    "aging",
+    "payment-behaviour",
+    "customers",
+    "products",
+    "expenses",
+    "unclassified",
+    "stock",
+    "analytics/sales/drilldown",
     "sync",
     "agents",
     "reconciliation",
@@ -49,10 +67,15 @@ test("every page loads against the real backend", async ({ page }) => {
     "settings",
     "users",
   ]) {
-    await page.goto(`/c/${first?.company_id}/${section}`);
+    await visit(section);
+  }
+  // a voucher behind the sales figure, when there is one
+  await visit("analytics/sales/drilldown");
+  const first_voucher = page.locator('a[href*="/vouchers/"]').first();
+  if (await first_voucher.count()) {
+    await first_voucher.click();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await page.waitForLoadState("networkidle");
-    await expect(page.getByText(/Something went wrong|could not be loaded/)).toHaveCount(0);
   }
   expect(errors).toEqual([]);
 });

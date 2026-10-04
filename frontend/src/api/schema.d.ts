@@ -587,6 +587,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/companies/{company_id}/audit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** An entity's audit history, newest first (LOG-1.2) */
+    get: operations["audit_history_companies__company_id__audit_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/companies/{company_id}/commands/{command_id}": {
     parameters: {
       query?: never;
@@ -647,6 +664,23 @@ export interface paths {
     };
     /** Groups */
     get: operations["groups_companies__company_id__masters_groups_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/companies/{company_id}/masters/options": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Choices for the customer, product and cost-centre filters */
+    get: operations["options_companies__company_id__masters_options_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -924,6 +958,23 @@ export interface paths {
     get?: never;
     /** Update Roles */
     put: operations["update_roles_companies__company_id__users__user_id__put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/companies/{company_id}/vouchers/{voucher_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One voucher, as synced (FR-DD-1, DR-UDF-2) */
+    get: operations["voucher_companies__company_id__vouchers__voucher_id__get"];
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -1210,6 +1261,38 @@ export interface components {
       /** Is Debit */
       is_debit: boolean;
     };
+    /** AuditEntryOut */
+    AuditEntryOut: {
+      /** Action */
+      action: string;
+      /** After */
+      after: {
+        [key: string]: unknown;
+      } | null;
+      /** Before */
+      before: {
+        [key: string]: unknown;
+      } | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Data Range */
+      data_range: {
+        [key: string]: unknown;
+      } | null;
+      /** Entity Id */
+      entity_id: string | null;
+      /** Entity Type */
+      entity_type: string;
+      /** Id */
+      id: number;
+      /** Result */
+      result: string;
+      /** User Id */
+      user_id: string | null;
+    };
     /**
      * BatchEnvelope
      * @description One upload batch (D-005). Records are sorted by alter_id ascending (D-026) and belong
@@ -1324,27 +1407,6 @@ export interface components {
       /** Reference Name */
       reference_name: string;
     };
-    /** BillOut */
-    BillOut: {
-      /** Bill Date */
-      bill_date: string | null;
-      /** Bucket */
-      bucket: string;
-      /** Days Overdue */
-      days_overdue: number | null;
-      /** Due Date */
-      due_date: string | null;
-      /** Is Credit */
-      is_credit: boolean;
-      /** Outstanding */
-      outstanding: string;
-      /** Reference Name */
-      reference_name: string;
-      /** Unverified */
-      unverified: boolean;
-      /** Unverified Reason */
-      unverified_reason: string | null;
-    };
     /** BillsOut */
     BillsOut: {
       /**
@@ -1353,7 +1415,7 @@ export interface components {
        */
       as_of: string;
       /** Bills */
-      bills: components["schemas"]["BillOut"][];
+      bills: components["schemas"]["app__schemas__aging__BillOut"][];
       /**
        * Ledger Id
        * Format: uuid
@@ -1381,6 +1443,18 @@ export interface components {
       key: string;
       /** Label */
       label: string;
+    };
+    /** CentreOut */
+    CentreOut: {
+      /** Amount */
+      amount: string;
+      /**
+       * Cost Centre Id
+       * Format: uuid
+       */
+      cost_centre_id: string;
+      /** Cost Centre Name */
+      cost_centre_name: string;
     };
     /** ChangePasswordRequest */
     ChangePasswordRequest: {
@@ -1673,6 +1747,15 @@ export interface components {
        */
       record_type: "COST_CENTRE";
     };
+    /** CustomFieldOut */
+    CustomFieldOut: {
+      /** Field Key */
+      field_key: string;
+      /** Tally Field */
+      tally_field: string | null;
+      /** Value */
+      value: unknown;
+    };
     /**
      * CustomFieldsUpdate
      * @description The complete list of mappings (DR-UDF-1); a mapping left out is switched off.
@@ -1705,6 +1788,10 @@ export interface components {
       amount: string | null;
       /** Base Voucher Type */
       base_voucher_type: string | null;
+      /** Custom Fields */
+      custom_fields?: {
+        [key: string]: unknown;
+      } | null;
       /** Dimensions */
       dimensions: {
         [key: string]: string | null;
@@ -1740,6 +1827,29 @@ export interface components {
       total: string | null;
       /** Total Rows */
       total_rows: number;
+    };
+    /** EntryOut */
+    EntryOut: {
+      /** Amount */
+      amount: string;
+      /** Bills */
+      bills: components["schemas"]["app__schemas__vouchers__BillOut"][];
+      /** Cost Centres */
+      cost_centres: components["schemas"]["CentreOut"][];
+      /**
+       * Direction
+       * @enum {string}
+       */
+      direction: "Dr" | "Cr";
+      /**
+       * Ledger Id
+       * Format: uuid
+       */
+      ledger_id: string;
+      /** Ledger Name */
+      ledger_name: string;
+      /** Line */
+      line: number;
     };
     /**
      * ErrorCode
@@ -1810,6 +1920,15 @@ export interface components {
     /** FiltersApplied */
     FiltersApplied: {
       /**
+       * By
+       * @default []
+       */
+      by: string[];
+      /** Cost Centre */
+      cost_centre?: string | null;
+      /** Customer */
+      customer?: string | null;
+      /**
        * Date From
        * Format: date
        */
@@ -1830,6 +1949,13 @@ export interface components {
       include_cancelled: boolean;
       /** Include Missing */
       include_missing: boolean;
+      /**
+       * Not Applicable
+       * @default []
+       */
+      not_applicable: string[];
+      /** Product */
+      product?: string | null;
     };
     /**
      * FinishRequest
@@ -1965,6 +2091,28 @@ export interface components {
       stock_item_name: string;
       /** Unit */
       unit?: string | null;
+    };
+    /** ItemOut */
+    ItemOut: {
+      /** Amount */
+      amount: string | null;
+      /** Custom Fields */
+      custom_fields: {
+        [key: string]: unknown;
+      } | null;
+      /** Quantity */
+      quantity: string | null;
+      /** Rate */
+      rate: string | null;
+      /**
+       * Stock Item Id
+       * Format: uuid
+       */
+      stock_item_id: string;
+      /** Stock Item Name */
+      stock_item_name: string;
+      /** Unit */
+      unit: string | null;
     };
     /**
      * KeyListChunk
@@ -2194,6 +2342,7 @@ export interface components {
       | "sales"
       | "customer-revenue"
       | "product-revenue"
+      | "product-difference"
       | "purchases"
       | "supplier-purchases"
       | "expenses"
@@ -2210,6 +2359,8 @@ export interface components {
       /** Company Timezone */
       company_timezone: string;
       filters_applied: components["schemas"]["FiltersApplied"];
+      /** Label */
+      label?: string | null;
       /** Metric */
       metric: string;
       /** Notes */
@@ -2262,6 +2413,19 @@ export interface components {
       due_date?: string | null;
       /** Reference Name */
       reference_name: string;
+    };
+    /**
+     * OptionOut
+     * @description A choice for an FR-4.3 filter picker.
+     */
+    OptionOut: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
     };
     /**
      * ParseError
@@ -3159,6 +3323,41 @@ export interface components {
       /** Error Type */
       type: string;
     };
+    /** VoucherDetailOut */
+    VoucherDetailOut: {
+      /** Alter Id */
+      alter_id: number;
+      /** Base Voucher Type */
+      base_voucher_type: string;
+      /** Custom Fields */
+      custom_fields: components["schemas"]["CustomFieldOut"][];
+      /** Entries */
+      entries: components["schemas"]["EntryOut"][];
+      /** Items */
+      items: components["schemas"]["ItemOut"][];
+      /** Last Synced At */
+      last_synced_at: string | null;
+      /** Narration */
+      narration: string | null;
+      /** Status */
+      status: string;
+      /** Tally Guid */
+      tally_guid: string;
+      /**
+       * Voucher Date
+       * Format: date
+       */
+      voucher_date: string;
+      /**
+       * Voucher Id
+       * Format: uuid
+       */
+      voucher_id: string;
+      /** Voucher Number */
+      voucher_number: string | null;
+      /** Voucher Type Name */
+      voucher_type_name: string;
+    };
     /** VoucherRecord */
     VoucherRecord: {
       /** Alter Id */
@@ -3247,6 +3446,43 @@ export interface components {
       record_type: "VOUCHER_TYPE";
       /** Reserved Name */
       reserved_name?: string | null;
+    };
+    /** BillOut */
+    app__schemas__aging__BillOut: {
+      /** Bill Date */
+      bill_date: string | null;
+      /** Bucket */
+      bucket: string;
+      /** Days Overdue */
+      days_overdue: number | null;
+      /** Due Date */
+      due_date: string | null;
+      /** Is Credit */
+      is_credit: boolean;
+      /** Outstanding */
+      outstanding: string;
+      /** Reference Name */
+      reference_name: string;
+      /** Unverified */
+      unverified: boolean;
+      /** Unverified Reason */
+      unverified_reason: string | null;
+    };
+    /** BillOut */
+    app__schemas__vouchers__BillOut: {
+      /** Allocation Type */
+      allocation_type: string;
+      /** Amount */
+      amount: string;
+      /**
+       * Direction
+       * @enum {string}
+       */
+      direction: "Dr" | "Cr";
+      /** Due Date */
+      due_date: string | null;
+      /** Reference Name */
+      reference_name: string | null;
     };
   };
   responses: never;
@@ -4388,6 +4624,11 @@ export interface operations {
         group_by?: string | null;
         include_cancelled?: boolean;
         include_missing?: boolean;
+        customer?: string | null;
+        product?: string | null;
+        cost_centre?: string | null;
+        /** @description Repeatable '<group_by option>:<key>'; key 'none' is the NULL bucket */
+        by?: string[];
       };
       header?: never;
       path: {
@@ -4427,6 +4668,11 @@ export interface operations {
         include_missing?: boolean;
         page?: number;
         page_size?: number;
+        customer?: string | null;
+        product?: string | null;
+        cost_centre?: string | null;
+        /** @description Repeatable '<group_by option>:<key>'; key 'none' is the NULL bucket */
+        by?: string[];
       };
       header?: never;
       path: {
@@ -4444,6 +4690,42 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["DrilldownOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  audit_history_companies__company_id__audit_get: {
+    parameters: {
+      query: {
+        entity_type: string;
+        entity_id: string;
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        company_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AuditEntryOut"][];
         };
       };
       /** @description Validation Error */
@@ -4573,6 +4855,41 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["GroupOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  options_companies__company_id__masters_options_get: {
+    parameters: {
+      query: {
+        kind: "customer" | "product" | "cost_centre";
+        q?: string | null;
+        id?: string | null;
+      };
+      header?: never;
+      path: {
+        company_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OptionOut"][];
         };
       };
       /** @description Validation Error */
@@ -5241,6 +5558,38 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CompanyUserOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  voucher_companies__company_id__vouchers__voucher_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        voucher_id: string;
+        company_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["VoucherDetailOut"];
         };
       };
       /** @description Validation Error */

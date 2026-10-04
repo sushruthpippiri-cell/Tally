@@ -744,6 +744,104 @@
         "title": "Amount",
         "type": "object"
       },
+      "AuditEntryOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "data_range": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Range"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "user_id",
+          "action",
+          "entity_type",
+          "entity_id",
+          "before",
+          "after",
+          "data_range",
+          "result"
+        ],
+        "title": "AuditEntryOut",
+        "type": "object"
+      },
       "BatchEnvelope": {
         "additionalProperties": false,
         "description": "One upload batch (D-005). Records are sorted by alter_id ascending (D-026) and belong\nto the envelope's collection (or are its key list).",
@@ -1003,90 +1101,6 @@
         "title": "BillAllocation",
         "type": "object"
       },
-      "BillOut": {
-        "properties": {
-          "bill_date": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bill Date"
-          },
-          "bucket": {
-            "title": "Bucket",
-            "type": "string"
-          },
-          "days_overdue": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Days Overdue"
-          },
-          "due_date": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due Date"
-          },
-          "is_credit": {
-            "title": "Is Credit",
-            "type": "boolean"
-          },
-          "outstanding": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Outstanding",
-            "type": "string"
-          },
-          "reference_name": {
-            "title": "Reference Name",
-            "type": "string"
-          },
-          "unverified": {
-            "title": "Unverified",
-            "type": "boolean"
-          },
-          "unverified_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unverified Reason"
-          }
-        },
-        "required": [
-          "reference_name",
-          "bill_date",
-          "due_date",
-          "days_overdue",
-          "bucket",
-          "outstanding",
-          "is_credit",
-          "unverified",
-          "unverified_reason"
-        ],
-        "title": "BillOut",
-        "type": "object"
-      },
       "BillsOut": {
         "properties": {
           "as_of": {
@@ -1096,7 +1110,7 @@
           },
           "bills": {
             "items": {
-              "$ref": "#/components/schemas/BillOut"
+              "$ref": "#/components/schemas/app__schemas__aging__BillOut"
             },
             "title": "Bills",
             "type": "array"
@@ -1184,6 +1198,31 @@
           "label"
         ],
         "title": "BucketLabel",
+        "type": "object"
+      },
+      "CentreOut": {
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "cost_centre_id": {
+            "format": "uuid",
+            "title": "Cost Centre Id",
+            "type": "string"
+          },
+          "cost_centre_name": {
+            "title": "Cost Centre Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cost_centre_id",
+          "cost_centre_name",
+          "amount"
+        ],
+        "title": "CentreOut",
         "type": "object"
       },
       "ChangePasswordRequest": {
@@ -2053,6 +2092,35 @@
         "title": "CostCentreRecord",
         "type": "object"
       },
+      "CustomFieldOut": {
+        "properties": {
+          "field_key": {
+            "title": "Field Key",
+            "type": "string"
+          },
+          "tally_field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tally Field"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "field_key",
+          "tally_field",
+          "value"
+        ],
+        "title": "CustomFieldOut",
+        "type": "object"
+      },
       "CustomFieldsUpdate": {
         "additionalProperties": false,
         "description": "The complete list of mappings (DR-UDF-1); a mapping left out is switched off.",
@@ -2123,6 +2191,18 @@
               }
             ],
             "title": "Base Voucher Type"
+          },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields"
           },
           "dimensions": {
             "additionalProperties": {
@@ -2276,6 +2356,61 @@
         "title": "DrilldownOut",
         "type": "object"
       },
+      "EntryOut": {
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "bills": {
+            "items": {
+              "$ref": "#/components/schemas/app__schemas__vouchers__BillOut"
+            },
+            "title": "Bills",
+            "type": "array"
+          },
+          "cost_centres": {
+            "items": {
+              "$ref": "#/components/schemas/CentreOut"
+            },
+            "title": "Cost Centres",
+            "type": "array"
+          },
+          "direction": {
+            "enum": [
+              "Dr",
+              "Cr"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "ledger_id": {
+            "format": "uuid",
+            "title": "Ledger Id",
+            "type": "string"
+          },
+          "ledger_name": {
+            "title": "Ledger Name",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "line",
+          "ledger_id",
+          "ledger_name",
+          "direction",
+          "amount",
+          "bills",
+          "cost_centres"
+        ],
+        "title": "EntryOut",
+        "type": "object"
+      },
       "ErrorCode": {
         "enum": [
           "TALLY_SERVER_DISABLED",
@@ -2373,6 +2508,38 @@
       },
       "FiltersApplied": {
         "properties": {
+          "by": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "By",
+            "type": "array"
+          },
+          "cost_centre": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Centre"
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer"
+          },
           "date_from": {
             "format": "date",
             "title": "Date From",
@@ -2410,6 +2577,26 @@
           "include_missing": {
             "title": "Include Missing",
             "type": "boolean"
+          },
+          "not_applicable": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Not Applicable",
+            "type": "array"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
           }
         },
         "required": [
@@ -2910,6 +3097,89 @@
           "amount"
         ],
         "title": "InventoryEntry",
+        "type": "object"
+      },
+      "ItemOut": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "stock_item_id": {
+            "format": "uuid",
+            "title": "Stock Item Id",
+            "type": "string"
+          },
+          "stock_item_name": {
+            "title": "Stock Item Name",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "stock_item_id",
+          "stock_item_name",
+          "quantity",
+          "unit",
+          "rate",
+          "amount",
+          "custom_fields"
+        ],
+        "title": "ItemOut",
         "type": "object"
       },
       "KeyListChunk": {
@@ -3454,6 +3724,7 @@
           "sales",
           "customer-revenue",
           "product-revenue",
+          "product-difference",
           "purchases",
           "supplier-purchases",
           "expenses",
@@ -3482,6 +3753,17 @@
           },
           "filters_applied": {
             "$ref": "#/components/schemas/FiltersApplied"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
           },
           "metric": {
             "title": "Metric",
@@ -3627,6 +3909,26 @@
           "amount"
         ],
         "title": "OpeningBill",
+        "type": "object"
+      },
+      "OptionOut": {
+        "description": "A choice for an FR-4.3 filter picker.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "OptionOut",
         "type": "object"
       },
       "ParseError": {
@@ -6095,6 +6397,112 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VoucherDetailOut": {
+        "properties": {
+          "alter_id": {
+            "title": "Alter Id",
+            "type": "integer"
+          },
+          "base_voucher_type": {
+            "title": "Base Voucher Type",
+            "type": "string"
+          },
+          "custom_fields": {
+            "items": {
+              "$ref": "#/components/schemas/CustomFieldOut"
+            },
+            "title": "Custom Fields",
+            "type": "array"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EntryOut"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          },
+          "narration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narration"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tally_guid": {
+            "title": "Tally Guid",
+            "type": "string"
+          },
+          "voucher_date": {
+            "format": "date",
+            "title": "Voucher Date",
+            "type": "string"
+          },
+          "voucher_id": {
+            "format": "uuid",
+            "title": "Voucher Id",
+            "type": "string"
+          },
+          "voucher_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voucher Number"
+          },
+          "voucher_type_name": {
+            "title": "Voucher Type Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "voucher_id",
+          "tally_guid",
+          "alter_id",
+          "voucher_number",
+          "voucher_date",
+          "voucher_type_name",
+          "base_voucher_type",
+          "status",
+          "narration",
+          "last_synced_at",
+          "entries",
+          "items",
+          "custom_fields"
+        ],
+        "title": "VoucherDetailOut",
+        "type": "object"
+      },
       "VoucherRecord": {
         "additionalProperties": false,
         "properties": {
@@ -6346,6 +6754,143 @@
           "name"
         ],
         "title": "VoucherTypeRecord",
+        "type": "object"
+      },
+      "app__schemas__aging__BillOut": {
+        "properties": {
+          "bill_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bill Date"
+          },
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "days_overdue": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Overdue"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "is_credit": {
+            "title": "Is Credit",
+            "type": "boolean"
+          },
+          "outstanding": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Outstanding",
+            "type": "string"
+          },
+          "reference_name": {
+            "title": "Reference Name",
+            "type": "string"
+          },
+          "unverified": {
+            "title": "Unverified",
+            "type": "boolean"
+          },
+          "unverified_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unverified Reason"
+          }
+        },
+        "required": [
+          "reference_name",
+          "bill_date",
+          "due_date",
+          "days_overdue",
+          "bucket",
+          "outstanding",
+          "is_credit",
+          "unverified",
+          "unverified_reason"
+        ],
+        "title": "BillOut",
+        "type": "object"
+      },
+      "app__schemas__vouchers__BillOut": {
+        "properties": {
+          "allocation_type": {
+            "title": "Allocation Type",
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "Dr",
+              "Cr"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "reference_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Name"
+          }
+        },
+        "required": [
+          "allocation_type",
+          "reference_name",
+          "due_date",
+          "amount",
+          "direction"
+        ],
+        "title": "BillOut",
         "type": "object"
       }
     },
@@ -8558,6 +9103,72 @@
               "title": "Include Missing",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "customer",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cost_centre",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cost Centre"
+            }
+          },
+          {
+            "description": "Repeatable '<group_by option>:<key>'; key 'none' is the NULL bucket",
+            "in": "query",
+            "name": "by",
+            "required": false,
+            "schema": {
+              "default": [],
+              "description": "Repeatable '<group_by option>:<key>'; key 'none' is the NULL bucket",
+              "items": {
+                "type": "string"
+              },
+              "title": "By",
+              "type": "array"
+            }
           }
         ],
         "responses": {
@@ -8691,6 +9302,72 @@
               "title": "Page Size",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "customer",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cost_centre",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cost Centre"
+            }
+          },
+          {
+            "description": "Repeatable '<group_by option>:<key>'; key 'none' is the NULL bucket",
+            "in": "query",
+            "name": "by",
+            "required": false,
+            "schema": {
+              "default": [],
+              "description": "Repeatable '<group_by option>:<key>'; key 'none' is the NULL bucket",
+              "items": {
+                "type": "string"
+              },
+              "title": "By",
+              "type": "array"
+            }
           }
         ],
         "responses": {
@@ -8723,6 +9400,103 @@
         "summary": "Drilldown",
         "tags": [
           "analytics"
+        ]
+      }
+    },
+    "/companies/{company_id}/audit": {
+      "get": {
+        "operationId": "audit_history_companies__company_id__audit_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "company_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Company Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entity_type",
+            "required": true,
+            "schema": {
+              "maxLength": 50,
+              "minLength": 1,
+              "title": "Entity Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Entity Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEntryOut"
+                  },
+                  "title": "Response Audit History Companies  Company Id  Audit Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "An entity's audit history, newest first (LOG-1.2)",
+        "tags": [
+          "vouchers"
         ]
       }
     },
@@ -8963,6 +9737,106 @@
           }
         ],
         "summary": "Groups",
+        "tags": [
+          "masters"
+        ]
+      }
+    },
+    "/companies/{company_id}/masters/options": {
+      "get": {
+        "operationId": "options_companies__company_id__masters_options_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "company_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Company Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "customer",
+                "product",
+                "cost_centre"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OptionOut"
+                  },
+                  "title": "Response Options Companies  Company Id  Masters Options Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Choices for the customer, product and cost-centre filters",
         "tags": [
           "masters"
         ]
@@ -10200,6 +11074,64 @@
         "summary": "Update Roles",
         "tags": [
           "users"
+        ]
+      }
+    },
+    "/companies/{company_id}/vouchers/{voucher_id}": {
+      "get": {
+        "operationId": "voucher_companies__company_id__vouchers__voucher_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "voucher_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Voucher Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "company_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Company Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoucherDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "One voucher, as synced (FR-DD-1, DR-UDF-2)",
+        "tags": [
+          "vouchers"
         ]
       }
     },

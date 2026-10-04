@@ -3,7 +3,7 @@
 import uuid
 from datetime import date
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -17,6 +17,11 @@ class FiltersApplied(BaseModel):
     group_by: str | None
     include_cancelled: bool
     include_missing: bool
+    customer: uuid.UUID | None = None  # FR-4.3 (D-053 #1)
+    product: uuid.UUID | None = None
+    cost_centre: uuid.UUID | None = None
+    by: list[str] = []  # D-053 #2, as sent: "<group_by option>:<key>"
+    not_applicable: list[str] = []  # chosen filters this figure cannot be narrowed by
 
 
 class Figure(BaseModel):
@@ -47,6 +52,7 @@ class MetricOut(BaseModel):
     metric: str
     filters_applied: FiltersApplied
     company_timezone: str
+    label: str | None = None  # the product difference's one label (ACC-VAL-1)
     summary: Figure
     series: list[SeriesPoint]
     breakdown: list[BreakdownRow]
@@ -63,6 +69,7 @@ class DrillRow(BaseModel):
     ledger_name: str | None
     amount: Decimal | None
     dimensions: dict[str, str | None]  # the metric's own columns (group, cost centre, flow...)
+    custom_fields: dict[str, Any] | None = None  # the voucher's mapped UDF values (DR-UDF-2)
 
 
 class DrilldownOut(BaseModel):

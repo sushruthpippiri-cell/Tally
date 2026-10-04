@@ -1,12 +1,19 @@
 """Masters as resolved (P6.7, SRS 19.2): groups and voucher types, company-scoped (SEC-1.7)."""
 
+import uuid
+from typing import Literal
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.analytics.classification import load_classes
 from app.core.permissions import CompanyContext, scoped
-from app.models.masters import Group, VoucherType
-from app.schemas.masters import GroupOut, VoucherTypeOut
+from app.models.masters import CostCentre, Group, Ledger, StockItem, VoucherType
+from app.schemas.masters import GroupOut, OptionOut, VoucherTypeOut
+
+OptionKind = Literal["customer", "product", "cost_centre"]
+MAX_OPTIONS = 50
 
 
 async def groups(session: AsyncSession, ctx: CompanyContext) -> list[GroupOut]:
@@ -54,3 +61,34 @@ async def voucher_types(session: AsyncSession, ctx: CompanyContext) -> list[Vouc
         )
         for t in rows.scalars()
     ]
+
+
+async def options(
+    session: AsyncSession,
+    ctx: CompanyContext,
+    kind: OptionKind,
+    q: str | None,
+    option_id: uuid.UUID | None,
+) -> list[OptionOut]:
+    """Choices for an FR-4.3 filter: customers (ledgers anchored at Sundry Debtors, D-001),
+    products (stock items) or cost centres, by name; `q` matches anywhere in the name, `id`
+    finds one (a shared link carries only the id)."""
+    model: type[Ledger] | type[StockItem] | type[CostCentre]
+    if kind == "customer":
+        customers = (await load_classes(session, ctx.company_id)).customer
+        model, key, where = (
+            Ledger,
+            Ledger.ledger_id,
+            [Ledger.classification_group_id.in_(customers)],
+        )
+    elif kind == "product":
+        model, key, where = StockItem, StockItem.stock_item_id, []
+    else:
+        model, key, where = CostCentre, CostCentre.cost_centre_id, []
+    stmt = scoped(select(key, model.name), model, ctx).where(*where)
+    if q:
+        stmt = stmt.where(model.name.icontains(q, autoescape=True))
+    if option_id is not None:
+        stmt = stmt.where(key == option_id)
+    rows = await session.execute(stmt.order_by(model.name, key).limit(MAX_OPTIONS))
+    return [OptionOut(id=i, name=name) for i, name in rows.tuples()]

@@ -15,6 +15,7 @@ from app.analytics.context import MetricContext
 
 UNATTRIBUTED = "Unattributed Customer Revenue"
 GROUP_BY = {"customer": ("party_id", "party_name")}
+FILTERS = {"customer": "party_id"}  # FR-4.3 (D-053 #1)
 
 
 def detail_query(ctx: MetricContext) -> Select[Any]:

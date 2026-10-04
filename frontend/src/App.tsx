@@ -4,6 +4,20 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { CHANGE_PASSWORD, RequireAuth } from "./components/RequireAuth";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import { AgentsPage } from "./pages/AgentsPage";
+import { AgingPage } from "./pages/AgingPage";
+import {
+  BalancesPage,
+  CashFlowPage,
+  ExpensesPage,
+  PurchasesPage,
+  SalesPage,
+  UnclassifiedPage,
+} from "./pages/AnalyticsPages";
+import { DrilldownPage } from "./pages/DrilldownPage";
+import { PaymentBehaviourPage } from "./pages/PaymentBehaviourPage";
+import { CustomersPage, ProductsPage } from "./pages/RankingPage";
+import { StockPage } from "./pages/StockPage";
+import { VoucherPage } from "./pages/VoucherPage";
 import { CompaniesPage } from "./pages/CompaniesPage";
 import { CompanyLayout, RequirePermission, SECTIONS } from "./pages/CompanyLayout";
 import { ForbiddenPage } from "./pages/ForbiddenPage";
@@ -23,6 +37,17 @@ export function makeQueryClient(): QueryClient {
 
 const PAGES: Record<string, ReactNode> = {
   home: <HomePage />,
+  sales: <SalesPage />,
+  purchases: <PurchasesPage />,
+  "cash-flow": <CashFlowPage />,
+  balances: <BalancesPage />,
+  aging: <AgingPage />,
+  "payment-behaviour": <PaymentBehaviourPage />,
+  customers: <CustomersPage />,
+  products: <ProductsPage />,
+  expenses: <ExpensesPage />,
+  unclassified: <UnclassifiedPage />,
+  stock: <StockPage />,
   agents: <AgentsPage />,
   sync: <SyncPage />,
   settings: <SettingsPage />,
@@ -76,6 +101,22 @@ export function AppRoutes() {
             }
           />
         ))}
+        <Route
+          path="analytics/:metric/drilldown"
+          element={
+            <RequirePermission permission="VIEW_FINANCIALS">
+              <DrilldownPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="vouchers/:voucherId"
+          element={
+            <RequirePermission permission="VIEW_FINANCIALS">
+              <VoucherPage />
+            </RequirePermission>
+          }
+        />
         <Route path="forbidden" element={<ForbiddenPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/companies" replace />} />

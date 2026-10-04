@@ -21,6 +21,12 @@ CASES: dict[str, tuple[str, list[Entry], str]] = {
         "",
     ),
     "sales": ("Sales", [("Customer A", "DEBIT", "100"), ("Sales", "CREDIT", "100")], "Sales"),
+    # a sale with no inventory lines: all of it is the product difference (D-053 #3)
+    "product_difference": (
+        "Sales",
+        [("Customer A", "DEBIT", "100"), ("Sales", "CREDIT", "100")],
+        "Sales",
+    ),
     "customer_revenue": (
         "Sales",
         [("Customer A", "DEBIT", "100"), ("Sales", "CREDIT", "100")],

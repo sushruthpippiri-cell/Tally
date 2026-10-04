@@ -1,4 +1,5 @@
 import type { Page, Route } from "@playwright/test";
+import { ANALYTICS } from "./analyticsMock";
 
 /** A mocked backend for page tests: signed in (refresh always succeeds), one company, and data
  * with long names and wide tables so the 360 px checks have something to overflow. */
@@ -93,6 +94,7 @@ const run = {
 const setting = (value: unknown) => ({ value, is_default: true });
 
 const DEFAULTS: Api = {
+  ...ANALYTICS,
   "GET /companies": [company, { ...company, company_id: "c-2", name: "Gupta Stores" }],
   "GET /companies/c-1": company,
   "GET /companies/c-1/agents": {
