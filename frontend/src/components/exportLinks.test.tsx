@@ -82,13 +82,13 @@ describe("exporting a view (EXP-1.1-1.6)", () => {
     const section = await screen.findByRole("region", { name: "Total Sales Revenue" });
     await user.click(within(section).getByRole("button", { name: "Export CSV" }));
     await expect.poll(() => downloads).toEqual(["sales.csv"]);
-    const sent = requests[0]!;
-    expect(sent.pathname).toBe("/api/companies/c-1/exports/sales");
-    expect(sent.searchParams.get("format")).toBe("csv");
-    expect(sent.searchParams.get("from")).toBe("2025-04-01");
-    expect(sent.searchParams.get("to")).toBe("2025-06-30");
-    expect(sent.searchParams.get("customer")).toBe("cust-1");
-    expect(sent.searchParams.get("group_by")).toBe("ledger");
+    const [sent] = requests;
+    expect(sent?.pathname).toBe("/api/companies/c-1/exports/sales");
+    expect(sent?.searchParams.get("format")).toBe("csv");
+    expect(sent?.searchParams.get("from")).toBe("2025-04-01");
+    expect(sent?.searchParams.get("to")).toBe("2025-06-30");
+    expect(sent?.searchParams.get("customer")).toBe("cust-1");
+    expect(sent?.searchParams.get("group_by")).toBe("ledger");
     expect(auth).toBe("Bearer test-token");
   });
 
@@ -100,7 +100,7 @@ describe("exporting a view (EXP-1.1-1.6)", () => {
     const section = await screen.findByRole("region", { name: "Total Sales Revenue" });
     await user.click(within(section).getByRole("button", { name: "Export PDF" }));
     await expect.poll(() => downloads).toEqual(["sales.pdf"]);
-    expect(requests[0]!.searchParams.get("format")).toBe("pdf");
+    expect(requests[0]?.searchParams.get("format")).toBe("pdf");
   });
 
   it("every analytics section offers both formats", async () => {
@@ -143,7 +143,7 @@ describe("exporting a view (EXP-1.1-1.6)", () => {
     renderApp("/c/c-1/analytics/sales/drilldown?by=ledger%3Al-1");
     await user.click(await screen.findByRole("button", { name: "Export CSV" }));
     await expect.poll(() => requests.length).toBe(1);
-    expect(requests[0]!.pathname).toBe("/api/companies/c-1/exports/sales");
-    expect(requests[0]!.searchParams.getAll("by")).toEqual(["ledger:l-1"]);
+    expect(requests[0]?.pathname).toBe("/api/companies/c-1/exports/sales");
+    expect(requests[0]?.searchParams.getAll("by")).toEqual(["ledger:l-1"]);
   });
 });
