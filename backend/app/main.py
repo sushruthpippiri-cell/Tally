@@ -11,6 +11,7 @@ from app.api import (
     commands,
     companies,
     data_quality,
+    exports,
     health,
     masters,
     reconciliation,
@@ -59,6 +60,7 @@ def create_app(config: Settings | None = None) -> FastAPI:
         data_quality,
         masters,
         analytics,
+        exports,
         reconciliation,
         vouchers,
     ):

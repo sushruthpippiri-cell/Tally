@@ -15,7 +15,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
-from app.core.periods import Granularity, now_local
+from app.core.periods import Granularity, financial_year_of, now_local, today
 from app.core.permissions import CompanyContext
 from app.exports.money import format_quantity
 from app.exports.report import Bar, Chart, Column, Report, SummaryLine, humanize
@@ -59,6 +59,19 @@ class ExportParams:
     view_all: bool = False
     period_days: int | None = None
     movement_class: str | None = None
+
+
+async def effective_range(
+    session: AsyncSession, ctx: CompanyContext, params: ExportParams
+) -> tuple[date, date]:
+    """The dates the report will actually cover: the financial year to date in the company's own
+    time zone when the request named neither (the same rule `services.analytics` applies). The
+    endpoint needs them before it streams, for the audit row and the file name; a test holds
+    this and the report's own header together."""
+    company = await _company(session, ctx)
+    date_to = params.date_to or today(company.company_timezone)
+    date_from = params.date_from or financial_year_of(date_to, company.financial_year_start).start
+    return date_from, date_to
 
 
 async def _company(session: AsyncSession, ctx: CompanyContext) -> Company:
