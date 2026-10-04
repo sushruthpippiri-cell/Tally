@@ -4,3 +4,5 @@
 # TallyPrime (D-038), must never have their line endings or encoding touched.
 shared/tests/golden/** -text
 fixtures/** -text
+# Bundled fonts (backend/app/exports/fonts/, D-053 #7b): binary, hash-pinned in their README.
+*.ttf binary
