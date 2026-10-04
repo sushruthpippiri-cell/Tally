@@ -57,8 +57,16 @@ Script that runs the AC-tagged tests and writes `docs/acceptance-report.md`: AC-
 ### P16.11 Rate limits shared across replicas — REQUIRED before production (SEC-1.9, D-033 #3)
 The SEC-1.9 limits (100/min per IP unauthenticated, 1,000/min per user) are counted in each backend process's memory (`RateLimiter` in `app/core/middleware.py`), so N replicas allow N× the limit. Move the counters to shared storage (a Postgres table with an atomic `INSERT … ON CONFLICT … DO UPDATE … RETURNING count`, or Redis if one is deployed by then), keeping the key rules (user id for a valid access token, else the client IP resolved through `TRUSTED_PROXIES`) and the 429 + `Retry-After` response. Test: two app instances sharing the store together allow no more than the limit. Close the ceiling in `docs/security-review.md`. **Production must not run more than one backend replica until this is done.** (The per-email login throttle already counts from `audit_logs` and is unaffected.)
 
+### P16.12 Production reverse proxy — REQUIRED before production (owner, D-051)
+The app and the API are served from one origin, with the reverse proxy in front of both (D-051 #4). Three things it must do, each checked against the deployed site:
+1. **Keep the browser's `Host` header** on requests it passes to the backend (nginx: `proxy_set_header Host $host;`; never rewrite it to the backend's address). The refresh and logout endpoints refuse an `Origin` that matches neither `CORS_ORIGINS` nor `Host` (SEC-1.5, D-051 #2), so a rewritten Host makes **every refresh fail as cross-site** and signs everyone out at each reload (found with the Vite dev proxy in P13.3).
+2. **Serve the app with its CSP** and the other security headers from `frontend/security/csp.ts` (`SECURITY_HEADERS`: CSP, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`), plus HSTS. Keep them in step with that file; no `upgrade-insecure-requests` is needed behind HSTS. The API keeps its own `default-src 'none'` CSP (P13.3).
+3. **Strip the `/api` prefix** before the backend: the browser calls `/api/auth/login` and the backend serves `/auth/login`. The refresh cookie's path stays `/api/auth` (`REFRESH_COOKIE_PATH`), the path the browser sees.
+
+Check: `npm run e2e:live` (sign in, reload, sign out, then every page) against the deployed URL in Chrome and Safari; `curl -I` shows the CSP on the app and on `/api/health`. Record the run in `docs/progress.md`.
+
 ## Definition of done
-Rate limits enforced across replicas (P16.11); security sweep, failure-mode tests, E2E suite and traceability all blocking and green in CI; benchmark template filled for the synthetic run; restore drill executed once; acceptance report generated.
+Rate limits enforced across replicas (P16.11); the production reverse proxy keeps Host, serves the CSP and strips /api, checked by the live sign-in run (P16.12); security sweep, failure-mode tests, E2E suite and traceability all blocking and green in CI; benchmark template filled for the synthetic run; restore drill executed once; acceptance report generated.
 
 ## Kickoff prompt
 ~~~text
