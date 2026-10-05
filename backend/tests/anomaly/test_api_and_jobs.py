@@ -17,6 +17,7 @@ from app.models.config import AiToolLog, AnomalyFlag, AnomalyScanState, FeatureC
 from app.models.enums import AnomalyRule, ExplanationStatus, RoleName, VoucherStatus
 from app.models.vouchers import Voucher
 from app.services import anomaly as anomaly_service
+from tally_contract.testing import assert_logged
 from tests.analytics.books import Books, make_books
 from tests.factories import auth_header, make_user
 
@@ -433,3 +434,44 @@ async def test_the_daily_cap_defers_the_rest_newest_first(
     assert tried == [newer], "newest first, by the transaction's own date"
     assert older not in tried
     assert await anomaly_jobs.anomaly_explanations(session, NOW) == 0, "nothing left today"
+
+
+@pytest.mark.req("SEC-1.14")
+async def test_a_wrong_model_id_is_reported_clearly_once(
+    session: AsyncSession,
+    books: Books,
+    configured: None,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """D-055 #3: a typo in ANOMALY_EXPLAINER_MODEL would otherwise make every explanation
+    unavailable with nothing to say why."""
+    import anthropic
+
+    from app.anomaly import explainer
+
+    monkeypatch.setattr(anomaly_jobs, "_model_checked", False)
+
+    class _Models:
+        async def retrieve(self, model: str) -> Any:
+            raise anthropic.NotFoundError(message=f"model: {model}", response=None, body=None)  # type: ignore[arg-type]
+
+    class _Client:
+        def __init__(self, *_a: Any, **_k: Any) -> None:
+            self.models = _Models()
+            self.messages = self
+
+        async def create(self, **_k: Any) -> Any:
+            raise anthropic.APIConnectionError(request=None)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(anthropic, "AsyncAnthropic", _Client)
+    assert await explainer.check_model_configured() is False
+    # CLAUDE.md: assert on the log record, not only the return value.
+    found = assert_logged(caplog, "anomaly_explainer_model_unusable", level="error")
+    assert found["model"] == "claude-sonnet-5-5"
+
+    await enable(books)
+    await a_large_one(books)
+    await anomaly_jobs.anomaly_rules(session, NOW)
+    await anomaly_jobs.anomaly_explanations(session, NOW)
+    assert anomaly_jobs._model_checked is True, "checked once per process, not once per anomaly"

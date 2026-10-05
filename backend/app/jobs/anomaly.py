@@ -20,6 +20,11 @@ from tally_contract.log import get_logger
 
 log = get_logger(__name__)
 
+#: D-055 #3: the configured model id is checked once per process, the first time there is
+#: actually something to explain. A typo would otherwise make every explanation unavailable with
+#: nothing to say why.
+_model_checked = False
+
 
 async def _enabled_companies(session: AsyncSession) -> list[tuple[uuid.UUID, str]]:
     """(company_id, timezone) for companies with the flag on. The registry default is off, so
@@ -61,6 +66,11 @@ async def anomaly_explanations(session: AsyncSession, now: datetime) -> int:
         return 0
 
     from app.anomaly import explainer  # imported here: nothing loads anthropic/mcp otherwise
+
+    global _model_checked
+    if not _model_checked:
+        _model_checked = True
+        await explainer.check_model_configured()
 
     explained = 0
     for company_id, timezone in companies:

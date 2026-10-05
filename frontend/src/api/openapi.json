@@ -763,6 +763,11 @@
             "title": "Company Timezone",
             "type": "string"
           },
+          "explanations_configured": {
+            "default": false,
+            "title": "Explanations Configured",
+            "type": "boolean"
+          },
           "reason": {
             "anyOf": [
               {

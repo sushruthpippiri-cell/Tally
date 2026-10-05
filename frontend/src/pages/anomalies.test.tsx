@@ -44,6 +44,7 @@ function listing(extra: Partial<Schemas["AnomaliesOut"]> = {}): Schemas["Anomali
     available: true,
     reason: null,
     company_timezone: "Asia/Kolkata",
+    explanations_configured: true,
     anomalies: [anomaly()],
     total_count: 1,
     ...extra,
@@ -205,10 +206,18 @@ describe("the Anomalies section (SRS 12)", () => {
       available: false,
       reason: "Anomaly detection is off for this company.",
       company_timezone: "Asia/Kolkata",
+      explanations_configured: false,
       anomalies: [],
       total_count: 0,
     });
     renderApp("/c/c-1/anomalies");
     expect(await screen.findByText(/off for this company/)).toBeInTheDocument();
+  });
+
+  it("says so when this server cannot ask for explanations at all", async () => {
+    serveCompanies(enabled());
+    serve("/anomalies", listing({ explanations_configured: false }));
+    renderApp("/c/c-1/anomalies");
+    expect(await screen.findByText(/not configured on this server/i)).toBeInTheDocument();
   });
 });

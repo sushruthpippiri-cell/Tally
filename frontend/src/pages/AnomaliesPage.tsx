@@ -150,6 +150,14 @@ export function AnomaliesPage() {
             <EmptyState>{a.reason ?? "Anomaly detection is off for this company."}</EmptyState>
           ) : (
             <div className="space-y-4">
+              {!a.explanations_configured && a.anomalies.length > 0 && (
+                <Warnings
+                  notes={[
+                    "Written explanations are not configured on this server, so none will be " +
+                      "requested. Every figure below is measured here and is unaffected.",
+                  ]}
+                />
+              )}
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"

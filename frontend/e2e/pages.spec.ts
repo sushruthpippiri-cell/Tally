@@ -143,6 +143,7 @@ test("anomalies: evidence and explanation stay apart, and a review can be made (
       available: true,
       reason: null,
       company_timezone: "Asia/Kolkata",
+      explanations_configured: true,
       total_count: 1,
       anomalies: [
         {

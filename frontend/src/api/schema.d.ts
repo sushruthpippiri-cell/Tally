@@ -1365,6 +1365,11 @@ export interface components {
       available: boolean;
       /** Company Timezone */
       company_timezone: string;
+      /**
+       * Explanations Configured
+       * @default false
+       */
+      explanations_configured: boolean;
       /** Reason */
       reason?: string | null;
       /**

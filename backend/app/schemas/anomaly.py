@@ -53,6 +53,9 @@ class AnomaliesOut(BaseModel):
     available: bool
     reason: str | None = None
     company_timezone: str
+    #: False when this server has no API key or model configured. Without it a row would sit at
+    #: "not written yet" for ever, which reads as "coming soon" rather than "never asked for".
+    explanations_configured: bool = False
     anomalies: list[AnomalyOut] = []
     total_count: int = 0
 

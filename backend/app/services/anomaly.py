@@ -16,6 +16,7 @@ from sqlalchemy.orm import aliased
 
 from app.anomaly import redact, rules
 from app.core import audit
+from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.periods import local_day_bounds, today
 from app.core.permissions import CompanyContext
@@ -169,9 +170,12 @@ async def listing(
         .limit(limit)
         .offset(offset)
     )
+    settings = get_settings()
     return AnomaliesOut(
         available=True,
         company_timezone=company.company_timezone,
+        explanations_configured=settings.anthropic_api_key is not None
+        and bool(settings.anomaly_explainer_model),
         anomalies=[_out(r) for r in rows],
         total_count=total,
     )
