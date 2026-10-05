@@ -101,7 +101,10 @@ async def test_the_tool_returns_the_stored_evidence_for_one_anomaly(
     assert result.is_error is not True
     got = result.structured_content
     assert got is not None
-    assert got["rule"] == AnomalyRule.UNUSUALLY_LARGE_SD
+    # The rule travels in words, not as its enum name: "UNUSUALLY_LARGE_SD" would invite the
+    # model to write "3 standard deviations", and that threshold is deliberately not in the
+    # evidence, so the FR-3.6 check would discard an otherwise good explanation.
+    assert got["rule"] == redact.RULE_LABELS[AnomalyRule.UNUSUALLY_LARGE_SD]
     assert got["transaction_amount"] == "450000.0000"
     assert got["historical_average"] == "70000.0000"
     assert got["historical_maximum"] == "120000.0000"
@@ -174,7 +177,7 @@ async def test_the_evidence_call_is_well_under_two_seconds(
 async def test_no_placeholder_label_contains_a_digit() -> None:
     """D-055 #8. "Voucher 1" would have put 1 into every duplicate explanation, and the FR-3.6
     number check would have discarded it - destroying the explanations it exists to protect."""
-    for label in (redact.PARTY, redact.VOUCHER, redact.OTHER_VOUCHER):
+    for label in (redact.PARTY, redact.VOUCHER, redact.OTHER_VOUCHER, *redact.RULE_LABELS.values()):
         assert not any(c.isdigit() for c in label), label
 
 

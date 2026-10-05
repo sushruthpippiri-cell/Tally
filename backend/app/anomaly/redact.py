@@ -27,6 +27,17 @@ VOUCHER = "Voucher A"
 OTHER_VOUCHER = "Voucher B"
 CURRENCY = "INR"
 
+#: The rule, in words, instead of its enum name. `UNUSUALLY_LARGE_SD` would invite the model to
+#: write "3 standard deviations" - and the threshold is deliberately *not* in the evidence, so
+#: the FR-3.6 check would then discard an otherwise good explanation. No label carries a digit.
+RULE_LABELS = {
+    "UNUSUALLY_LARGE_SD": ("unusually large for this party compared with its recent history"),
+    "UNUSUALLY_LARGE_MULTIPLE": "much larger than this party's previous maximum",
+    "POSSIBLE_DUPLICATE": (
+        "possibly a duplicate of another voucher for the same party, amount and voucher type"
+    ),
+}
+
 #: Every key the tool may return. The disclosure endpoint publishes this list, and a test holds
 #: it against what `evidence()` actually produces.
 FIELDS = (
@@ -60,7 +71,7 @@ def evidence(
     currency and the placeholders. Keys whose value is absent are left out, so the payload never
     carries a null for a rule that has no such figure."""
     out: dict[str, Any] = {
-        "rule": rule,
+        "rule": RULE_LABELS[rule],
         "currency": CURRENCY,
         "party": PARTY,
         "voucher": VOUCHER,
