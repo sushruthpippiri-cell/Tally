@@ -30,9 +30,6 @@ dev = [
   "types-pyyaml",
   "types-psutil",
   "trustme",  # a throwaway CA for the Agent's TLS tests (D-042 #4)
-  # only so import-linter can resolve the forbidden externals; runtime dep arrives with P15
-  "anthropic",
-  "mcp",
 ]
 
 [tool.ruff]
@@ -105,6 +102,26 @@ name = "Analytics, reconciliation, sync and exports never touch AI (SRS 2.4-1, N
 type = "forbidden"
 source_modules = ["app.analytics", "app.reconciliation", "app.sync", "app.exports"]
 forbidden_modules = ["app.anomaly", "anthropic", "mcp"]
+
+[[tool.importlinter.contracts]]
+# The other half: analytics and friends must not reach the AI, and nothing outside app.anomaly
+# may reach it either. Without this, app.api or app.services could import the SDKs and the
+# feature flag would stop being the only switch (FR-3.1, AC-55).
+name = "Only app.anomaly may import the AI SDKs (SRS 12.2, FR-3.1)"
+type = "forbidden"
+source_modules = [
+  "app.analytics",
+  "app.api",
+  "app.core",
+  "app.exports",
+  "app.jobs",
+  "app.models",
+  "app.reconciliation",
+  "app.schemas",
+  "app.services",
+  "app.sync",
+]
+forbidden_modules = ["anthropic", "mcp"]
 
 [[tool.importlinter.contracts]]
 name = "tally_contract does not import app or tally_agent"
