@@ -185,6 +185,14 @@ _SPECS = [
     SettingSpec("anomaly.deviation_sd", DEC, "3", _decimal(positive=True)),
     SettingSpec("anomaly.max_multiplier", DEC, None, _decimal(positive=True, nullable=True)),
     SettingSpec("anomaly.duplicate_window_days", INT, 3, _POSITIVE),
+    # D-015: the SD rule is meaningless without a sample.
+    SettingSpec("anomaly.min_prior_transactions", INT, 5, _POSITIVE),
+    # D-055 #1: and meaningless on a flat history, where SD is 0 or tiny. A stated departure
+    # from FR-3.2: the amount must also be at least this multiple of the party's average.
+    SettingSpec("anomaly.min_average_multiple", DEC, "2", _decimal(positive=True)),
+    # D-055 #11: enabling the feature must not flag years of history, nor spend without limit.
+    SettingSpec("anomaly.initial_scan_days", INT, 30, _POSITIVE),
+    SettingSpec("anomaly.max_explanations_per_day", INT, 50, _POSITIVE),
 ]
 SETTINGS: dict[str, SettingSpec] = {s.key: s for s in _SPECS}
 ALLOW_LIST_KEYS = frozenset(DEFAULT_CLASSIFICATION_ALLOW_LISTS)

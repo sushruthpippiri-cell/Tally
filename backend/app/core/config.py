@@ -10,6 +10,10 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 _DEV_DATABASE_URL = "postgresql+asyncpg://tally_app:tally_app_dev@localhost:5432/tally"
 _DEV_MIGRATION_URL = "postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally"
 _DEV_JWT_SECRET = "dev-only-jwt-secret-change-me-in-prod"  # >= 32 bytes for HS256
+# The anomaly MCP server's own connection (P15, D-055 #5): a libpq DSN, not a SQLAlchemy URL,
+# because the server connects directly. SELECT on anomaly_flags only, scoped to one company by
+# row-level security.
+_DEV_READONLY_URL = "postgresql://tally_readonly:tally_readonly_dev@localhost:5432/tally"
 
 
 class Settings(BaseSettings):
@@ -39,8 +43,12 @@ class Settings(BaseSettings):
     # per-process cap from configuration, not a company setting - ten companies must not be
     # able to render twenty PDFs at once, and no company can raise its own limit.
     pdf_max_concurrent: int = 2
+    # P15, all three optional: with any of them unset, anomalies are still found and shown with
+    # their evidence and the explanation reads "unavailable" (AC-58, NFR-REL-1). Never literals in
+    # code (SEC-1.14).
     anthropic_api_key: SecretStr | None = None
     anomaly_explainer_model: str | None = None
+    anomaly_readonly_database_url: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -78,6 +86,9 @@ class Settings(BaseSettings):
             self.database_url = self.database_url or _DEV_DATABASE_URL
             self.database_migration_url = self.database_migration_url or _DEV_MIGRATION_URL
             self.jwt_secret = self.jwt_secret or SecretStr(_DEV_JWT_SECRET)
+            self.anomaly_readonly_database_url = (
+                self.anomaly_readonly_database_url or _DEV_READONLY_URL
+            )
             if self.allow_unverified_incremental is None:
                 self.allow_unverified_incremental = True
         return self

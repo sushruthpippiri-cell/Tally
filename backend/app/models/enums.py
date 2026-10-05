@@ -161,3 +161,26 @@ class ToolCallStatus(StrEnum):
 
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
+
+
+class AnomalyRule(StrEnum):
+    """anomaly_flags.rule_triggered. Free text until P15 (D-032); now checked."""
+
+    # amount > mean + anomaly.deviation_sd x SD AND amount >= anomaly.min_average_multiple x mean
+    # (FR-3.2 as amended by D-015 / D-055 #1)
+    UNUSUALLY_LARGE_SD = "UNUSUALLY_LARGE_SD"
+    # amount > previous maximum x anomaly.max_multiplier; inactive until that is set (FR-3.2)
+    UNUSUALLY_LARGE_MULTIPLE = "UNUSUALLY_LARGE_MULTIPLE"
+    # same party, amount, base voucher type, within anomaly.duplicate_window_days (D-055 #2)
+    POSSIBLE_DUPLICATE = "POSSIBLE_DUPLICATE"
+
+
+class ExplanationUnavailableReason(StrEnum):
+    """Why an explanation is UNAVAILABLE (D-055 #12). Shown to the owner, and counted by
+    `GET .../anomalies/explanation-health` so the model choice can be revisited with data."""
+
+    NOT_CONFIGURED = "NOT_CONFIGURED"  # no API key or no model id in the environment
+    CLAUDE_UNREACHABLE = "CLAUDE_UNREACHABLE"  # connection or API error (AC-58)
+    TIMEOUT = "TIMEOUT"
+    REFUSED = "REFUSED"  # stop_reason "refusal"
+    NUMBER_NOT_IN_EVIDENCE = "NUMBER_NOT_IN_EVIDENCE"  # FR-3.6: discarded by the number check
