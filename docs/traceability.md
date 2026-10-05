@@ -5,9 +5,9 @@ a test marked `@pytest.mark.req` fully proves it; `@pytest.mark.req_partial` tes
 listed separately and never count as covered (CLAUDE.md).
 
 - Requirement IDs in the SRS: **356**
-- Fully covered by at least one test: **209**
-- Partially covered only: **55**
-- Not covered yet: **92**
+- Fully covered by at least one test: **223**
+- Partially covered only: **54**
+- Not covered yet: **79**
 
 ## Covered
 
@@ -140,6 +140,13 @@ listed separately and never count as covered (CLAUDE.md).
 | FR-STK-10 | backend/tests/api/test_stock_api.py::test_the_unit_limitation_is_stated_and_quantities_are_per_unit |
 | FR-STK-16 | backend/tests/analytics/test_stock.py::test_a_snapshot_of_40_and_no_sale_for_200_days_is_dead_with_its_date<br>backend/tests/api/test_stock_api.py::test_counts_classes_labels_and_filters |
 | FR-STK-17 | backend/tests/api/test_stock_api.py::test_counts_classes_labels_and_filters |
+| FR-3.2 | backend/tests/anomaly/test_rules.py::test_a_flat_history_only_flags_a_genuine_jump<br>backend/tests/anomaly/test_rules.py::test_a_near_flat_history_does_not_flag_a_small_step<br>backend/tests/anomaly/test_rules.py::test_where_amounts_vary_the_sd_term_stays_the_stricter_one |
+| FR-3.3 | backend/tests/anomaly/test_rules.py::test_a_sale_and_its_matching_receipt_are_not_a_duplicate |
+| FR-3.4 | backend/tests/anomaly/test_schema_and_rls.py::test_a_flag_stores_every_piece_of_evidence |
+| FR-3.5 | backend/tests/anomaly/test_mcp_server.py::test_the_tool_returns_the_stored_evidence_for_one_anomaly |
+| FR-3.6 | backend/tests/anomaly/test_explainer.py::test_a_good_explanation_is_stored_with_the_real_names_put_back<br>backend/tests/anomaly/test_explainer.py::test_an_invented_number_discards_the_explanation<br>backend/tests/anomaly/test_numbers.py::test_a_good_explanation_passes<br>backend/tests/anomaly/test_numbers.py::test_an_invented_number_is_caught<br>backend/tests/anomaly/test_numbers.py::test_a_duplicate_explanation_naming_both_vouchers_passes |
+| FR-3.8 | backend/tests/anomaly/test_api_and_jobs.py::test_an_owner_can_review_a_flag_and_it_is_audited |
+| FR-3.9 | backend/tests/anomaly/test_explainer.py::test_every_tool_call_is_recorded |
 | FR-4.3 | backend/tests/api/test_drilldown.py::test_filters_narrow_the_figures_they_apply_to_and_say_so_otherwise |
 | FR-DD-1 | backend/tests/api/test_drilldown.py::test_revenue_to_customer_to_vouchers_to_voucher_detail |
 | FR-DD-2 | backend/tests/api/test_drilldown.py::test_product_revenue_to_product_to_its_lines |
@@ -160,7 +167,10 @@ listed separately and never count as covered (CLAUDE.md).
 | SEC-1.5 | backend/tests/api/test_auth.py::test_the_cookie_endpoints_refuse_cross_site_requests |
 | SEC-1.9 | backend/tests/api/test_middleware.py::test_100_per_minute_per_ip_then_1000_per_user |
 | SEC-1.11 | backend/tests/api/test_exports.py::test_a_user_without_access_to_the_company_gets_no_file<br>backend/tests/api/test_exports.py::test_another_companys_id_in_the_path_is_refused |
+| SEC-1.12 | backend/tests/anomaly/test_api_and_jobs.py::test_the_disclosure_is_what_is_actually_sent<br>backend/tests/anomaly/test_explainer.py::test_nothing_human_typed_is_ever_sent<br>backend/tests/anomaly/test_mcp_server.py::test_another_companys_anomaly_is_not_found<br>backend/tests/anomaly/test_schema_and_rls.py::test_the_readonly_role_sees_only_the_company_set_at_spawn |
+| SEC-1.14 | backend/tests/anomaly/test_api_and_jobs.py::test_a_wrong_model_id_is_reported_clearly_once<br>backend/tests/anomaly/test_explainer.py::test_no_model_name_is_written_in_the_source |
 | LOG-1.1 | backend/tests/api/test_exports.py::test_an_export_is_audited_with_the_range_it_took |
+| PERF-1.4 | backend/tests/anomaly/test_mcp_server.py::test_the_evidence_call_is_well_under_two_seconds |
 | Q-1.2 | backend/tests/core/test_periods.py::test_financial_quarters_from_1_april<br>backend/tests/core/test_periods.py::test_1_january_start_gives_calendar_quarters |
 | TEST-1.2 | shared/tests/test_contract_fixtures.py::test_every_case_the_srs_lists_has_a_fixture |
 | TEST-1.3 | shared/tests/test_contract_fixtures.py::test_fixture_parses_to_its_expected_result |
@@ -216,6 +226,10 @@ listed separately and never count as covered (CLAUDE.md).
 | AC-52 | backend/tests/analytics/test_stock.py::test_stock_and_no_sale_ever_is_never_sold_not_slow_or_dead |
 | AC-53 | backend/tests/analytics/test_stock.py::test_a_snapshot_of_40_and_no_sale_for_200_days_is_dead_with_its_date |
 | AC-54 | backend/tests/analytics/test_stock.py::test_an_item_sold_in_two_units_is_flagged_and_its_quantities_kept_apart |
+| AC-55 | backend/tests/anomaly/test_api_and_jobs.py::test_with_the_flag_off_no_anomaly_is_created_and_no_model_is_called<br>backend/tests/anomaly/test_api_and_jobs.py::test_with_the_flag_off_the_section_reports_itself_unavailable<br>backend/tests/anomaly/test_api_and_jobs.py::test_the_flag_off_path_never_imports_the_ai_sdks |
+| AC-56 | backend/tests/anomaly/test_api_and_jobs.py::test_the_job_flags_the_srs_example_and_the_api_shows_its_evidence<br>backend/tests/anomaly/test_rules.py::test_the_srs_worked_example<br>backend/tests/anomaly/test_rules.py::test_the_srs_example_figures_exactly_when_the_average_is_seventy_thousand |
+| AC-57 | backend/tests/anomaly/test_rules.py::test_two_sales_of_the_same_amount_within_the_window_are_flagged |
+| AC-58 | backend/tests/anomaly/test_api_and_jobs.py::test_claude_unreachable_still_shows_the_anomaly_with_its_evidence<br>backend/tests/anomaly/test_explainer.py::test_claude_unreachable_leaves_the_anomaly_with_its_evidence |
 | AC-59 | backend/tests/api/test_settings.py::test_accountant_gets_403_on_settings_and_user_management |
 | AC-60 | backend/tests/api/test_route_access.py::test_user_of_another_company_gets_403_and_no_data<br>backend/tests/api/test_route_access.py::test_each_role_gets_exactly_what_srs_14_1_allows |
 | AC-61 | backend/tests/api/test_exports.py::test_a_mapped_custom_field_reaches_the_export_without_changing_a_total |
@@ -266,7 +280,6 @@ listed separately and never count as covered (CLAUDE.md).
 | FR-4.5 | backend/tests/api/test_data_quality.py::test_every_check_runs_and_a_new_company_has_nothing_to_report |
 | SEC-1.3 | backend/tests/api/test_middleware.py::test_prod_rejects_plain_http_and_sends_hsts |
 | SEC-1.13 | backend/tests/models/test_config_audit.py::test_app_role_cannot_change_audit_logs<br>backend/tests/models/test_config_audit.py::test_even_the_owner_cannot_change_audit_logs |
-| SEC-1.14 | backend/tests/test_config.py::test_prod_missing_secrets_fails_startup<br>backend/tests/test_config.py::test_prod_with_all_secrets_ok_and_incremental_off_by_default |
 | SEC-1.15 | backend/tests/test_db_roles.py::test_app_role_cannot_create_tables_but_owner_can |
 | LOG-1.2 | backend/tests/core/test_audit.py::test_record_writes_every_log_1_2_field |
 | NFR-REL-2 | backend/tests/races/test_crash.py::test_killed_mid_voucher_leaves_nothing_of_that_chunk<br>backend/tests/sync/test_ingest_vouchers.py::test_a_failure_mid_voucher_leaves_it_absent_or_entirely_the_previous_version |
@@ -285,10 +298,10 @@ listed separately and never count as covered (CLAUDE.md).
 
 ## Not covered yet
 
-SEC-2, SEC-2.4, AGT-5.2, AGT-5.5, AGT-4.1, AGT-4.4, AGT-6.1, AGT-6.2, VER-1.3, ACC-DATA-3, SYNC-5.1, SYNC-5.5, DR-VE-1, DR-VE-2, DR-ML-5, VAL-1.3, ACC-7.1, ACC-8.1, ACC-6, ACC-4.6, FR-STK-8, FR-STK-9, FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.5, FR-3.6, FR-3.7, FR-3.8, FR-3.9, FR-4.2, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, SEC-1.12, PERF-1.1, PERF-1.2, PERF-1.3, PERF-1.4, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-2.2, TEST-4.1, TEST-5.1, TEST-5.2, AC-55, AC-56, AC-57, AC-58, AC-64, AC-65, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
+SEC-2, SEC-2.4, AGT-5.2, AGT-5.5, AGT-4.1, AGT-4.4, AGT-6.1, AGT-6.2, VER-1.3, ACC-DATA-3, SYNC-5.1, SYNC-5.5, DR-VE-1, DR-VE-2, DR-ML-5, VAL-1.3, ACC-7.1, ACC-8.1, ACC-6, ACC-4.6, FR-STK-8, FR-STK-9, FR-3.1, FR-3.7, FR-4.2, SEC-1.6, SEC-1.7, SEC-1.8, SEC-1.10, PERF-1.1, PERF-1.2, PERF-1.3, PERF-VAL-1, PERF-VAL-2, NFR-REL-1, NFR-SCALE-1, NFR-UI-1, NFR-UI-2, NFR-UI-3, NFR-MAINT-1, NFR-MAINT-2, BKP-1.1, BKP-1.2, BKP-1.3, BKP-1.4, BKP-1.5, BKP-1.6, TEST-2.2, TEST-4.1, TEST-5.1, TEST-5.2, AC-64, AC-65, FR-1, SYNC-1, SYNC-3, SYNC-4, SYNC-5, SYNC-6, DR-4, VAL-1, AGT-1, RTE-1, AGT-2, VER-1, AGT-5, AGT-4, AGT-6, ACC-7, ACC-1, ACC-5, ACC-3, ACC-9, TOPN-1, ACC-4, EXP-1, REC-1, FR-3, SEC-1
 
 ## Marked in tests but not found in the SRS
 
 These are additions (see `docs/decisions.md`) or typos.
 
-D-053, SEC-2.0a, SEC-2.0b
+D-015, D-053, D-055, SEC-2.0a, SEC-2.0b, SRS-19.3
