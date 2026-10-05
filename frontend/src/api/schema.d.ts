@@ -1381,6 +1381,8 @@ export interface components {
     AnomalyOut: {
       /** Anomaly Id */
       anomaly_id: number;
+      /** Deviation Display */
+      deviation_display: string | null;
       /** Deviation Percent */
       deviation_percent: string | null;
       /** Duplicate Of Voucher Date */

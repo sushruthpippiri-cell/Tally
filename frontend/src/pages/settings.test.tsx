@@ -264,3 +264,72 @@ describe("Users (RBAC-1.2)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("turning anomaly detection on (D-055 #7)", () => {
+  const disclosure: Schemas["DisclosureOut"] = {
+    model: "claude-sonnet-5-5",
+    api_key_configured: true,
+    fields_sent: ["rule", "currency", "party", "voucher", "transaction_amount"],
+    example: {
+      rule: "unusually large for this party compared with its recent history",
+      currency: "INR",
+      party: "Party A",
+      voucher: "Voucher A",
+      transaction_amount: "450000.0000",
+    },
+    system_prompt: "Use only the figures the tool returned. Never calculate a new number.",
+    never_sent: ["party, ledger and company names", "narration", "dates"],
+  };
+
+  it("shows exactly what will be sent and needs the word typed", async () => {
+    serveCompanies(admin());
+    settingsApi();
+    serve("/anomalies/disclosure", disclosure);
+    let sent: unknown = null;
+    server.use(
+      http.put("*/api/companies/c-1/settings", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ settings: {}, feature_flags: {} });
+      }),
+    );
+    const user = userEvent.setup();
+    renderApp("/c/c-1/settings");
+    await user.click(await screen.findByRole("tab", { name: "Feature flags" }));
+    await user.click(await screen.findByRole("checkbox", { name: /Anomaly detection/ }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Turn on anomaly detection" });
+    // The payload the server says it will send, and the placeholders rather than real names.
+    expect(dialog).toHaveTextContent("Party A");
+    expect(dialog).toHaveTextContent("Voucher A");
+    expect(dialog).toHaveTextContent("claude-sonnet-5-5");
+    expect(dialog).toHaveTextContent("narration");
+    // Nothing is saved until ENABLE is typed.
+    const confirm = within(dialog).getByRole("button", { name: "Turn it on" });
+    expect(confirm).toBeDisabled();
+    expect(sent).toBeNull();
+
+    await user.type(within(dialog).getByRole("textbox"), "ENABLE");
+    await user.click(confirm);
+    await expect.poll(() => sent).toEqual({ feature_flags: { FEATURE_ANOMALY_DETECTION: true } });
+  });
+
+  it("saves nothing if the dialog is cancelled", async () => {
+    serveCompanies(admin());
+    settingsApi();
+    serve("/anomalies/disclosure", disclosure);
+    let sent: unknown = null;
+    server.use(
+      http.put("*/api/companies/c-1/settings", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ settings: {}, feature_flags: {} });
+      }),
+    );
+    const user = userEvent.setup();
+    renderApp("/c/c-1/settings");
+    await user.click(await screen.findByRole("tab", { name: "Feature flags" }));
+    await user.click(await screen.findByRole("checkbox", { name: /Anomaly detection/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Turn on anomaly detection" });
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(sent).toBeNull();
+  });
+});

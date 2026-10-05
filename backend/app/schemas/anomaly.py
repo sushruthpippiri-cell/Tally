@@ -34,6 +34,9 @@ class AnomalyOut(BaseModel):
     historical_average: Decimal | None
     historical_max: Decimal | None
     deviation_percent: Decimal | None
+    #: The same figure rounded for reading ("+543%"). The frontend must not convert a decimal to
+    #: a number, so the rounding happens here, once, in Decimal.
+    deviation_display: str | None
     flagged_at: datetime
     explanation_status: str
     explanation_text: str | None

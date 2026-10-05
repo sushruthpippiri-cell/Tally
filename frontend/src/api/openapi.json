@@ -794,6 +794,17 @@
             "title": "Anomaly Id",
             "type": "integer"
           },
+          "deviation_display": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deviation Display"
+          },
           "deviation_percent": {
             "anyOf": [
               {
@@ -991,6 +1002,7 @@
           "historical_average",
           "historical_max",
           "deviation_percent",
+          "deviation_display",
           "flagged_at",
           "explanation_status",
           "explanation_text",

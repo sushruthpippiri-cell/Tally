@@ -47,6 +47,7 @@ export function company(overrides: Partial<Company> = {}): Company {
     tally_guid: "guid-1",
     my_roles: ["OWNER"],
     my_permissions: OWNER,
+    anomaly_detection_enabled: false,
     ...overrides,
   };
 }

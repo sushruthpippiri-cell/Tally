@@ -7,6 +7,7 @@ import the explainer - so neither `anthropic` nor `mcp` is loaded either.
 
 import uuid
 from datetime import date, datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import Select, func, select
@@ -97,6 +98,15 @@ def _rows(company_id: uuid.UUID) -> Select[Any]:
     )
 
 
+def _deviation(value: Decimal | None) -> str | None:
+    """ "+543%" from 542.857143. Rounded here, in Decimal, because the frontend may never turn a
+    decimal string into a number (D-051 #5)."""
+    if value is None:
+        return None
+    rounded = value.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return f"{'+' if rounded > 0 else ''}{rounded}%"
+
+
 def _out(row: Any) -> AnomalyOut:
     flag: AnomalyFlag = row[0]
     return AnomalyOut(
@@ -114,6 +124,7 @@ def _out(row: Any) -> AnomalyOut:
         historical_average=flag.historical_average,
         historical_max=flag.historical_max,
         deviation_percent=flag.deviation_percent,
+        deviation_display=_deviation(flag.deviation_percent),
         flagged_at=flag.flagged_at,
         explanation_status=flag.explanation_status,
         explanation_text=flag.explanation_text,
@@ -211,8 +222,6 @@ async def review(
 
 def disclosure(model: str | None, api_key_configured: bool, system_prompt: str) -> DisclosureOut:
     """Built from the real `redact.evidence()`, so what is shown is what is sent."""
-    from decimal import Decimal
-
     example = redact.evidence(
         rule=AnomalyRule.UNUSUALLY_LARGE_SD,
         transaction_amount=Decimal("450000.0000"),

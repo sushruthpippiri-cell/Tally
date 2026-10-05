@@ -6,7 +6,7 @@ import { ANALYTICS } from "./analyticsMock";
 type Handler = unknown | ((route: Route, body: unknown) => unknown);
 export type Api = Record<string, Handler>;
 
-const LONG = "Shree Lakshmi Venkateswara Wholesale Traders and Distributors Private Limited";
+export const LONG = "Shree Lakshmi Venkateswara Wholesale Traders and Distributors Private Limited";
 const at = "2026-03-16T06:30:00Z";
 
 export const company = {
@@ -17,6 +17,8 @@ export const company = {
   is_active: true,
   tally_guid: "guid-1",
   my_roles: ["OWNER"],
+  // P15: the Anomalies section is listed only when the flag is on.
+  anomaly_detection_enabled: true,
   my_permissions: [
     "EXPORT",
     "MANAGE_AGENTS",
