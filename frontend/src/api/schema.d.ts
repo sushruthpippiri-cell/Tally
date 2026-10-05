@@ -655,6 +655,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/companies/{company_id}/exports/{report}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** A report as CSV or PDF, with the figures shown on screen */
+    get: operations["export_companies__company_id__exports__report__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/companies/{company_id}/masters/groups": {
     parameters: {
       query?: never;
@@ -2782,6 +2799,31 @@ export interface components {
        */
       sync_run_id: string;
     };
+    /**
+     * ReportName
+     * @enum {string}
+     */
+    ReportName:
+      | "sales"
+      | "customer-revenue"
+      | "product-revenue"
+      | "product-difference"
+      | "purchases"
+      | "supplier-purchases"
+      | "expenses"
+      | "cash-flow"
+      | "cash-bank-position"
+      | "receivables"
+      | "payables"
+      | "ledger-balances"
+      | "unclassified-adjustments"
+      | "customers"
+      | "suppliers"
+      | "products"
+      | "aging-receivable"
+      | "aging-payable"
+      | "payment-behaviour"
+      | "stock";
     /** ResultRequest */
     ResultRequest: {
       error_code?: components["schemas"]["ErrorCode"] | null;
@@ -4824,6 +4866,56 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CheckItems"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  export_companies__company_id__exports__report__get: {
+    parameters: {
+      query?: {
+        format?: "csv" | "pdf";
+        from?: string | null;
+        to?: string | null;
+        granularity?: "day" | "month" | "quarter";
+        group_by?: string | null;
+        include_cancelled?: boolean;
+        include_missing?: boolean;
+        rank_by?: "revenue" | "quantity";
+        top_n?: number | null;
+        view_all?: boolean;
+        period_days?: number | null;
+        class?: string | null;
+        customer?: string | null;
+        product?: string | null;
+        cost_centre?: string | null;
+        /** @description Repeatable '<group_by option>:<key>'; key 'none' is the NULL bucket */
+        by?: string[];
+      };
+      header?: never;
+      path: {
+        report: components["schemas"]["ReportName"];
+        company_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
         };
       };
       /** @description Validation Error */

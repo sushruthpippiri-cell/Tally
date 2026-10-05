@@ -107,8 +107,8 @@ async def _activity(books: Books) -> None:
     )
 
 
-@pytest.mark.req_partial("ACC-4.4")  # exports on the same path: P14
-@pytest.mark.req_partial("FR-DD-5")  # the drill-downs of later phases' metrics: P9-P12
+@pytest.mark.req_partial("ACC-4.4")  # exports: tests/api/test_exports.py
+@pytest.mark.req_partial("FR-DD-5")  # random filters: tests/exports/test_properties.py
 @pytest.mark.parametrize("metric", [m.value for m in MetricName])
 async def test_every_view_of_every_metric_agrees(
     api: httpx.AsyncClient, books: Books, viewer: User, metric: str

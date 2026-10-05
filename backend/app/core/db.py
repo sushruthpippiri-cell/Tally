@@ -37,3 +37,30 @@ async def transaction() -> AsyncIterator[AsyncSession]:
     """One session, one transaction: commits on success, rolls back on any exception."""
     async with session_factory()() as session, session.begin():
         yield session
+
+
+@asynccontextmanager
+async def snapshot() -> AsyncIterator[AsyncSession]:
+    """One REPEATABLE READ, READ ONLY transaction: every statement sees the same snapshot.
+
+    An export asks several questions - the summary, then a page of rows, then the next page -
+    and promises that the rows add up to the summary (AC-39). Under PostgreSQL's default READ
+    COMMITTED each statement sees whatever has committed since, so a sync landing mid-export
+    would break that promise. Read only as well, because an export never writes: the database
+    refuses one by mistake.
+
+    Nothing is committed; the caller only reads. The context manager owns the session and
+    closes it, so a streaming response does not depend on when its framework tears down
+    request dependencies.
+    """
+    async with session_factory()() as session:
+        await session.connection(
+            execution_options={
+                "isolation_level": "REPEATABLE READ",
+                "postgresql_readonly": True,
+            }
+        )
+        try:
+            yield session
+        finally:
+            await session.rollback()

@@ -1,6 +1,7 @@
 import type { Schemas } from "../api/types";
 import { Money } from "../components/Money";
 import { ScrollableTable } from "../components/ScrollableTable";
+import { ExportLinks } from "../components/ExportLinks";
 import { Warnings } from "../components/Warnings";
 import { DateText, EmptyState } from "../components/ui";
 import { Loaded, useCompanyQuery } from "../lib/queries";
@@ -17,7 +18,10 @@ export function PaymentBehaviourPage() {
   const query = usePaymentBehaviour();
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-semibold">Payment Behaviour</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">Payment Behaviour</h1>
+        <ExportLinks report="payment-behaviour" />
+      </div>
       <Loaded query={query} label="Loading payment behaviour">
         {(p) =>
           !p.available ? (

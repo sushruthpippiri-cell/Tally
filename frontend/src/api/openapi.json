@@ -4894,6 +4894,32 @@
         "title": "ReleaseRequest",
         "type": "object"
       },
+      "ReportName": {
+        "enum": [
+          "sales",
+          "customer-revenue",
+          "product-revenue",
+          "product-difference",
+          "purchases",
+          "supplier-purchases",
+          "expenses",
+          "cash-flow",
+          "cash-bank-position",
+          "receivables",
+          "payables",
+          "ledger-balances",
+          "unclassified-adjustments",
+          "customers",
+          "suppliers",
+          "products",
+          "aging-receivable",
+          "aging-payable",
+          "payment-behaviour",
+          "stock"
+        ],
+        "title": "ReportName",
+        "type": "string"
+      },
       "ResultRequest": {
         "additionalProperties": false,
         "properties": {
@@ -9687,6 +9713,299 @@
         "summary": "Check Items",
         "tags": [
           "data quality"
+        ]
+      }
+    },
+    "/companies/{company_id}/exports/{report}": {
+      "get": {
+        "operationId": "export_companies__company_id__exports__report__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ReportName"
+            }
+          },
+          {
+            "in": "path",
+            "name": "company_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Company Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "csv",
+              "enum": [
+                "csv",
+                "pdf"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "default": "month",
+              "enum": [
+                "day",
+                "month",
+                "quarter"
+              ],
+              "title": "Granularity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_cancelled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Cancelled",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_missing",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Missing",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rank_by",
+            "required": false,
+            "schema": {
+              "default": "revenue",
+              "enum": [
+                "revenue",
+                "quantity"
+              ],
+              "title": "Rank By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "top_n",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Top N"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view_all",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "View All",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period_days",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Period Days"
+            }
+          },
+          {
+            "in": "query",
+            "name": "class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customer",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Customer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cost_centre",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cost Centre"
+            }
+          },
+          {
+            "description": "Repeatable '<group_by option>:<key>'; key 'none' is the NULL bucket",
+            "in": "query",
+            "name": "by",
+            "required": false,
+            "schema": {
+              "default": [],
+              "description": "Repeatable '<group_by option>:<key>'; key 'none' is the NULL bucket",
+              "items": {
+                "type": "string"
+              },
+              "title": "By",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "A report as CSV or PDF, with the figures shown on screen",
+        "tags": [
+          "exports"
         ]
       }
     },

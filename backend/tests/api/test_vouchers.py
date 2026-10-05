@@ -33,7 +33,7 @@ def voucher_url(books: Books, voucher_id: Any) -> str:
     return f"/companies/{books.company.company_id}/vouchers/{voucher_id}"
 
 
-@pytest.mark.req_partial("DR-UDF-2")  # included in exports: P14.6
+@pytest.mark.req_partial("DR-UDF-2")  # exports: tests/api/test_exports.py (AC-61)
 async def test_a_voucher_shows_every_part_and_its_custom_fields(
     api: httpx.AsyncClient, books: Books, viewer: User
 ) -> None:

@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     min_tdl_version: str = "0.0.0"
     allow_unverified_incremental: bool | None = None  # D-029: true in dev/test, false in prod
     scheduler_enabled: bool = True  # background jobs (app/jobs); off in tests
+    # D-053 #7a, as the owner amended it: the PDF limit protects the *server*, so it is one
+    # per-process cap from configuration, not a company setting - ten companies must not be
+    # able to render twenty PDFs at once, and no company can raise its own limit.
+    pdf_max_concurrent: int = 2
     anthropic_api_key: SecretStr | None = None
     anomaly_explainer_model: str | None = None
 

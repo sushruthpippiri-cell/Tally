@@ -1,5 +1,6 @@
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import type { Schemas } from "../api/types";
+import { ExportLinks } from "../components/ExportLinks";
 import { FilterBar } from "../components/FilterBar";
 import { Money } from "../components/Money";
 import { ScrollableTable } from "../components/ScrollableTable";
@@ -34,7 +35,10 @@ export function DrilldownPage() {
     });
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-semibold">{humanize(metric)}: vouchers</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">{humanize(metric)}: vouchers</h1>
+        <ExportLinks report={metric} extra={{ by }} />
+      </div>
       <FilterBar />
       <Loaded query={query} label="Loading the vouchers">
         {(d) => {

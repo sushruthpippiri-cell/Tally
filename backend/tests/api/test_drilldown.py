@@ -307,7 +307,7 @@ async def test_bad_narrowing_is_refused(
         assert r.status_code == 422, r.text
 
 
-@pytest.mark.req_partial("FR-DD-5")  # random filter combinations: the P14.9 property test
+@pytest.mark.req_partial("FR-DD-5")  # random filters: tests/exports/test_properties.py
 @pytest.mark.parametrize("metric", [m.value for m in MetricName])
 async def test_every_metric_drills_by_its_ledger_or_first_dimension(
     api: httpx.AsyncClient, books: Books, viewer: User, metric: str

@@ -106,5 +106,36 @@ API: `GET /companies/{id}/analytics/{metric}` and `…/{metric}/drilldown`, with
   Every active item is in exactly one class.
 - **Units.** Classes never compare quantities. Quantities are shown per unit and never added across units; an item seen in more than one unit is flagged, the limitation is stated, and Data Quality lists it (FR-STK-10). Conversion to the base unit waits for gate G27.
 
+## Exports (P14: D-053 #6, #7, D-054, SRS 13.3)
+Every analytics section exports to CSV and PDF: the 13 metrics, the three rankings,
+`aging-receivable`, `aging-payable`, `payment-behaviour` and `stock`. Reconciliation and Data
+Quality do not — they are status pages, not figures.
+
+- **Same figures as the screen.** An export calls `app.services.analytics` / `aging` / `stock`,
+  the same functions the API calls, and formats what comes back (EXP-1.3, rule 9). The
+  architecture guards stop `app/exports/` reading `amount_raw` or importing the money tables, so
+  it cannot compute a figure even by accident. `tests/api/test_exports.py` shows the dashboard,
+  the drill-down, the CSV and the PDF all taking their figure from `query.total` (ACC-4.4).
+- **One snapshot per export.** Every read of one export runs in a single REPEATABLE READ, READ
+  ONLY transaction, so a sync committing midway cannot leave the rows disagreeing with the
+  summary above them (AC-39, D-054 #3).
+- **Header block** (EXP-1.1): report title, company, the date range or "as of" date, every active
+  filter by name — a filter the figure cannot be narrowed by says so rather than pretending
+  (D-053 #1) — and the generation time in `company_timezone`.
+- **Summary lines.** A sales export has three (Total Sales Revenue, Product-attributed Revenue and
+  whichever difference label is active, EXP-1.4). An unavailable balance reads "unavailable", never
+  zero (ACC-9.6). A stock class count is written as a number, not as money.
+- **CSV amounts** are the exact database decimal, trailing zeros past two places trimmed, no rupee
+  sign and no grouping, so a column adds up to the summary line; a balance has a signed
+  "Amount (Dr +)" column and a Dr/Cr column read off that sign. UTF-8 with a BOM for Excel, and any
+  text cell a spreadsheet would read as a formula gets a leading apostrophe — names come from Tally
+  (D-053 #6).
+- **PDF figures** use one Python `format_money`, kept in step with the frontend's by
+  `fixtures/money-formatting.json`, which both test suites read. Charts are hand-written SVG from
+  the same series the screen draws, with no value axis, and only for the four metrics whose page
+  draws one (EXP-1.2). At most 2,000 detail rows, then a note pointing at the CSV, with the summary
+  still over every row. Fonts are bundled in `backend/app/exports/fonts/`.
+- **Quantities** are never added across units, in an export as on screen (FR-STK-10).
+
 ## Speed (PERF-1.1)
 Measured at the SRS 17.2 size (100,000 vouchers, 500,000 entries, 94,000 inventory lines): see `docs/benchmarks/p8-analytics.md` and the P8 and P9 benchmark entries in `docs/progress.md`. Analytics statements are planned for their own dates (D-047). To reproduce: `make bench-data && make bench-analytics`.

@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { Schemas } from "../api/types";
 import { Chart } from "../components/Chart";
+import { ExportLinks } from "../components/ExportLinks";
 import { FilterBar } from "../components/FilterBar";
 import { Figure } from "../components/Money";
 import { ScrollableTable } from "../components/ScrollableTable";
@@ -135,12 +136,15 @@ export function MetricSection({
                 </tbody>
               </ScrollableTable>
             )}
-            <Link
-              to={drillLink(company.company_id, metric, filters, by)}
-              className="text-sm underline"
-            >
-              See every voucher behind {m.label ?? title}
-            </Link>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Link
+                to={drillLink(company.company_id, metric, filters, by)}
+                className="text-sm underline"
+              >
+                See every voucher behind {m.label ?? title}
+              </Link>
+              <ExportLinks report={metric} extra={{ group_by: level, by }} />
+            </div>
           </>
         )}
       </Loaded>

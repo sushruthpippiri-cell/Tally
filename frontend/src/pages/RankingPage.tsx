@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { Schemas } from "../api/types";
 import { FilterBar } from "../components/FilterBar";
 import { Money } from "../components/Money";
+import { ExportLinks } from "../components/ExportLinks";
 import { ScrollableTable } from "../components/ScrollableTable";
 import { Warnings } from "../components/Warnings";
 import { EmptyState } from "../components/ui";
@@ -45,7 +46,7 @@ export function RankingTable({ kind }: { kind: Kind }) {
                 {r.label} {kind}
                 <span className="ml-2 text-sm font-normal text-slate-600">of {r.total_count}</span>
               </h2>
-              <div className="flex gap-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
                 {kind === "products" && (
                   <select
                     aria-label="Rank by"
@@ -57,6 +58,10 @@ export function RankingTable({ kind }: { kind: Kind }) {
                     <option value="quantity">By quantity</option>
                   </select>
                 )}
+                <ExportLinks
+                  report={kind}
+                  extra={{ rank_by: rankBy, view_all: viewAll ? "true" : undefined }}
+                />
                 <button
                   type="button"
                   className="rounded border border-slate-300 px-2 py-1"

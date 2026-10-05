@@ -1,4 +1,10 @@
-# Test XML
+# Test fixtures
+
+`money-formatting.json` is read by **both** `backend/tests/exports/test_money.py` and
+`frontend/src/lib/format.test.ts`, so `app/exports/money.py` and `src/lib/format.ts` cannot
+drift (D-053 #6, #7). Add a case there, not to either test.
+
+## Test XML
 
 `xml/synthetic/` is hand-built and **NOT verified Tally output**. `xml/live/` holds captures from a
 real TallyPrime, taken with the capture kit (`tools/capture_kit/`, D-038) from a **test company

@@ -54,3 +54,35 @@ test("a breakdown row drills to its vouchers, and a voucher opens by touch (FR-D
   await expect(page.getByText("Ravi")).toBeVisible();
   await expectNoHorizontalScroll(page);
 });
+
+test("a section exports to CSV and to PDF, by touch, under the CSP (EXP-1.1)", async ({
+  page,
+}, info) => {
+  const violations = await watchCsp(page);
+  const mobile = info.project.name === "mobile";
+  await mockApi(page);
+  // The export endpoint answers with a real attachment, so the browser performs a download.
+  // Registered after mockApi's catch-all, and Playwright matches the newest route first.
+  await page.route("**/api/companies/c-1/exports/sales**", (route) => {
+    const format = new URL(route.request().url()).searchParams.get("format");
+    return route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": format === "pdf" ? "application/pdf" : "text/csv; charset=utf-8",
+        "content-disposition": `attachment; filename="sales-2025-04-01-to-2026-03-16.${format}"`,
+      },
+      body: format === "pdf" ? "%PDF-1.7\n" : "﻿Report,Total Sales Revenue\r\n",
+    });
+  });
+  await page.goto("/c/c-1/sales");
+  const section = page.getByRole("region", { name: "Total Sales Revenue" });
+
+  for (const format of ["CSV", "PDF"] as const) {
+    const started = page.waitForEvent("download");
+    await press(section.getByRole("button", { name: `Export ${format}` }), mobile);
+    const file = await started;
+    expect(file.suggestedFilename()).toContain(format.toLowerCase());
+  }
+  await expectNoHorizontalScroll(page);
+  expect(violations).toEqual([]);
+});
