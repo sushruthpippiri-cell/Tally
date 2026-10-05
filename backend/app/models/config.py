@@ -117,6 +117,7 @@ class AnomalyFlag(Base):
         UniqueConstraint("voucher_id", "rule_triggered"),
         tenant_fk("voucher_id", "vouchers.voucher_id"),
         tenant_fk("duplicate_of_voucher_id", "vouchers.voucher_id"),
+        tenant_fk("party_ledger_id", "ledgers.ledger_id"),
         enum_check("explanation_status", ExplanationStatus),
         enum_check("rule_triggered", AnomalyRule),
         enum_check("explanation_unavailable_reason", ExplanationUnavailableReason),
@@ -132,6 +133,10 @@ class AnomalyFlag(Base):
     historical_max: Mapped[Decimal | None] = mapped_column(Money)
     deviation_percent: Mapped[Decimal | None] = mapped_column(Rate)
     duplicate_of_voucher_id: Mapped[uuid.UUID | None]
+    # Which party the figures are about. Stored rather than re-derived: the rules already
+    # resolved it (and skipped the ambiguous case), and the list API and evidence panel need the
+    # name without joining the voucher's entries again.
+    party_ledger_id: Mapped[uuid.UUID | None]
     flagged_at: Mapped[datetime] = created_at()
     explanation_text: Mapped[str | None]
     explanation_status: Mapped[str]

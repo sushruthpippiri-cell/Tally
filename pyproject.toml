@@ -104,9 +104,12 @@ source_modules = ["app.analytics", "app.reconciliation", "app.sync", "app.export
 forbidden_modules = ["app.anomaly", "anthropic", "mcp"]
 
 [[tool.importlinter.contracts]]
-# The other half: analytics and friends must not reach the AI, and nothing outside app.anomaly
-# may reach it either. Without this, app.api or app.services could import the SDKs and the
-# feature flag would stop being the only switch (FR-3.1, AC-55).
+# The other half: nothing that computes a figure or serves a request may reach the AI, so the
+# feature flag stays the only switch (FR-3.1, AC-55). It caught app.api importing the system
+# prompt from the explainer, which is why the prompt lives in its own SDK-free module.
+# app.jobs is deliberately absent: app/jobs/anomaly.py is the one legitimate caller of the
+# explainer - it is what runs the feature - and it imports it inside the function, so with the
+# flag off nothing loads (tested behaviourally in tests/anomaly).
 name = "Only app.anomaly may import the AI SDKs (SRS 12.2, FR-3.1)"
 type = "forbidden"
 source_modules = [
@@ -114,7 +117,6 @@ source_modules = [
   "app.api",
   "app.core",
   "app.exports",
-  "app.jobs",
   "app.models",
   "app.reconciliation",
   "app.schemas",

@@ -28,6 +28,7 @@ from mcp import Client, StdioServerParameters
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.anomaly import mcp_server, numbers
+from app.anomaly.prompt import SYSTEM_PROMPT
 from app.core.config import get_settings
 from app.models.config import AiToolLog, AnomalyFlag
 from app.models.enums import ExplanationStatus, ExplanationUnavailableReason, ToolCallStatus
@@ -40,19 +41,6 @@ EFFORT = "low"
 MAX_ROUNDS = 3  # one tool call is expected; this only stops a loop
 TIMEOUT_SECONDS = 20.0
 
-SYSTEM_PROMPT = """You explain one flagged accounting transaction to the owner of a small \
-business, who is not an accountant and not technical.
-
-Call the get_anomaly_evidence tool once with the anomaly id you are given, then write the \
-explanation. Rules you must follow:
-
-- Use only the figures the tool returned. Never calculate a new number, a ratio or a difference.
-- Write figures in digits, as the tool gave them, with the rupee sign.
-- Do not mention thresholds, standard deviations, multiples, percentiles or how the rule works.
-- Refer to the party and the vouchers by the labels the tool used.
-- At most 120 words, in plain language. Say what was flagged and why it might matter. Do not \
-tell the owner what to do, and do not say whether it is an error - you cannot know that.
-"""
 
 Reason = ExplanationUnavailableReason
 McpFactory = Callable[[uuid.UUID], AbstractAsyncContextManager[Client]]

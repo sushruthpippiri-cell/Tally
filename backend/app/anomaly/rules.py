@@ -81,6 +81,7 @@ class Flag:
     voucher_id: uuid.UUID
     rule: AnomalyRule
     amount: Decimal
+    party_ledger_id: uuid.UUID | None = None
     average: Decimal | None = None
     maximum: Decimal | None = None
     deviation_percent: Decimal | None = None
@@ -141,6 +142,7 @@ async def large_transactions(
         select(
             txn.c.voucher_id,
             txn.c.amount,
+            txn.c.ledger_id,
             func.count().label("priors"),
             func.avg(hist.c.amount).label("mean"),
             func.max(hist.c.amount).label("peak"),
@@ -157,16 +159,17 @@ async def large_transactions(
             )
         )
         .where(txn.c.voucher_id.in_(candidates))
-        .group_by(txn.c.voucher_id, txn.c.amount)
+        .group_by(txn.c.voucher_id, txn.c.amount, txn.c.ledger_id)
     )
 
     flags: list[Flag] = []
-    for voucher_id, amount, priors, mean, peak, sd in rows.tuples():
+    for voucher_id, amount, ledger_id, priors, mean, peak, sd in rows.tuples():
         if priors < thresholds.min_prior_transactions or not mean or mean <= 0:
             continue  # no sample, or an average of zero, which makes the deviation undefined
         deviation = (amount - mean) / mean * 100
         evidence = {
             "amount": amount,
+            "party_ledger_id": ledger_id,
             "average": mean,
             "maximum": peak,
             "deviation_percent": deviation,
@@ -203,7 +206,7 @@ async def duplicates(
     earlier = _party_txn(company_id, parties, history_from).subquery("earlier")
     window = literal(thresholds.duplicate_window_days, Integer)
     rows = await session.execute(
-        select(later.c.voucher_id, later.c.amount, earlier.c.voucher_id)
+        select(later.c.voucher_id, later.c.amount, later.c.ledger_id, earlier.c.voucher_id)
         .select_from(
             later.join(
                 earlier,
@@ -223,11 +226,17 @@ async def duplicates(
         .distinct()
     )
     seen: dict[uuid.UUID, Flag] = {}
-    for voucher_id, amount, other in rows.tuples():
+    for voucher_id, amount, ledger_id, other in rows.tuples():
         # One flag per voucher (the table's key); against the first match in a stable order.
         seen.setdefault(
             voucher_id,
-            Flag(voucher_id, AnomalyRule.POSSIBLE_DUPLICATE, amount, duplicate_of_voucher_id=other),
+            Flag(
+                voucher_id,
+                AnomalyRule.POSSIBLE_DUPLICATE,
+                amount,
+                party_ledger_id=ledger_id,
+                duplicate_of_voucher_id=other,
+            ),
         )
     return list(seen.values())
 
@@ -282,6 +291,7 @@ async def _write(
             "historical_max": f.maximum,
             "deviation_percent": f.deviation_percent,
             "duplicate_of_voucher_id": f.duplicate_of_voucher_id,
+            "party_ledger_id": f.party_ledger_id,
             "flagged_at": now,
             "explanation_status": ExplanationStatus.PENDING.value,
         }
@@ -297,6 +307,7 @@ async def _write(
                 "historical_max": statement.excluded.historical_max,
                 "deviation_percent": statement.excluded.deviation_percent,
                 "duplicate_of_voucher_id": statement.excluded.duplicate_of_voucher_id,
+                "party_ledger_id": statement.excluded.party_ledger_id,
                 "explanation_status": ExplanationStatus.PENDING.value,
                 "explanation_text": None,
                 "explanation_unavailable_reason": None,

@@ -11,9 +11,16 @@ from app.core.permissions import ROLE_PERMISSIONS, CompanyContext
 from app.models.company import Company, Role, User, UserRole
 from app.models.enums import RoleName
 from app.schemas.companies import CompanyCreate, CompanyOut, CompanyUpdate
+from app.services.settings import companies_with_flag
+
+FEATURE_ANOMALY = "FEATURE_ANOMALY_DETECTION"
 
 
-def _out(company: Company, roles: frozenset[RoleName] | list[RoleName]) -> CompanyOut:
+def _out(
+    company: Company,
+    roles: frozenset[RoleName] | list[RoleName],
+    anomaly_enabled: bool = False,
+) -> CompanyOut:
     return CompanyOut(
         company_id=company.company_id,
         name=company.name,
@@ -23,6 +30,7 @@ def _out(company: Company, roles: frozenset[RoleName] | list[RoleName]) -> Compa
         tally_guid=company.tally_guid,
         my_roles=sorted(roles),
         my_permissions=sorted({p.value for r in roles for p in ROLE_PERMISSIONS[r]}),
+        anomaly_detection_enabled=anomaly_enabled,
     )
 
 
@@ -73,7 +81,8 @@ async def list_companies(session: AsyncSession, user_id: uuid.UUID) -> list[Comp
     by_id: dict[uuid.UUID, tuple[Company, list[RoleName]]] = {}
     for company, role in rows.tuples():
         by_id.setdefault(company.company_id, (company, []))[1].append(RoleName(role))
-    return [_out(c, roles) for c, roles in by_id.values()]
+    on = await companies_with_flag(session, FEATURE_ANOMALY, list(by_id))
+    return [_out(c, roles, c.company_id in on) for c, roles in by_id.values()]
 
 
 async def _load(session: AsyncSession, ctx: CompanyContext) -> Company:
@@ -83,7 +92,9 @@ async def _load(session: AsyncSession, ctx: CompanyContext) -> Company:
 
 
 async def get_company(session: AsyncSession, ctx: CompanyContext) -> CompanyOut:
-    return _out(await _load(session, ctx), ctx.roles)
+    company = await _load(session, ctx)
+    on = await companies_with_flag(session, FEATURE_ANOMALY, [company.company_id])
+    return _out(company, ctx.roles, company.company_id in on)
 
 
 async def update_company(

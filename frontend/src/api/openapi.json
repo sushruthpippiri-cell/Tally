@@ -744,6 +744,274 @@
         "title": "Amount",
         "type": "object"
       },
+      "AnomaliesOut": {
+        "description": "`available` is false while the feature flag is off, with a reason - the same shape\npayment behaviour uses for its gate, rather than a second disabled-section convention.",
+        "properties": {
+          "anomalies": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AnomalyOut"
+            },
+            "title": "Anomalies",
+            "type": "array"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "company_timezone": {
+            "title": "Company Timezone",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "total_count": {
+            "default": 0,
+            "title": "Total Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "available",
+          "company_timezone"
+        ],
+        "title": "AnomaliesOut",
+        "type": "object"
+      },
+      "AnomalyOut": {
+        "description": "One flag: the evidence the application computed, and separately whatever Claude wrote\nabout it (FR-3.7 - the UI must keep the two apart).",
+        "properties": {
+          "anomaly_id": {
+            "title": "Anomaly Id",
+            "type": "integer"
+          },
+          "deviation_percent": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deviation Percent"
+          },
+          "duplicate_of_voucher_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of Voucher Date"
+          },
+          "duplicate_of_voucher_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of Voucher Id"
+          },
+          "duplicate_of_voucher_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of Voucher Number"
+          },
+          "explanation_status": {
+            "title": "Explanation Status",
+            "type": "string"
+          },
+          "explanation_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation Text"
+          },
+          "explanation_unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation Unavailable Reason"
+          },
+          "flagged_at": {
+            "format": "date-time",
+            "title": "Flagged At",
+            "type": "string"
+          },
+          "historical_average": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Historical Average"
+          },
+          "historical_max": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Historical Max"
+          },
+          "not_an_issue": {
+            "title": "Not An Issue",
+            "type": "boolean"
+          },
+          "party_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Name"
+          },
+          "reviewed": {
+            "title": "Reviewed",
+            "type": "boolean"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "rule_label": {
+            "title": "Rule Label",
+            "type": "string"
+          },
+          "transaction_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Amount"
+          },
+          "voucher_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voucher Date"
+          },
+          "voucher_id": {
+            "format": "uuid",
+            "title": "Voucher Id",
+            "type": "string"
+          },
+          "voucher_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voucher Number"
+          }
+        },
+        "required": [
+          "anomaly_id",
+          "rule",
+          "rule_label",
+          "voucher_id",
+          "voucher_date",
+          "voucher_number",
+          "party_name",
+          "duplicate_of_voucher_id",
+          "duplicate_of_voucher_number",
+          "duplicate_of_voucher_date",
+          "transaction_amount",
+          "historical_average",
+          "historical_max",
+          "deviation_percent",
+          "flagged_at",
+          "explanation_status",
+          "explanation_text",
+          "explanation_unavailable_reason",
+          "reviewed",
+          "not_an_issue",
+          "reviewed_at"
+        ],
+        "title": "AnomalyOut",
+        "type": "object"
+      },
+      "AnomalyRule": {
+        "description": "anomaly_flags.rule_triggered. Free text until P15 (D-032); now checked.",
+        "enum": [
+          "UNUSUALLY_LARGE_SD",
+          "UNUSUALLY_LARGE_MULTIPLE",
+          "POSSIBLE_DUPLICATE"
+        ],
+        "title": "AnomalyRule",
+        "type": "string"
+      },
       "AuditEntryOut": {
         "properties": {
           "action": {
@@ -1743,6 +2011,11 @@
       },
       "CompanyOut": {
         "properties": {
+          "anomaly_detection_enabled": {
+            "default": false,
+            "title": "Anomaly Detection Enabled",
+            "type": "boolean"
+          },
           "company_id": {
             "format": "uuid",
             "title": "Company Id",
@@ -2167,6 +2440,59 @@
         "title": "DateWindow",
         "type": "object"
       },
+      "DisclosureOut": {
+        "description": "What enabling the feature will send to Anthropic (D-055 #7). Generated from the same\n`redact()` the explainer uses, so it cannot drift from the truth.",
+        "properties": {
+          "api_key_configured": {
+            "title": "Api Key Configured",
+            "type": "boolean"
+          },
+          "example": {
+            "additionalProperties": true,
+            "title": "Example",
+            "type": "object"
+          },
+          "fields_sent": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fields Sent",
+            "type": "array"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "never_sent": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Never Sent",
+            "type": "array"
+          },
+          "system_prompt": {
+            "title": "System Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "api_key_configured",
+          "fields_sent",
+          "example",
+          "system_prompt",
+          "never_sent"
+        ],
+        "title": "DisclosureOut",
+        "type": "object"
+      },
       "DrillRow": {
         "properties": {
           "amount": {
@@ -2450,6 +2776,38 @@
         ],
         "title": "ErrorCode",
         "type": "string"
+      },
+      "ExplanationHealthOut": {
+        "description": "D-055 #3: how often an explanation is discarded, so the model choice can be revisited\nwith data rather than opinion.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "integer"
+          },
+          "by_reason": {
+            "items": {
+              "$ref": "#/components/schemas/ReasonCount"
+            },
+            "title": "By Reason",
+            "type": "array"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "unavailable": {
+            "title": "Unavailable",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "available",
+          "pending",
+          "unavailable",
+          "by_reason"
+        ],
+        "title": "ExplanationHealthOut",
+        "type": "object"
       },
       "Figure": {
         "description": "A flow is signed as the metric defines it. A balance is its size with Dr/Cr. When a\nbalance is unavailable (a ledger with no opening, ACC-9.6) `amount` is null and the\nledgers are named (D-045 #3).",
@@ -4399,6 +4757,24 @@
         "title": "RankingOut",
         "type": "object"
       },
+      "ReasonCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "count"
+        ],
+        "title": "ReasonCount",
+        "type": "object"
+      },
       "ReconciliationOut": {
         "properties": {
           "history": {
@@ -4953,6 +5329,24 @@
           "status"
         ],
         "title": "ResultRequest",
+        "type": "object"
+      },
+      "ReviewRequest": {
+        "description": "CLAUDE.md rule 14: every request body is a Pydantic model.",
+        "properties": {
+          "action": {
+            "enum": [
+              "reviewed",
+              "not_an_issue"
+            ],
+            "title": "Action",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ReviewRequest",
         "type": "object"
       },
       "RoleName": {
@@ -9426,6 +9820,307 @@
         "summary": "Drilldown",
         "tags": [
           "analytics"
+        ]
+      }
+    },
+    "/companies/{company_id}/anomalies": {
+      "get": {
+        "operationId": "anomalies_companies__company_id__anomalies_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "company_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Company Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rule",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AnomalyRule"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rule"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reviewed",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reviewed"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnomaliesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Flagged transactions with their evidence (SRS 12)",
+        "tags": [
+          "anomalies"
+        ]
+      }
+    },
+    "/companies/{company_id}/anomalies/disclosure": {
+      "get": {
+        "description": "Generated from the same redaction the explainer uses, so it cannot drift from the truth\n(D-055 #7). Shown to the Owner before the feature can be turned on.",
+        "operationId": "disclosure_companies__company_id__anomalies_disclosure_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "company_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Company Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Exactly what enabling this will send to Anthropic",
+        "tags": [
+          "anomalies"
+        ]
+      }
+    },
+    "/companies/{company_id}/anomalies/explanation-health": {
+      "get": {
+        "operationId": "explanation_health_companies__company_id__anomalies_explanation_health_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "company_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Company Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplanationHealthOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "How often an explanation is discarded, and why",
+        "tags": [
+          "anomalies"
+        ]
+      }
+    },
+    "/companies/{company_id}/anomalies/{anomaly_id}/review": {
+      "post": {
+        "operationId": "review_companies__company_id__anomalies__anomaly_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "anomaly_id",
+            "required": true,
+            "schema": {
+              "title": "Anomaly Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "company_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Company Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnomalyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mark a flag reviewed or not an issue (FR-3.8)",
+        "tags": [
+          "anomalies"
         ]
       }
     },

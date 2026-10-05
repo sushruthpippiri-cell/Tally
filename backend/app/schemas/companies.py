@@ -58,3 +58,7 @@ class CompanyOut(BaseModel):
     # What those roles allow here (SRS 14.1), so the UI can hide what it cannot do; the API
     # still enforces every permission itself (RBAC-1.1).
     my_permissions: list[str]
+    # P15: the Anomalies section is listed only when this is on. Reading it from /settings would
+    # need MANAGE_SETTINGS, which an Accountant does not have - hiding the section from exactly
+    # the role meant to review it.
+    anomaly_detection_enabled: bool = False
