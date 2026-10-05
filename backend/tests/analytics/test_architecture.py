@@ -24,6 +24,11 @@ MONEY_TABLE_MODULES = (
     "analytics/returns.py",
     "analytics/metrics/",
     "services/vouchers.py",  # voucher detail: display only (P14.1)
+    # The anomaly rules read the party entry's amount_absolute directly (P15.2): they need a
+    # per-voucher lookback window and our own write time, neither of which app.analytics.query
+    # exposes. ACC-4.6 is the other direction - no anomaly figure may feed an accounting figure -
+    # and the import-linter enforces that. amount_raw stays forbidden here via NO_RAW_AMOUNT.
+    "anomaly/rules.py",
 )
 METRICS_DIR = "analytics/metrics/"
 
