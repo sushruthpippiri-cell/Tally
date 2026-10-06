@@ -9,6 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_dev}
       TALLY_OWNER_PASSWORD: ${TALLY_OWNER_PASSWORD:-tally_owner_dev}
       TALLY_APP_PASSWORD: ${TALLY_APP_PASSWORD:-tally_app_dev}
+      TALLY_READONLY_PASSWORD: ${TALLY_READONLY_PASSWORD:-tally_readonly_dev}
     ports:
       - "5432:5432"
     volumes:

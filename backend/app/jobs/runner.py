@@ -20,6 +20,8 @@ LOCK_MARK_OFFLINE = 3_001
 LOCK_COMMAND_TIMEOUTS = 3_002
 LOCK_FIRE_SCHEDULES = 3_003
 LOCK_RECONCILE_RUNS = 3_004
+LOCK_ANOMALY_RULES = 3_005
+LOCK_ANOMALY_EXPLANATIONS = 3_006
 
 
 async def run_exclusive(
@@ -39,6 +41,7 @@ async def run_exclusive(
 
 def build_scheduler() -> AsyncIOScheduler:
     from app.jobs.agents import mark_offline
+    from app.jobs.anomaly import anomaly_explanations, anomaly_rules
     from app.jobs.commands import command_timeouts
     from app.jobs.reconciliation import reconcile_runs
     from app.jobs.schedules import fire_schedules
@@ -49,6 +52,8 @@ def build_scheduler() -> AsyncIOScheduler:
         ("command_timeouts", LOCK_COMMAND_TIMEOUTS, command_timeouts),
         ("fire_schedules", LOCK_FIRE_SCHEDULES, fire_schedules),
         ("reconcile_runs", LOCK_RECONCILE_RUNS, reconcile_runs),
+        ("anomaly_rules", LOCK_ANOMALY_RULES, anomaly_rules),
+        ("anomaly_explanations", LOCK_ANOMALY_EXPLANATIONS, anomaly_explanations),
     ):
         scheduler.add_job(
             run_exclusive,

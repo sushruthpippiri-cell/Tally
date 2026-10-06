@@ -587,6 +587,78 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/companies/{company_id}/anomalies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Flagged transactions with their evidence (SRS 12) */
+    get: operations["anomalies_companies__company_id__anomalies_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/companies/{company_id}/anomalies/disclosure": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Exactly what enabling this will send to Anthropic
+     * @description Generated from the same redaction the explainer uses, so it cannot drift from the truth
+     *     (D-055 #7). Shown to the Owner before the feature can be turned on.
+     */
+    get: operations["disclosure_companies__company_id__anomalies_disclosure_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/companies/{company_id}/anomalies/explanation-health": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** How often an explanation is discarded, and why */
+    get: operations["explanation_health_companies__company_id__anomalies_explanation_health_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/companies/{company_id}/anomalies/{anomaly_id}/review": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mark a flag reviewed or not an issue (FR-3.8) */
+    post: operations["review_companies__company_id__anomalies__anomaly_id__review_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/companies/{company_id}/audit": {
     parameters: {
       query?: never;
@@ -1278,6 +1350,97 @@ export interface components {
       /** Is Debit */
       is_debit: boolean;
     };
+    /**
+     * AnomaliesOut
+     * @description `available` is false while the feature flag is off, with a reason - the same shape
+     *     payment behaviour uses for its gate, rather than a second disabled-section convention.
+     */
+    AnomaliesOut: {
+      /**
+       * Anomalies
+       * @default []
+       */
+      anomalies: components["schemas"]["AnomalyOut"][];
+      /** Available */
+      available: boolean;
+      /** Company Timezone */
+      company_timezone: string;
+      /**
+       * Explanations Configured
+       * @default false
+       */
+      explanations_configured: boolean;
+      /** Reason */
+      reason?: string | null;
+      /**
+       * Total Count
+       * @default 0
+       */
+      total_count: number;
+    };
+    /**
+     * AnomalyOut
+     * @description One flag: the evidence the application computed, and separately whatever Claude wrote
+     *     about it (FR-3.7 - the UI must keep the two apart).
+     */
+    AnomalyOut: {
+      /** Anomaly Id */
+      anomaly_id: number;
+      /** Deviation Display */
+      deviation_display: string | null;
+      /** Deviation Percent */
+      deviation_percent: string | null;
+      /** Duplicate Of Voucher Date */
+      duplicate_of_voucher_date: string | null;
+      /** Duplicate Of Voucher Id */
+      duplicate_of_voucher_id: string | null;
+      /** Duplicate Of Voucher Number */
+      duplicate_of_voucher_number: string | null;
+      /** Explanation Status */
+      explanation_status: string;
+      /** Explanation Text */
+      explanation_text: string | null;
+      /** Explanation Unavailable Reason */
+      explanation_unavailable_reason: string | null;
+      /**
+       * Flagged At
+       * Format: date-time
+       */
+      flagged_at: string;
+      /** Historical Average */
+      historical_average: string | null;
+      /** Historical Max */
+      historical_max: string | null;
+      /** Not An Issue */
+      not_an_issue: boolean;
+      /** Party Name */
+      party_name: string | null;
+      /** Reviewed */
+      reviewed: boolean;
+      /** Reviewed At */
+      reviewed_at: string | null;
+      /** Rule */
+      rule: string;
+      /** Rule Label */
+      rule_label: string;
+      /** Transaction Amount */
+      transaction_amount: string | null;
+      /** Voucher Date */
+      voucher_date: string | null;
+      /**
+       * Voucher Id
+       * Format: uuid
+       */
+      voucher_id: string;
+      /** Voucher Number */
+      voucher_number: string | null;
+    };
+    /**
+     * AnomalyRule
+     * @description anomaly_flags.rule_triggered. Free text until P15 (D-032); now checked.
+     * @enum {string}
+     */
+    AnomalyRule: "UNUSUALLY_LARGE_SD" | "UNUSUALLY_LARGE_MULTIPLE" | "POSSIBLE_DUPLICATE";
     /** AuditEntryOut */
     AuditEntryOut: {
       /** Action */
@@ -1660,6 +1823,11 @@ export interface components {
     /** CompanyOut */
     CompanyOut: {
       /**
+       * Anomaly Detection Enabled
+       * @default false
+       */
+      anomaly_detection_enabled: boolean;
+      /**
        * Company Id
        * Format: uuid
        */
@@ -1799,6 +1967,27 @@ export interface components {
        */
       kind: "DATE";
     };
+    /**
+     * DisclosureOut
+     * @description What enabling the feature will send to Anthropic (D-055 #7). Generated from the same
+     *     `redact()` the explainer uses, so it cannot drift from the truth.
+     */
+    DisclosureOut: {
+      /** Api Key Configured */
+      api_key_configured: boolean;
+      /** Example */
+      example: {
+        [key: string]: unknown;
+      };
+      /** Fields Sent */
+      fields_sent: string[];
+      /** Model */
+      model: string | null;
+      /** Never Sent */
+      never_sent: string[];
+      /** System Prompt */
+      system_prompt: string;
+    };
     /** DrillRow */
     DrillRow: {
       /** Amount */
@@ -1907,6 +2096,21 @@ export interface components {
       | "HTTPS_REQUIRED"
       | "CHUNK_FAILED"
       | "AGENT_LOST";
+    /**
+     * ExplanationHealthOut
+     * @description D-055 #3: how often an explanation is discarded, so the model choice can be revisited
+     *     with data rather than opinion.
+     */
+    ExplanationHealthOut: {
+      /** Available */
+      available: number;
+      /** By Reason */
+      by_reason: components["schemas"]["ReasonCount"][];
+      /** Pending */
+      pending: number;
+      /** Unavailable */
+      unavailable: number;
+    };
     /**
      * Figure
      * @description A flow is signed as the metric defines it. A balance is its size with Dr/Cr. When a
@@ -2594,6 +2798,13 @@ export interface components {
       total_count: number;
       unattributed: components["schemas"]["LabelledAmount"] | null;
     };
+    /** ReasonCount */
+    ReasonCount: {
+      /** Count */
+      count: number;
+      /** Reason */
+      reason: string;
+    };
     /** ReconciliationOut */
     ReconciliationOut: {
       /** History */
@@ -2830,6 +3041,17 @@ export interface components {
       /** Error Message */
       error_message?: string | null;
       status: components["schemas"]["CommandStatus"];
+    };
+    /**
+     * ReviewRequest
+     * @description CLAUDE.md rule 14: every request body is a Pydantic model.
+     */
+    ReviewRequest: {
+      /**
+       * Action
+       * @enum {string}
+       */
+      action: "reviewed" | "not_an_issue";
     };
     /**
      * RoleName
@@ -4732,6 +4954,142 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["DrilldownOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  anomalies_companies__company_id__anomalies_get: {
+    parameters: {
+      query?: {
+        rule?: components["schemas"]["AnomalyRule"] | null;
+        reviewed?: boolean | null;
+        from?: string | null;
+        to?: string | null;
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path: {
+        company_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AnomaliesOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  disclosure_companies__company_id__anomalies_disclosure_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        company_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DisclosureOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  explanation_health_companies__company_id__anomalies_explanation_health_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        company_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExplanationHealthOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  review_companies__company_id__anomalies__anomaly_id__review_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        anomaly_id: number;
+        company_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReviewRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AnomalyOut"];
         };
       };
       /** @description Validation Error */

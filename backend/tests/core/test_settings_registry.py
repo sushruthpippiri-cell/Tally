@@ -54,6 +54,13 @@ ADDITIONS = {  # phase-02 P2.8; D-050 #10 (stock.fast_ranking_basis retired by F
     "stock.snapshot_stale_days": 2,
     "sync.keylist_max_missing_ratio": "0.2",
     "agent.command_lease_seconds": 300,
+    # P15: D-015 (the SD rule needs a sample) and D-055 #1 (and scale, not only dispersion -
+    # a stated departure from FR-3.2).
+    "anomaly.min_prior_transactions": 5,
+    "anomaly.min_average_multiple": "2",
+    # D-055 #11: enabling the feature is bounded in history and in spend.
+    "anomaly.initial_scan_days": 30,
+    "anomaly.max_explanations_per_day": 50,
 }
 
 

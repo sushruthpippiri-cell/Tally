@@ -13,7 +13,8 @@ import { ForbiddenPage } from "./ForbiddenPage";
 import { SignOut } from "./SignOut";
 
 /** FR-4.2's sections, each with the permission its API needs (SRS 14.1). Payment Behaviour
- * is listed only once its gate has passed (FR-PAY-6); Anomalies arrives in P15. */
+ * is listed only once its gate has passed (FR-PAY-6); Anomalies only while its feature flag is
+ * on, which CompanyOut reports so this needs no extra request (FR-3.1). */
 export const SECTIONS: readonly (NavItem & { permission: string })[] = [
   { to: "home", label: "Home", permission: "VIEW_FINANCIALS" },
   { to: "sales", label: "Sales", permission: "VIEW_FINANCIALS" },
@@ -27,6 +28,7 @@ export const SECTIONS: readonly (NavItem & { permission: string })[] = [
   { to: "expenses", label: "Expenses", permission: "VIEW_FINANCIALS" },
   { to: "unclassified", label: "Unclassified Adjustments", permission: "VIEW_FINANCIALS" },
   { to: "stock", label: "Stock", permission: "VIEW_FINANCIALS" },
+  { to: "anomalies", label: "Anomalies", permission: "VIEW_FINANCIALS" },
   { to: "sync", label: "Sync", permission: "RUN_SYNC" },
   { to: "agents", label: "Agents", permission: "VIEW_FINANCIALS" },
   { to: "reconciliation", label: "Reconciliation", permission: "VIEW_RECON_AND_DQ" },
@@ -66,7 +68,8 @@ export function CompanyLayout() {
   const nav = SECTIONS.filter(
     (s) =>
       can(company.data, s.permission) &&
-      (s.to !== "payment-behaviour" || payment.data?.available === true),
+      (s.to !== "payment-behaviour" || payment.data?.available === true) &&
+      (s.to !== "anomalies" || company.data.anomaly_detection_enabled),
   ).map((s) => ({ to: `/c/${companyId}/${s.to}${keep}`, label: s.label }));
   return (
     <CompanyProvider company={company.data}>

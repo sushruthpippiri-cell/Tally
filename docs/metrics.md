@@ -137,5 +137,34 @@ Quality do not — they are status pages, not figures.
   still over every row. Fonts are bundled in `backend/app/exports/fonts/`.
 - **Quantities** are never added across units, in an export as on screen (FR-STK-10).
 
+## Anomalies (P15: D-015, D-055, SRS 12) — optional, off by default
+Deterministic rules only. **No anomaly figure ever feeds an accounting figure** (ACC-4.6): the
+import-linter forbids `app.analytics`, `app.reconciliation`, `app.sync` and `app.exports` from
+importing `app.anomaly`, and a second contract keeps `anthropic` and `mcp` out of everything that
+computes a figure or serves a request.
+
+- **Nothing runs while `FEATURE_ANOMALY_DETECTION` is off** (FR-3.1, AC-55): no rules, no rows, no
+  MCP or Claude call, and neither SDK is even imported — the jobs import the explainer inside the
+  function, proven by a test that builds the app in a clean interpreter and checks `sys.modules`.
+- **Unusually large** (FR-3.2, amended by D-015 and D-055 #1): the party-ledger amount must clear
+  `mean + anomaly.deviation_sd × sample SD` **and** be at least
+  `anomaly.min_average_multiple × mean` (default 2), over at least
+  `anomaly.min_prior_transactions` (default 5) earlier transactions in
+  `anomaly.history_window_days` whose average is above zero. The second condition is a **stated
+  departure from FR-3.2**: without it a flat ₹70,000 history flags a ₹70,001 invoice.
+- **Possible duplicate** (FR-3.3, amended by D-055 #2): same party, same amount, **same
+  `base_voucher_type`**, within `anomaly.duplicate_window_days`, different vouchers. The base-type
+  condition is what stops an invoice and its matching payment being flagged.
+- A voucher touching **two different party ledgers is skipped**, not flagged twice.
+- **A flag follows its voucher** (D-055 #10): re-evaluated on modification, and cleared — never
+  deleted — when its rule stops triggering, so a reviewed flag survives for the audit trail.
+- **What leaves the system** (SEC-1.12, D-055 #6): the stored figures, the rule in words, the
+  currency, and the placeholders `Party A` / `Voucher A` / `Voucher B`. Nothing human-typed is
+  sent, so prompt injection through a Tally name is impossible rather than filtered. Enabling the
+  feature shows the Owner the real payload and requires a typed confirmation.
+- **Claude never supplies a number** (FR-3.6): every number in an explanation must appear in the
+  evidence it was given, in exact or rounded form; otherwise the text is discarded and the reason
+  recorded, and the discards are counted at `GET …/anomalies/explanation-health`.
+
 ## Speed (PERF-1.1)
 Measured at the SRS 17.2 size (100,000 vouchers, 500,000 entries, 94,000 inventory lines): see `docs/benchmarks/p8-analytics.md` and the P8 and P9 benchmark entries in `docs/progress.md`. Analytics statements are planned for their own dates (D-047). To reproduce: `make bench-data && make bench-analytics`.

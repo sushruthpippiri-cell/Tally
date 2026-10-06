@@ -162,9 +162,10 @@ async def test_one_flag_per_voucher_and_rule(session: AsyncSession) -> None:
     voucher = await make_voucher(
         session, company, await make_voucher_type(session, company, "Sales"), date(2024, 5, 1)
     )
+    # A real AnomalyRule value: P15 added a CHECK on rule_triggered, which was free text here.
     insert = text(
         "INSERT INTO anomaly_flags (company_id, voucher_id, rule_triggered, explanation_status) "
-        "VALUES (:c, :v, 'LARGE_TRANSACTION', 'PENDING')"
+        "VALUES (:c, :v, 'UNUSUALLY_LARGE_SD', 'PENDING')"
     )
     params = {"c": company.company_id, "v": voucher.voucher_id}
     await session.execute(insert, params)

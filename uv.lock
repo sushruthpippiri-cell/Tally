@@ -1401,10 +1401,12 @@ version = "0.0.0"
 source = { editable = "backend" }
 dependencies = [
     { name = "alembic" },
+    { name = "anthropic" },
     { name = "apscheduler" },
     { name = "asyncpg" },
     { name = "bcrypt" },
     { name = "fastapi" },
+    { name = "mcp" },
     { name = "packaging" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
@@ -1420,10 +1422,12 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "alembic" },
+    { name = "anthropic", specifier = ">=1.8" },
     { name = "apscheduler", specifier = ">=3.10,<4" },
     { name = "asyncpg" },
     { name = "bcrypt", specifier = ">=5.0.0" },
     { name = "fastapi" },
+    { name = "mcp", specifier = ">=2.2" },
     { name = "packaging" },
     { name = "psycopg", extras = ["binary"] },
     { name = "pydantic", specifier = ">=2" },
@@ -1461,12 +1465,10 @@ build = [
     { name = "pyinstaller" },
 ]
 dev = [
-    { name = "anthropic" },
     { name = "coverage" },
     { name = "httpx" },
     { name = "hypothesis" },
     { name = "import-linter" },
-    { name = "mcp" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1483,12 +1485,10 @@ dev = [
 [package.metadata.requires-dev]
 build = [{ name = "pyinstaller" }]
 dev = [
-    { name = "anthropic" },
     { name = "coverage" },
     { name = "httpx" },
     { name = "hypothesis" },
     { name = "import-linter" },
-    { name = "mcp" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },

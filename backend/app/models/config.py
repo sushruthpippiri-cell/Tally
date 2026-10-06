@@ -20,7 +20,14 @@ from app.models.base import (
     tenant_fk,
     uuid_pk,
 )
-from app.models.enums import CollectionType, ExplanationStatus, SettingDataType, ToolCallStatus
+from app.models.enums import (
+    AnomalyRule,
+    CollectionType,
+    ExplanationStatus,
+    ExplanationUnavailableReason,
+    SettingDataType,
+    ToolCallStatus,
+)
 
 
 class FeatureConfig(Base):
@@ -102,12 +109,19 @@ class AuditLog(Base):
 
 
 class AnomalyFlag(Base):
+    """One flag per (voucher, rule). P15 adds the CHECK on `rule_triggered`, the company index
+    the list endpoint needs, and the columns behind D-055 #10 and #11."""
+
     __tablename__ = "anomaly_flags"
     __table_args__ = (
         UniqueConstraint("voucher_id", "rule_triggered"),
         tenant_fk("voucher_id", "vouchers.voucher_id"),
         tenant_fk("duplicate_of_voucher_id", "vouchers.voucher_id"),
+        tenant_fk("party_ledger_id", "ledgers.ledger_id"),
         enum_check("explanation_status", ExplanationStatus),
+        enum_check("rule_triggered", AnomalyRule),
+        enum_check("explanation_unavailable_reason", ExplanationUnavailableReason),
+        Index(None, "company_id", "flagged_at"),
     )
 
     id: Mapped[int] = bigint_pk()
@@ -119,6 +133,10 @@ class AnomalyFlag(Base):
     historical_max: Mapped[Decimal | None] = mapped_column(Money)
     deviation_percent: Mapped[Decimal | None] = mapped_column(Rate)
     duplicate_of_voucher_id: Mapped[uuid.UUID | None]
+    # Which party the figures are about. Stored rather than re-derived: the rules already
+    # resolved it (and skipped the ambiguous case), and the list API and evidence panel need the
+    # name without joining the voucher's entries again.
+    party_ledger_id: Mapped[uuid.UUID | None]
     flagged_at: Mapped[datetime] = created_at()
     explanation_text: Mapped[str | None]
     explanation_status: Mapped[str]
@@ -126,6 +144,38 @@ class AnomalyFlag(Base):
     not_an_issue: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.user_id"))
     reviewed_at: Mapped[datetime | None]
+    # D-055 #12: why the explanation is missing, shown to the owner and counted by
+    # GET .../anomalies/explanation-health.
+    explanation_unavailable_reason: Mapped[str | None]
+    # D-055 #11: the retry job's bound, and the per-company daily cap's counter.
+    explanation_attempts: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    explanation_last_attempt_at: Mapped[datetime | None]
+    # D-055 #10: set when the rule stopped triggering on a re-evaluated voucher. The row is
+    # never deleted, so a reviewed flag survives for the audit trail and a re-trigger un-clears
+    # it; a cleared flag leaves the list.
+    cleared_at: Mapped[datetime | None]
+
+
+class AnomalyScanState(Base):
+    """The rule job's cursor, one row per company (D-055 #9).
+
+    `synced_through` is **our** write time (`vouchers.last_synced_at`), never Tally's ALTERID: a
+    record held back by D-039 #7, or recovered by a D-041 key-list check, arrives in a later run
+    carrying a *lower* alter_id, so an ALTERID cursor would skip it forever. The job scans with a
+    small overlap, which is free because `UNIQUE(voucher_id, rule_triggered)` makes the insert
+    idempotent.
+
+    No row at all means the company has just enabled the feature: the first scan is bounded to
+    `anomaly.initial_scan_days` so switching the flag on cannot flag years of history (D-055 #11).
+    """
+
+    __tablename__ = "anomaly_scan_state"
+
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("companies.company_id"), primary_key=True
+    )
+    synced_through: Mapped[datetime | None]
+    last_scanned_at: Mapped[datetime | None]
 
 
 class AiToolLog(Base):

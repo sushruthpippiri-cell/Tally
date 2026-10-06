@@ -19,6 +19,10 @@ dependencies = [
   "apscheduler>=3.10,<4",
   # PDF exports (P14.7). Needs pango on the host: brew install pango / libpango in Docker.
   "weasyprint>=62",
+  # The optional anomaly module only (P15). Imported nowhere else: an import-linter contract
+  # keeps them inside app.anomaly, and nothing imports app.anomaly while the feature flag is off.
+  "anthropic>=1.8",
+  "mcp>=2.2",
 ]
 
 [build-system]

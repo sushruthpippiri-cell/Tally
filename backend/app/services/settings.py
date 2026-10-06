@@ -47,6 +47,23 @@ async def get_setting(session: AsyncSession, company_id: uuid.UUID, key: str) ->
     return typed(key, overrides[key] if key in overrides else SETTINGS[key].default)
 
 
+async def companies_with_flag(
+    session: AsyncSession, name: str, company_ids: list[uuid.UUID]
+) -> set[uuid.UUID]:
+    """Which of these companies have `name` switched on, in one query. Only an explicit override
+    counts, because every flag's registry default is off (SRS 18.1)."""
+    if not company_ids:
+        return set()
+    rows = await session.execute(
+        select(FeatureConfig.company_id).where(
+            FeatureConfig.feature_name == name,
+            FeatureConfig.company_id.in_(company_ids),
+            FeatureConfig.enabled.is_(True),
+        )
+    )
+    return set(rows.scalars())
+
+
 async def get_flag(session: AsyncSession, company_id: uuid.UUID, name: str) -> bool:
     enabled = (
         await session.execute(

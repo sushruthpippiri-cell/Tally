@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { CHANGE_PASSWORD, RequireAuth } from "./components/RequireAuth";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import { AgentsPage } from "./pages/AgentsPage";
+import { AnomaliesPage } from "./pages/AnomaliesPage";
 import { AgingPage } from "./pages/AgingPage";
 import {
   BalancesPage,
@@ -48,6 +49,7 @@ const PAGES: Record<string, ReactNode> = {
   expenses: <ExpensesPage />,
   unclassified: <UnclassifiedPage />,
   stock: <StockPage />,
+  anomalies: <AnomaliesPage />,
   agents: <AgentsPage />,
   sync: <SyncPage />,
   settings: <SettingsPage />,
