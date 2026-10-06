@@ -92,6 +92,7 @@ class SyncError(Base):
         tenant_fk("sync_run_id", "sync_runs.sync_run_id"),
         Index(None, "sync_run_id"),
         Index(None, "company_id", "entity_type", "watermark_hold"),  # held-back check
+        Index(None, "created_at"),  # the retention purge (P16.3)
     )
 
     id: Mapped[int] = bigint_pk()

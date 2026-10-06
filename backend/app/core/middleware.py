@@ -11,7 +11,7 @@ from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.cors import CORSMiddleware
-from structlog.contextvars import bound_contextvars
+from structlog.contextvars import bound_contextvars, unbind_contextvars
 
 from app.core.agent_credentials import CREDENTIAL_PREFIX, verified_agent
 from app.core.config import Settings
@@ -94,7 +94,13 @@ def install_middleware(app: FastAPI, config: Settings) -> None:
         request_id = header_id if _REQUEST_ID.match(header_id) else uuid.uuid4().hex
         peer = request.client.host if request.client else None
         with bound_contextvars(request_id=request_id):
-            response = await _handle(request, call_next, peer)
+            try:
+                response = await _handle(request, call_next, peer)
+            finally:
+                # company_id, user_id and agent_id are bound by the dependencies that resolve
+                # them (P16.3, SRS 15). Drop them here so they cannot leak into the next
+                # request handled by the same task.
+                unbind_contextvars("company_id", "user_id", "agent_id")
         response.headers.update(_SECURITY_HEADERS)
         if not request.url.path.startswith(_DOCS):  # the API serves no pages (D-051 #4)
             response.headers["Content-Security-Policy"] = API_CSP

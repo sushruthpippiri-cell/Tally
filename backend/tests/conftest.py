@@ -54,6 +54,25 @@ async def session() -> AsyncIterator[AsyncSession]:
     await engine.dispose()
 
 
+@pytest.fixture(autouse=True)
+async def _no_engine_outlives_its_loop() -> AsyncIterator[None]:
+    """`app.core.db` caches one engine for the process, but asyncpg connections belong to the
+    event loop that opened them and every test gets a fresh loop.
+
+    Until P16.11 nothing reached that cached engine in tests - `get_session` is always
+    overridden - but the rate limiter counts on its own session, outside the request's. A test
+    that builds its app with `TestClient(create_app())` rather than `client_for` therefore hands
+    the next test an engine holding connections from a loop that has closed.
+    """
+    yield
+    from app.core.db import get_engine, session_factory
+
+    if get_engine.cache_info().currsize:
+        await get_engine().dispose()
+    get_engine.cache_clear()
+    session_factory.cache_clear()
+
+
 @pytest.fixture
 async def api(session: AsyncSession) -> AsyncIterator[httpx.AsyncClient]:
     """The real app over ASGI, sharing the rollback `session` (one event loop, no commits)."""

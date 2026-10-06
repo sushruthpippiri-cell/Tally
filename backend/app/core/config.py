@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # per-process cap from configuration, not a company setting - ten companies must not be
     # able to render twenty PDFs at once, and no company can raise its own limit.
     pdf_max_concurrent: int = 2
+    # SRS 15 / D-056 #4: one retention period for the sync and AI tool logs, not a company
+    # setting - how long operational logs are kept is the operator's decision, not a tenant's.
+    # SRS 15 asks for at least 90 days; the owner chose 180. `audit_logs` is never purged
+    # (SEC-1.13: the app role cannot delete, and a trigger refuses it for everyone).
+    log_retention_days: int = 180
     # P15, all three optional: with any of them unset, anomalies are still found and shown with
     # their evidence and the explanation reads "unavailable" (AC-58, NFR-REL-1). Never literals in
     # code (SEC-1.14).
@@ -58,6 +63,13 @@ class Settings(BaseSettings):
             if isinstance(raw, str):
                 data[key] = [o.strip() for o in raw.split(",") if o.strip()]
         return data
+
+    @field_validator("log_retention_days")
+    @classmethod
+    def _at_least_the_srs_minimum(cls, value: int) -> int:
+        if value < 90:
+            raise ValueError("log_retention_days must be at least 90 (SRS 15)")
+        return value
 
     @field_validator("trusted_proxies")
     @classmethod

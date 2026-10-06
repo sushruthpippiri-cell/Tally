@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from structlog.contextvars import bind_contextvars
 
 from app.core.db import get_session
 from app.core.errors import AppError
@@ -78,6 +79,9 @@ class Require:
             .where(UserRole.user_id == user.user_id, UserRole.company_id == company_id)
         )
         roles = frozenset(RoleName(n) for n in names.scalars())
+        # Every log record for the rest of this request carries them (P16.3, SRS 15); the
+        # middleware unbinds them when the request ends.
+        bind_contextvars(company_id=str(company_id), user_id=str(user.user_id))
         # Same answer for "no role here" and "no such company" (AC-60).
         if not any(self.permission in ROLE_PERMISSIONS[r] for r in roles):
             log.info(

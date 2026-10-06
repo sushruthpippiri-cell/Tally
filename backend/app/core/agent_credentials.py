@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
+from structlog.contextvars import bind_contextvars
 
 from app.core.db import get_session
 from app.core.errors import AppError
@@ -137,4 +138,6 @@ async def current_agent(
             ErrorCode.AGENT_REVOKED, "This Agent has been revoked; register it again", 401
         )
     remember_verified(credentials.credentials, agent.agent_id)  # type: ignore[union-attr]
+    # As in Require.__call__: every later log record in this request carries them (P16.3).
+    bind_contextvars(agent_id=str(agent.agent_id), company_id=str(agent.company_id))
     return AgentContext(agent.agent_id, agent.company_id, AgentStatus(agent.status))
