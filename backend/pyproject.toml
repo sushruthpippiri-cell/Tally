@@ -14,7 +14,7 @@ dependencies = [
   "psycopg[binary]",
   "pyyaml",
   "packaging",
-  "pyjwt>=2.14.0",
+  "pyjwt>=2.15.0",  # 2.14.0 has PYSEC-2026-4141 / CVE-2026-102275 (P16.2)
   "bcrypt>=5.0.0",
   "apscheduler>=3.10,<4",
   # PDF exports (P14.7). Needs pango on the host: brew install pango / libpango in Docker.

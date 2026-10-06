@@ -48,7 +48,13 @@ jobs:
             PGHOST=localhost bash "$f"
           done
       - run: uv sync --all-packages
-      - run: make lint
+      # P16.2: known vulnerabilities in the resolved dependency set (SEC-1.14). Audits the
+      # locked environment rather than a requirements.txt, because this is a uv workspace.
+      # --skip-editable passes over our own four packages, which are not on PyPI; not --strict,
+      # which would turn those skips into failures. A real vulnerability still fails the job.
+      - name: Audit Python dependencies
+        run: uv run --with pip-audit pip-audit --skip-editable
+      - run: make lint  # includes ruff's flake8-bandit (S) rules
       - run: make typecheck
       - run: make importlint
       - run: make migrate
@@ -59,6 +65,21 @@ jobs:
         with:
           name: test-logs
           path: logs/test-runs/
+
+  secrets:
+    # P16.2 / SEC-1.14: no credential, key or token in the history. Pinned by digest and run
+    # with no network and a read-only mount, so a third-party image cannot exfiltrate the repo.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # gitleaks scans the whole history, not just the tip
+      - name: Scan the history for secrets
+        run: |
+          docker run --rm --network none \
+            -v "$PWD:/repo:ro" \
+            zricethezav/gitleaks:v8.30.0@sha256:105ac66a57b2bb8afb61a3b8a5dcc4817773d03724a7e8a515214cfe58225556 \
+            git /repo --redact --no-banner --exit-code 1 --config /repo/.gitleaks.toml
 
   frontend:
     runs-on: ubuntu-24.04
@@ -73,6 +94,10 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # P16.2: runtime dependencies only. Dev-only advisories (Vite, Playwright transitives)
+      # would make this red without being shipped to anyone.
+      - name: Audit npm dependencies
+        run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run gen:api:check  # the committed types match the committed OpenAPI document

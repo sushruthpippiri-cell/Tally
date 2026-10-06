@@ -62,6 +62,23 @@ def tally_error(text: str) -> DocumentError | None:
     )
 
 
+def doctype_error(text: str) -> DocumentError | None:
+    """SEC-1.6 (P16.2): refuse a document declaring a DTD.
+
+    xml.etree does not resolve external entities - a `SYSTEM` entity raises "undefined entity",
+    so there is no file disclosure - but it *does* expand internal ones, so a "billion laughs"
+    document would expand exponentially and exhaust the Agent before any record was built.
+    TallyPrime's reports never carry a DOCTYPE, so refusing one costs nothing and removes the
+    whole class.
+    """
+    if "<!DOCTYPE" not in text.upper():
+        return None
+    return DocumentError(
+        code=ErrorCode.PARSE_ERROR,
+        message="XML declaring a DTD is refused; Tally reports carry none (SEC-1.6)",
+    )
+
+
 FEED = 65_536  # characters per slice: no second full copy of the document (D-042 #2)
 
 
@@ -110,7 +127,7 @@ def iter_parse[R](
         result.invalid_characters_removed = removed
     if removed:
         log.info("tally_invalid_characters_removed", count=removed)
-    error = tally_error(text)
+    error = tally_error(text) or doctype_error(text)
     if error is not None:
         raise DocumentFailure(error)
     try:

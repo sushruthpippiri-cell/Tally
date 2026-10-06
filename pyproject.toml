@@ -41,8 +41,33 @@ extend-exclude = ["backend/alembic/versions"]
 # T20: no print() anywhere, tests included (CLAUDE.md "Testing and logs")
 # PLW1514: text I/O must name its encoding - Windows defaults to cp1252 and the
 # Agent ships to Windows machines.
+# S: flake8-bandit, the security linter P16.2 owes (SEC-1.14). Ruff reimplements it, so it
+# rides `make lint` instead of being a second tool and a second CI step.
 preview = true  # PLW1514 is a preview rule
-select = ["E", "F", "I", "UP", "B", "T20", "PLW1514"]
+select = ["E", "F", "I", "UP", "B", "T20", "PLW1514", "S"]
+# S101: `assert` in shipped code is used only for invariants mypy cannot see
+# (`assert url is not None  # guaranteed by Settings validation`), never to validate untrusted
+# input - that is Pydantic's job on every request body (SEC-1.10). Nothing runs under -O.
+# S105/S106: flake8-bandit matches variable NAMES, so it flags TOKEN_PREFIX, token_type, the
+# gate status PASS and the error code PASSWORD_CHANGE_REQUIRED. All constants, no secrets; the
+# real check is gitleaks in CI.
+# S311: `random` is used for retry jitter and generated test data, never for anything secret -
+# tokens and credentials use `secrets` (app/core/security.py, agent secret store).
+# S314/S405: xml.etree parses TallyPrime's reports. External entities are not resolved (proven
+# in shared/tests/parser/test_parser.py) and a document declaring a DTD is refused outright,
+# so the entity-expansion class is closed without taking on defusedxml.
+ignore = ["S101", "S105", "S106", "S311", "S314", "S405"]
+
+[tool.ruff.lint.per-file-ignores]
+# S101 assert: what a test is made of. S105/S106/S311: fake secrets, random test data.
+# S404/S603/S607 subprocess: tests and tools run tools with a literal argv, no shell, no
+# request data. S310 urlopen: the mock-Tally tests call their own http://127.0.0.1 server.
+# S608 "SQL built from a string": tests and tools build DDL from hardcoded table names;
+# backend/tests/core/test_sql_is_parameterized.py is the real gate for shipped code, and it
+# scans only what ships.
+"**/tests/**" = ["S101", "S105", "S106", "S310", "S311", "S404", "S603", "S607", "S608"]
+"tools/tally_tools/*" = ["S404", "S603", "S607", "S608"]
+"backend/alembic/env.py" = ["S101"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends", "app.core.permissions.require"]
