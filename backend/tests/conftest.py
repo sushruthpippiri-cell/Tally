@@ -83,10 +83,33 @@ async def client_for(
 
     app.dependency_overrides[get_session] = _session
     base = transport.pop("base_url", "http://test")
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app, **transport), base_url=base
-    ) as client:
-        yield client
+    # The rate limiter counts in Postgres (P16.11), on its own session rather than the request's,
+    # so - like get_session above - it needs a loop-local engine: app.core.db caches one engine
+    # for the process and asyncpg connections belong to the loop that opened them. Counts really
+    # commit, outliving this test's rolled-back transaction, so they are deleted afterwards.
+    async with counter_store() as store:
+        limiter = getattr(app.state, "rate_limiter", None)  # a bare app has no middleware
+        if limiter is not None:
+            limiter._factory = store
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app, **transport), base_url=base
+        ) as client:
+            yield client
+
+
+@asynccontextmanager
+async def counter_store() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """A really-committing, loop-local factory for `rate_limit_counters`, emptied afterwards."""
+    from app.core.config import get_settings
+
+    engine = create_async_engine(get_settings().database_url or "")
+    maker = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        yield maker
+    finally:
+        async with maker() as s, s.begin():
+            await s.execute(text("DELETE FROM rate_limit_counters"))
+        await engine.dispose()
 
 
 @pytest.fixture

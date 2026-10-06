@@ -189,3 +189,20 @@ class AiToolLog(Base):
     result_summary: Mapped[str | None]
     status: Mapped[str]
     created_at: Mapped[datetime] = created_at()
+
+
+class RateLimitCounter(Base):
+    """One request count per rate-limit key per window, shared by every backend replica (P16.11).
+
+    Not company-scoped and not business data: rows live for one window and are then purged by
+    `app.jobs.retention`. `window_start` is wall-clock (never `time.monotonic`, whose origin
+    differs per process, so two replicas would never agree on a window).
+    """
+
+    __tablename__ = "rate_limit_counters"
+    # The purge deletes whole finished windows, so it leads with window_start (P16.11).
+    __table_args__ = (Index(None, "window_start"),)
+
+    bucket_key: Mapped[str] = mapped_column(primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(primary_key=True)
+    count: Mapped[int]

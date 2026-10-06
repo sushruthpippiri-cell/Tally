@@ -22,6 +22,7 @@ LOCK_FIRE_SCHEDULES = 3_003
 LOCK_RECONCILE_RUNS = 3_004
 LOCK_ANOMALY_RULES = 3_005
 LOCK_ANOMALY_EXPLANATIONS = 3_006
+LOCK_PURGE_RATE_LIMITS = 3_007
 
 
 async def run_exclusive(
@@ -44,6 +45,7 @@ def build_scheduler() -> AsyncIOScheduler:
     from app.jobs.anomaly import anomaly_explanations, anomaly_rules
     from app.jobs.commands import command_timeouts
     from app.jobs.reconciliation import reconcile_runs
+    from app.jobs.retention import purge_rate_limit_counters
     from app.jobs.schedules import fire_schedules
 
     scheduler = AsyncIOScheduler(timezone=UTC)
@@ -54,6 +56,9 @@ def build_scheduler() -> AsyncIOScheduler:
         ("reconcile_runs", LOCK_RECONCILE_RUNS, reconcile_runs),
         ("anomaly_rules", LOCK_ANOMALY_RULES, anomaly_rules),
         ("anomaly_explanations", LOCK_ANOMALY_EXPLANATIONS, anomaly_explanations),
+        # Deletes only windows already finished, so a small batch each minute - kinder to
+        # vacuum than one large delete, and the table never carries more than a few windows.
+        ("purge_rate_limit_counters", LOCK_PURGE_RATE_LIMITS, purge_rate_limit_counters),
     ):
         scheduler.add_job(
             run_exclusive,

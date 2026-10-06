@@ -7,13 +7,14 @@ from typing import Any
 
 import httpx
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
-from app.core.middleware import RateLimiter, client_ip, effective_scheme
+from app.core.middleware import client_ip, effective_scheme
+from app.core.rate_limit import RateLimiter
 from app.main import create_app
 from tally_contract.testing import assert_logged
-from tests.conftest import client_for
+from tests.conftest import client_for, counter_store
 from tests.factories import (
     agent_header,
     auth_header,
@@ -23,8 +24,18 @@ from tests.factories import (
 )
 
 PROXIES = [ip_network("10.0.0.0/8")]
+# The limiter runs before routing, so an unrouted path is counted and answers 404. /health
+# is exempt (P16.11), so the rate-limit tests cannot use it as their target any more.
+LIMITED = "/no-such-path"
 LB = ("10.0.0.5", 5000)  # a trusted proxy
 STRANGER = ("203.0.113.9", 5000)  # an untrusted peer
+
+
+@pytest.fixture
+async def store() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """For the tests that build a RateLimiter directly, without going through an app."""
+    async with counter_store() as maker:
+        yield maker
 
 
 def _config(**kw: Any) -> Settings:
@@ -86,14 +97,47 @@ def test_trusted_proxies_must_be_networks() -> None:
 # --- rate limits (SEC-1.9) -------------------------------------------------------------
 
 
-def test_limiter_windows_reset_each_minute() -> None:
+async def test_limiter_windows_reset_each_minute(
+    store: async_sessionmaker[AsyncSession],
+) -> None:
     now = [120.0]
-    limiter = RateLimiter(clock=lambda: now[0])
-    assert all(limiter.hit("k", 2) is None for _ in range(2))
-    assert limiter.hit("k", 2) == 60
-    assert limiter.hit("other", 2) is None
+    limiter = RateLimiter(clock=lambda: now[0], factory=store)
+    assert [await limiter.hit("k", 2) for _ in range(2)] == [None, None]
+    assert await limiter.hit("k", 2) == 60
+    assert await limiter.hit("other", 2) is None
     now[0] = 180.0
-    assert limiter.hit("k", 2) is None
+    assert await limiter.hit("k", 2) is None
+
+
+@pytest.mark.req("SEC-1.9")
+async def test_two_replicas_share_one_limit(store: async_sessionmaker[AsyncSession]) -> None:
+    """P16.11: the whole point of moving the counters to Postgres. Two backends behind one load
+    balancer must together allow the limit, not one each - which is what in-process counters
+    did, and why production could not run more than one replica."""
+    start = 16_666 * 60.0  # the start of a window, so Retry-After is the full 60
+    one = RateLimiter(clock=lambda: start, seconds=60, factory=store)
+    two = RateLimiter(clock=lambda: start, seconds=60, factory=store)
+    allowed = 0
+    for _ in range(6):  # alternate, as a load balancer would
+        for limiter in (one, two):
+            if await limiter.hit("ip:1.2.3.4", 4) is None:
+                allowed += 1
+    assert allowed == 4
+    # A different key is unaffected, and each replica still answers with a Retry-After.
+    assert await one.hit("ip:5.6.7.8", 4) is None
+    assert await two.hit("ip:1.2.3.4", 4) == 60
+
+
+async def test_health_is_never_rate_limited(session: AsyncSession) -> None:
+    """A load balancer polling faster than the anonymous limit would otherwise be answered 429
+    and would take the backend out of service (P16.11)."""
+    async with _client(session) as client:
+        for _ in range(150):  # well past ANONYMOUS_PER_MINUTE
+            assert (await client.get("/health")).status_code == 200
+        # The exemption is the path's, not the caller's: the same caller is still limited.
+        for _ in range(100):
+            assert (await client.get(LIMITED)).status_code == 404
+        assert (await client.get(LIMITED)).status_code == 429
 
 
 @pytest.mark.req("SEC-1.9")
@@ -101,15 +145,15 @@ async def test_100_per_minute_per_ip_then_1000_per_user(session: AsyncSession) -
     headers = auth_header(await make_user(session))
     async with _client(session) as client:
         for _ in range(100):
-            assert (await client.get("/health")).status_code == 200
-        blocked = await client.get("/health")
+            assert (await client.get(LIMITED)).status_code == 404
+        blocked = await client.get(LIMITED)
         assert blocked.status_code == 429
         assert blocked.json()["code"] == "RATE_LIMITED"
         assert 1 <= int(blocked.headers["Retry-After"]) <= 60
         # A signed-in user on the same IP has their own, larger bucket.
         for _ in range(1000):
-            assert (await client.get("/health", headers=headers)).status_code == 200
-        assert (await client.get("/health", headers=headers)).status_code == 429
+            assert (await client.get(LIMITED, headers=headers)).status_code == 404
+        assert (await client.get(LIMITED, headers=headers)).status_code == 429
 
 
 async def test_spoofed_forwarded_for_does_not_escape_the_ip_limit(
@@ -117,9 +161,9 @@ async def test_spoofed_forwarded_for_does_not_escape_the_ip_limit(
 ) -> None:
     async with _client(session, STRANGER, trusted_proxies="10.0.0.0/8") as client:
         for i in range(100):
-            r = await client.get("/health", headers={"X-Forwarded-For": f"1.1.1.{i}"})
-            assert r.status_code == 200
-        r = await client.get("/health", headers={"X-Forwarded-For": "9.9.9.9"})
+            r = await client.get(LIMITED, headers={"X-Forwarded-For": f"1.1.1.{i}"})
+            assert r.status_code == 404
+        r = await client.get(LIMITED, headers={"X-Forwarded-For": "9.9.9.9"})
         assert r.status_code == 429
 
 
@@ -129,22 +173,22 @@ async def test_clients_behind_a_trusted_proxy_get_separate_buckets(
     async with _client(session, LB, trusted_proxies="10.0.0.0/8") as client:
         for _ in range(100):
             assert (
-                await client.get("/health", headers={"X-Forwarded-For": "1.1.1.1"})
-            ).status_code == 200
+                await client.get(LIMITED, headers={"X-Forwarded-For": "1.1.1.1"})
+            ).status_code == 404
         assert (
-            await client.get("/health", headers={"X-Forwarded-For": "1.1.1.1"})
+            await client.get(LIMITED, headers={"X-Forwarded-For": "1.1.1.1"})
         ).status_code == 429
         assert (
-            await client.get("/health", headers={"X-Forwarded-For": "2.2.2.2"})
-        ).status_code == 200
+            await client.get(LIMITED, headers={"X-Forwarded-For": "2.2.2.2"})
+        ).status_code == 404
 
 
 async def test_an_invalid_token_counts_against_the_ip(session: AsyncSession) -> None:
     async with _client(session) as client:
         bad = {"Authorization": "Bearer forged"}
         for _ in range(100):
-            await client.get("/health", headers=bad)
-        assert (await client.get("/health", headers=bad)).status_code == 429
+            await client.get(LIMITED, headers=bad)
+        assert (await client.get(LIMITED, headers=bad)).status_code == 429
 
 
 # --- Agents' own buckets (D-043) --------------------------------------------------------
@@ -175,8 +219,8 @@ async def test_each_agent_has_its_own_bucket_even_behind_one_office_ip(
             assert (await client.post(RENEW, headers=b)).status_code == 200
         # A user and an anonymous caller behind the same IP are not starved either.
         user = auth_header(await make_user(session))
-        assert (await client.get("/health", headers=user)).status_code == 200
-        assert (await client.get("/health")).status_code == 200
+        assert (await client.get(LIMITED, headers=user)).status_code == 404
+        assert (await client.get(LIMITED)).status_code == 404
 
 
 async def test_forged_agent_tokens_count_against_the_ip(session: AsyncSession) -> None:
