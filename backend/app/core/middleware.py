@@ -10,6 +10,7 @@ from collections.abc import Awaitable, Callable
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 
 from fastapi import FastAPI, Request, Response
+from sqlalchemy.exc import InterfaceError, OperationalError
 from starlette.middleware.cors import CORSMiddleware
 from structlog.contextvars import bound_contextvars, unbind_contextvars
 
@@ -19,6 +20,9 @@ from app.core.errors import AppError, error_response
 from app.core.rate_limit import RateLimiter
 from app.core.security import decode_token
 from tally_contract.errors import ErrorCode
+from tally_contract.log import get_logger
+
+log = get_logger(__name__)
 
 Network = IPv4Network | IPv6Network
 ANONYMOUS_PER_MINUTE = 100
@@ -119,7 +123,16 @@ def install_middleware(app: FastAPI, config: Settings) -> None:
         if not request.url.path.startswith(_UNLIMITED):
             ip = client_ip(peer, request.headers.get("x-forwarded-for"), proxies)
             key, limit = _rate_key(request, ip, config)
-            retry_after = await limiter.hit(key, limit)
+            try:
+                retry_after = await limiter.hit(key, limit)
+            except (InterfaceError, OperationalError):
+                # The counters are in PostgreSQL (P16.11), and middleware runs outside the
+                # exception handlers, so without this a database outage would be a bare 500
+                # from every endpoint rather than SRS 16's 503.
+                log.error("database_unavailable", where="rate_limiter")
+                return error_response(
+                    ErrorCode.DATABASE_UNAVAILABLE, "The service is temporarily unavailable", 503
+                )
             if retry_after is not None:
                 return error_response(
                     ErrorCode.RATE_LIMITED,

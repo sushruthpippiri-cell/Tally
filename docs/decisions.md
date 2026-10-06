@@ -220,6 +220,7 @@ The SRS defines 15 error codes (`TALLY_SERVER_DISABLED`, `TDL_NOT_LOADED`, `COMP
 | `CHUNK_FAILED` | An upload chunk that could not be written; it holds the watermark (D-040 #5) | P5 |
 | `AGENT_LOST` | A sync run closed because its command's lease lapsed (D-040 #3) | P5 |
 | `PASSWORD_CHANGE_REQUIRED` | Signed in with an initial password an Owner chose; only change-password is allowed (403, D-052) | P13 |
+| `DATABASE_UNAVAILABLE` | The database cannot be reached (503). SRS 16 names the behaviour but no code, and without one an outage was an unhandled 500 (P16.4) | P16 |
 
 
 ### D-031 Phase 1 schema choices not covered by the SRS — ACCEPTED (product owner, 2026-09-23)

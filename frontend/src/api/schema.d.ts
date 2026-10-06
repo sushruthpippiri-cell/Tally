@@ -2095,7 +2095,8 @@ export interface components {
       | "RATE_LIMITED"
       | "HTTPS_REQUIRED"
       | "CHUNK_FAILED"
-      | "AGENT_LOST";
+      | "AGENT_LOST"
+      | "DATABASE_UNAVAILABLE";
     /**
      * ExplanationHealthOut
      * @description D-055 #3: how often an explanation is discarded, so the model choice can be revisited

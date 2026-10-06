@@ -7,6 +7,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from sqlalchemy.exc import InterfaceError, OperationalError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from tally_contract.errors import ErrorCode
@@ -61,6 +62,22 @@ def install_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             _body(ErrorCode.VALIDATION_ERROR, "Request validation failed", details),
             status_code=422,
+        )
+
+    @app.exception_handler(OperationalError)
+    @app.exception_handler(InterfaceError)
+    async def _database_unavailable(_: Request, exc: Exception) -> JSONResponse:
+        """SRS 16: the database being unreachable is 503, not 500.
+
+        Only the driver errors that mean "cannot talk to the database" - an IntegrityError is a
+        bug in our SQL and must keep its 500. Nothing is committed on the way out: a request's
+        session commits only where the code says so, so a failure part way through leaves the
+        transaction to roll back.
+        """
+        log.error("database_unavailable", error=type(exc).__name__)
+        return JSONResponse(
+            _body(ErrorCode.DATABASE_UNAVAILABLE, "The service is temporarily unavailable"),
+            status_code=503,
         )
 
     @app.exception_handler(StarletteHTTPException)
