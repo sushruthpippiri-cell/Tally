@@ -1,0 +1,10 @@
+# Reviewed historical findings, by fingerprint (commit:file:rule:line). One line per finding,
+# never a pattern: a fingerprint cannot excuse anything but the exact match it names, so a real
+# secret added later to the same file is still reported.
+#
+# e1c41cc, docs/security-review.md: the paragraph describing how the gitleaks allowlist was
+# tested spelled out the credential-shaped line that was planted to test it, and the scanner
+# read its own documentation as a secret. The wording was changed in the next commit; this
+# ignores the copy that remains in history. No secret - the planted string was invented for
+# the test and never valid anywhere.
+e1c41cc966b2d35b99997624dede31849f5fcd69:docs/security-review.md:generic-api-key:53

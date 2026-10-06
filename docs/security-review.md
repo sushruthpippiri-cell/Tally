@@ -49,11 +49,17 @@ would be listed here with its reason; a route that is looser fails the build.
   deliberately — they ship to nobody, and failing on them would mean ignoring the job.
 - gitleaks runs over all history, pinned by digest, with `--network none` and a read-only mount,
   so a third-party image cannot send the repository anywhere. `.gitleaks.toml` holds one
-  allowlist: PostgreSQL `EXPLAIN ANALYZE` plan lines in `docs/benchmarks/*.md`, which print
-  `Group Key: voucher_entries_4.voucher_id` and are read as a secret after the word `Key:`. It
-  requires the file **and** the plan's own wording (`condition = "AND"`), and was checked by
-  planting a real-looking `API Key:` in that same file: 25 plan lines stayed suppressed and the
-  planted key was reported.
+  allowlist: PostgreSQL `EXPLAIN ANALYZE` plan lines in `docs/benchmarks/*.md`, which name a
+  grouping column and are read as a secret after the word that precedes it. It requires the
+  file **and** the plan's own wording (`condition = "AND"`), and was checked by planting a
+  credential-shaped line in that same file: the 25 plan lines stayed suppressed and the planted
+  one was reported.
+
+  The scan then caught this very paragraph on its first CI run, because an earlier draft spelled
+  the planted credential out. That is the gate working, so the wording changed rather than the
+  allowlist widening - and because the old wording stays in history, `.gitleaksignore` carries
+  that one finding's fingerprint. A fingerprint names one commit, file, rule and line, so it
+  cannot excuse a real secret added to the same file later.
 - Earlier in P16 the full history was also scanned by hand for credentials, tokens, private keys
   and real passwords. Nothing was found beyond the documented local-development defaults
   (`deploy/docker-compose.yml`, `.env.example`), which are meant to be in the repository.
