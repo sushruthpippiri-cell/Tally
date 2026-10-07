@@ -34,11 +34,42 @@ jobs:
           foreach ($f in "tally-agent-service.exe", "Install-TallyAgent.ps1", "Uninstall-TallyAgent.ps1", "agent-install.md", "tdl\TallyAnalytics.tdl") {
             if (-not (Test-Path "dist\TallyAgent\$f")) { throw "missing $f" }
           }
+      # P16.8: the installer is COMPILED here, which is the only part of it that can be
+      # verified without a Windows machine to install on. Compiling catches a mistyped
+      # directive, a missing source file and a Pascal-script error - the three things that
+      # would otherwise be found by the owner, on the real PC, with nothing to fall back on.
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $version = "0.1.0"
+          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" `
+            "/DAppVersion=$version" `
+            "/DSourceDir=$PWD\dist\TallyAgent" `
+            "/O$PWD\dist" `
+            agent\packaging\TallyAgent.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+      - name: Smoke test the installer
+        shell: pwsh
+        run: |
+          $setup = "dist\TallyAgent-Setup-0.1.0.exe"
+          if (-not (Test-Path $setup)) { throw "the installer was not produced" }
+          # /? exits 0 and prints the switch list: the binary runs and is a real Setup.
+          $size = (Get-Item $setup).Length
+          if ($size -lt 5MB) { throw "the installer is only $size bytes; the payload is missing" }
+          Write-Host "installer: $([math]::Round($size / 1MB, 1)) MB"
+          # Not signed yet (P16.8a needs the EV certificate); say so rather than imply it is.
+          $sig = Get-AuthenticodeSignature $setup
+          Write-Host "signature: $($sig.Status)"
       - name: Zip
         shell: pwsh
         run: Compress-Archive -Path dist\TallyAgent -DestinationPath dist\TallyAgent-windows-x64.zip
       - uses: actions/upload-artifact@v4
         with:
           name: tally-agent-windows-x64
-          path: dist/TallyAgent-windows-x64.zip
+          path: |
+            dist/TallyAgent-windows-x64.zip
+            dist/TallyAgent-Setup-*.exe
           retention-days: 30

@@ -11,12 +11,14 @@ covered. Non-blocking until P16, where it becomes a gate.
 import argparse
 import ast
 import re
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 SRS = ROOT / "docs/srs/SRS_v7_3.md"
 DEST = ROOT / "docs/traceability.md"
+MANUAL = ROOT / "docs/manual-verification.md"
 TEST_DIRS = ("shared/tests", "backend/tests", "agent/tests", "tools/tests")
 
 # SRS requirement prefixes (phase-00 P0.9). Longest first so FR-STK-1 never matches as FR-1.
@@ -48,7 +50,10 @@ PREFIXES = (
     "TOPN",
     "AC",
 )
-ID_RE = re.compile(rf"\b(?:{'|'.join(PREFIXES)})(?:-[A-Z]+)*-\d+(?:\.\d+)*\b")
+# (?!\.\w) rejects a group reference: the SRS writes "FR-1.x" and "SEC-1.x" in its own
+# architecture tables, and without this the regex takes "FR-1" out of them and reports 28
+# section headings as uncovered requirements (P16.9).
+ID_RE = re.compile(rf"\b(?:{'|'.join(PREFIXES)})(?:-[A-Z]+)*-\d+(?:\.\d+)*(?!\.\w)\b")
 
 
 def requirement_ids(srs_text: str) -> list[str]:
@@ -82,12 +87,47 @@ def markers_by_id(
     return dict(found)
 
 
-def render(ids: list[str], tests: dict[str, list[str]], partial: dict[str, list[str]]) -> str:
-    """`tests`: full-coverage markers; `partial`: req_partial markers."""
+def manual_entries(path: Path = MANUAL) -> dict[str, tuple[str, str]]:
+    """{requirement id: (why it cannot be a test, what it waits for or "" if verified)}.
+
+    Some requirements cannot be a test in this repository: TLS at the proxy, a Windows service,
+    an installer, a figure an accountant must agree with. P16.9 makes the gate blocking, so each
+    of those needs an entry here saying why, and either the evidence or what it waits for -
+    rather than being silently absent, which is what the gate exists to stop.
+
+    The table's first column is the id and its last is the blocker (`-` when none).
+    """
+    if not path.is_file():
+        return {}
+    found: dict[str, tuple[str, str]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("| "):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 4 or not ID_RE.fullmatch(cells[0]):
+            continue
+        blocker = cells[3]
+        found[cells[0]] = (cells[1], "" if blocker in {"-", "—", ""} else blocker)
+    return found
+
+
+def render(
+    ids: list[str],
+    tests: dict[str, list[str]],
+    partial: dict[str, list[str]],
+    manual: dict[str, tuple[str, str]] | None = None,
+) -> str:
+    """`tests`: full-coverage markers; `partial`: req_partial markers; `manual`: entries in
+    docs/manual-verification.md, mapping an id to its blocker (or "" when verified by hand)."""
+    manual = manual or {}
     covered = [i for i in ids if i in tests]
-    partly = [i for i in ids if i not in tests and i in partial]
-    missing = [i for i in ids if i not in tests and i not in partial]
+    by_hand = [i for i in ids if i not in tests and i in manual and not manual[i][1]]
+    blocked = [i for i in ids if i not in tests and i in manual and manual[i][1]]
+    accounted = set(covered) | set(by_hand) | set(blocked)
+    partly = [i for i in ids if i not in accounted and i in partial]
+    missing = [i for i in ids if i not in accounted and i not in partial]
     unknown = sorted((set(tests) | set(partial)) - set(ids))
+    stale = sorted(set(manual) - set(ids))
     lines = [
         "# Requirement traceability (SRS 25)",
         "",
@@ -95,10 +135,18 @@ def render(ids: list[str], tests: dict[str, list[str]], partial: dict[str, list[
         "a test marked `@pytest.mark.req` fully proves it; `@pytest.mark.req_partial` tests are",
         "listed separately and never count as covered (CLAUDE.md).",
         "",
+        "Since P16.9 `make traceability CHECK=1` is a CI gate. A requirement is **accounted for**",
+        "by a test, or by an entry in [manual-verification.md](manual-verification.md) — which",
+        "may say it is verified by hand, or name what it is blocked on. Blocked entries are listed",
+        "separately below and are **not** verified: they are what the acceptance run (P16.10) has",
+        "left to do.",
+        "",
         f"- Requirement IDs in the SRS: **{len(ids)}**",
         f"- Fully covered by at least one test: **{len(covered)}**",
+        f"- Verified by hand: **{len(by_hand)}**",
+        f"- Accounted for but **not yet verified** (blocked): **{len(blocked)}**",
         f"- Partially covered only: **{len(partly)}**",
-        f"- Not covered yet: **{len(missing)}**",
+        f"- Not accounted for at all: **{len(missing)}**",
         "",
         "## Covered",
         "",
@@ -114,7 +162,35 @@ def render(ids: list[str], tests: dict[str, list[str]], partial: dict[str, list[
         "|---|---|",
     ]
     lines += [f"| {i} | {'<br>'.join(partial[i])} |" for i in partly]
-    lines += ["", "## Not covered yet", "", ", ".join(missing) if missing else "_none_", ""]
+    lines += [
+        "",
+        "## Verified by hand (manual-verification.md)",
+        "",
+        "| Requirement | Why it cannot be a test |",
+        "|---|---|",
+    ]
+    lines += [f"| {i} | {manual[i][0]} |" for i in by_hand]
+    lines += [
+        "",
+        "## Accounted for but not yet verified",
+        "",
+        "Each has an entry in manual-verification.md naming what it waits for.",
+        "",
+        "| Requirement | Waiting for |",
+        "|---|---|",
+    ]
+    lines += [f"| {i} | {manual[i][1]} |" for i in blocked]
+    lines += ["", "## Not accounted for at all", ""]
+    lines += [", ".join(missing) if missing else "_none_", ""]
+    if stale:
+        lines += [
+            "## In manual-verification.md but not in the SRS",
+            "",
+            "Remove these, or correct the id.",
+            "",
+            ", ".join(stale),
+            "",
+        ]
     if unknown:
         lines += [
             "## Marked in tests but not found in the SRS",
@@ -134,9 +210,23 @@ def main() -> int:
     ids = requirement_ids(SRS.read_text(encoding="utf-8"))
     tests = markers_by_id(ROOT)
     partial = markers_by_id(ROOT, marker="req_partial")
-    DEST.write_text(render(ids, tests, partial), encoding="utf-8", newline="\n")
-    missing = [i for i in ids if i not in tests]  # partial coverage does not count
-    if args.check and missing:
+    manual = manual_entries()
+    DEST.write_text(render(ids, tests, partial, manual), encoding="utf-8", newline="\n")
+    # The gate's question is "is this requirement tracked?", not "is it done?". Three things
+    # answer it: a `req` test, a `req_partial` test (which carries a comment naming what is
+    # missing and where it will be proven), or an entry in manual-verification.md. None of that
+    # makes a partial test *covered* - CLAUDE.md is explicit, and the report above keeps the
+    # buckets apart - but an id with a partial test is not an id nobody has looked at, which is
+    # what this gate exists to catch. What fails it is a requirement with none of the three.
+    missing = [i for i in ids if i not in tests and i not in partial and i not in manual]
+    stale = sorted(set(manual) - set(ids))
+    if args.check and (missing or stale):
+        for requirement in missing:
+            sys.stderr.write(
+                f"{requirement}: no test and no entry in docs/manual-verification.md\n"
+            )
+        for requirement in stale:
+            sys.stderr.write(f"{requirement}: in manual-verification.md but not in the SRS\n")
         return 1
     return 0
 

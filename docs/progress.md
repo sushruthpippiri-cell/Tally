@@ -3,9 +3,70 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
+P16 (hardening and acceptance) — **in progress, NOT complete**, branch `phase-16`, **PR #4 (draft)**.
+Deliberately limited to the tasks that need nothing from the owner; everything waiting on hosting,
+hardware, a code-signing certificate or the Windows VM is in the Blocked table below rather than
+attempted. **D-056 ACCEPTED** (owner): RPO ≤ 24 h / RTO ≤ 4 h as the committed worst case (closing
+the last SRS 28 business decision and amending D-016); managed PostgreSQL with PITR in an Indian
+region, documented provider-neutrally; a PostgreSQL table for the shared rate limits, no Redis;
+180-day log retention; the explainer off by default in production; Caddy as the proxy; only the
+proxy publishes ports in production (owner correction); the traceability gate blocking with
+blockers named; and a route may be stricter than SRS 19.2, never looser.
+
+Done: **P16.11** (counters in `rate_limit_counters`, migration 0012 — replicas now share one
+limit, `/health` exempted because a load balancer polling faster than the anonymous limit was
+being answered 429, and a purge job drops finished windows); **P16.1** (the SRS 19.2 cross-check,
+closing that file's own stated ceiling, plus the mis-tagged AC-59 — all 50 company routes agree
+with 19.2 exactly, in both directions); **P16.2** (security review with evidence per requirement;
+`pip-audit`, `npm audit`, gitleaks over all history and bandit via ruff `S` in CI); **P16.3**
+(request/company/user/agent/job on every log record; retention jobs, migration 0013; the LOG-1.1
+action registry); **P16.4** ([failure-modes.md](failure-modes.md), all 33 SRS 16 rows with
+verified test citations).
+
+**Five real defects found and fixed, each with a regression test:** `pyjwt` 2.14.0 carried
+PYSEC-2026-4141 / CVE-2026-102275 **in the token-signing path** (→ 2.15.1); the XML parser
+expanded internal entities, so a billion-laughs document from Tally would have exhausted the
+Agent (a DTD is now refused outright — external entities never resolved, so there was no
+file-disclosure path); a database outage returned **500, not SRS 16's 503**, on every route but
+`/health/db`, and needed separate handling in the middleware because the limiter now touches the
+database outside the exception handlers; the gitleaks allowlist was excusing a whole directory
+because gitleaks ORs path and regex (now narrow, and proven narrow by planting a credential in
+that same file); and three audited actions were written but unclassified — `USER_ATTACHED`,
+`GROUP_RESOLUTION_CHANGED`, `VOUCHER_TYPE_RESOLUTION_CHANGED`, the last two passed positionally,
+which a source scan missed and the runtime guard caught.
+
+Also fixed two test-infrastructure hazards the move to Postgres counters exposed: each test's
+limiter now gets a loop-local engine, and `app.core.db`'s cached engine is disposed after every
+test — nothing reached it from tests before, because `get_session` is always overridden.
+
+Also done: **P16.12** (Caddy, the production compose where only the proxy publishes ports, and
+a test that the proxy's headers cannot drift from `frontend/security/csp.ts` — proven by
+mutation); **P16.6** (the snapshot/restore-drill scripts, which refuse any database not named
+`*_staging`, and `docs/runbooks/restore.md`); **P16.8** (the Inno Setup installer with its
+first-run wizard, compiled in CI, with 13 structural tests that run free on Linux); **P16.9**
+(the gate, `docs/manual-verification.md`, and the regex fix that removed 28 phantom
+requirements); **P16.7** (UC-5's cancellation half, UC-8 and UC-9 end to end, with UC-6 and UC-7
+deliberately left to the suites that already prove them deterministically); and **part of
+P16.5** (the Locust concurrency harness and `docs/benchmarks/TEMPLATE.md`).
+
+**Not done, and the phase is not done:** `tools/dataset_gen` and the mock-Tally sync benchmark
+(PERF-1.2/1.3) and the EXPLAIN ANALYZE review — the rest of P16.5. The database half of
+dataset_gen is nearly free, since `benchmark.generate()` is already pure over a `Sink`; the
+mock-Tally XML half is net-new, and the mock holds every row's XML in memory and re-joins the
+whole list per request, so 100,000 vouchers needs work on the mock too.
+
+Everything else in P16 is blocked on the owner and listed in the Blocked table below.
+
+**Two things found by CI, not locally**, both worth remembering: `make check` does not run the
+frontend's typecheck (that is the neighbour `frontend` job), so an API change needs both before a
+push — adding an error code left the frontend red because `MESSAGES` is a `Record` over the
+generated `ErrorCode` union. And the secret scan caught its own documentation: the paragraph
+describing how the gitleaks allowlist was tested spelled out the credential-shaped line planted
+to test it.
+
 P14 (analytics UI, drill-down, exports) — **complete** 2026-10-05. Session 1 merged (PR #1); session 2 merged (**PR #2**, merge commit `595356d`, branch deleted). **CI green on `main`**: `check` 37304277377 (with its `frontend` job) and `agent-windows` 37304277495; `capture-kit` not triggered, last green 36539892090. D-053 ACCEPTED; **D-054 ACCEPTED** (owner) with two corrections folded in: every read of one export shares a REPEATABLE READ, READ ONLY snapshot (one transaction is not enough — READ COMMITTED would let a sync break AC-39 mid-download), and the PDF concurrency limit is one per-process `PDF_MAX_CONCURRENT` from server configuration, not a `company_settings` key. The owner also directed that the PDF's fonts be bundled in the repo under their OFL/Bitstream licences rather than installed as Docker/CI font packages. Done: P14.0–P14.5 (session 1); P14.6 (money formatting shared with the frontend through `fixtures/money-formatting.json`; CSV for every metric, the three rankings, both aging sides, payment behaviour and stock), P14.7 (PDF with hand-written SVG charts, bundled fonts, 2,000-row cap, off-event-loop worker), P14.8 (export endpoint, audited, snapshot-isolated; export buttons on every view), P14.9 (AC-39, AC-61, EXP-1.6/SEC-1.11, LOG-1.1, FR-DD-5 as a property, ACC-4.4 in full). Local: `make check` PASS; Vitest 141; Playwright 64; **live check against `make up` + `make demo-data`: all 20 reports exported as CSV and PDF (40 files), sales 27,01,875.00 − product-attributed 26,95,475.00 = the difference 6,400.00**. Report: [phase-14](test-reports/phase-14.md) PASS (1,741 passed, 3 skipped - Windows-only; 90.8% coverage). CI was green on the PR at `8bb93e5` (`check` 37216663831, `agent-windows` 37215854951) before the merge.
 
-P15 (optional anomaly detection) — **complete, PR open** 2026-10-05, branch `phase-15`, **PR #3 (draft)**. D-015 **ACCEPTED and amended** and **D-055 ACCEPTED** (owner), including four owner corrections to the approved plan, each of which closed a real defect: placeholders carry no digits (`Voucher 1` would have been destroyed by the FR-3.6 number check); the scan cursor follows our own write time, never Tally's ALTERID (a held-back D-039 record arrives later with a *lower* ALTERID and would never have been scanned); a flag follows its voucher (re-evaluated on modification, cleared rather than deleted); and enabling the feature is bounded in history (30 days) and spend (50 explanations per company per day). Done: P15.0 (decisions), P15.1 (migration 0010, the cursor, `tally_readonly` with row-level security), P15.2 (the two rules), P15.3 (the MCP server and the one redaction function), P15.4 (the explainer and the number check), P15.5 (service, two jobs, API), P15.6 (the Anomalies section and the enable-confirmation dialog), P15.7 (the model-id check, docs, the live check). Migration 0011 adds `party_ledger_id`. Report: [phase-15](test-reports/phase-15.md) PASS (1,850 passed, 3 skipped — Windows-only; 90.8% coverage); Vitest 152; Playwright 66. **Live check against `make up` + `make demo-data`:** flag off → the section is unavailable and nothing is written; flag on → three unusually-large transactions found on real demo data (+1088%, +547%, +415%), explanation-health counted them, a review was recorded. **Known gap:** the review buttons are exercised on the Playwright desktop project only — see the phase report. **CI green on PR #3** at `4a52b4c`: `check` 37358462046 (with its `frontend` job) and `agent-windows` 37358462301; `capture-kit` not triggered, last green 36539892090. Next: the owner reviews and merges PR #3.
+P15 (optional anomaly detection) — **complete and merged** 2026-10-06. **PR #3 merged** with a merge commit (`c2b1407`), per-task commits preserved, branch deleted. **CI green on `main`**: `check` 37476126518 (with its `frontend` job) and `agent-windows` 37476126753. Branch was `phase-15`. D-015 **ACCEPTED and amended** and **D-055 ACCEPTED** (owner), including four owner corrections to the approved plan, each of which closed a real defect: placeholders carry no digits (`Voucher 1` would have been destroyed by the FR-3.6 number check); the scan cursor follows our own write time, never Tally's ALTERID (a held-back D-039 record arrives later with a *lower* ALTERID and would never have been scanned); a flag follows its voucher (re-evaluated on modification, cleared rather than deleted); and enabling the feature is bounded in history (30 days) and spend (50 explanations per company per day). Done: P15.0 (decisions), P15.1 (migration 0010, the cursor, `tally_readonly` with row-level security), P15.2 (the two rules), P15.3 (the MCP server and the one redaction function), P15.4 (the explainer and the number check), P15.5 (service, two jobs, API), P15.6 (the Anomalies section and the enable-confirmation dialog), P15.7 (the model-id check, docs, the live check). Migration 0011 adds `party_ledger_id`. Report: [phase-15](test-reports/phase-15.md) PASS (1,850 passed, 3 skipped — Windows-only; 90.8% coverage); Vitest 152; Playwright 66. **Live check against `make up` + `make demo-data`:** flag off → the section is unavailable and nothing is written; flag on → three unusually-large transactions found on real demo data (+1088%, +547%, +415%), explanation-health counted them, a review was recorded. **Known gap:** the review buttons are exercised on the Playwright desktop project only — see the phase report. **CI green on PR #3** at `4a52b4c`: `check` 37358462046 (with its `frontend` job) and `agent-windows` 37358462301; `capture-kit` not triggered, last green 36539892090. Merged by the owner's instruction on 2026-10-06.
 
 P13 (frontend foundation) — **complete** 2026-10-04. CI green (`check` 37194131105 with its `frontend` job; `agent-windows` 37193530680 on the report commit; `capture-kit` not triggered, last green 36539892090). The first CI run (37193530724) failed one mobile e2e test that picked the hidden desktop sidebar's copy of the company name; fixed in 02c984a. Local suite PASS ([phase-13](test-reports/phase-13.md), 1,493 backend/shared/agent tests: 1,490 passed, 3 skipped — Windows-only; 89.9% line coverage), plus the frontend's own suites: Vitest 100, Playwright 30 (desktop + 360 px), live check 4 (Chrome and WebKit against `make up`, every page). D-051 ACCEPTED (sessions in an HttpOnly cookie, own money formatter, Safari over HTTPS); **D-052 ACCEPTED** (owner): an initial password works once, enforced by the API on every route but change-password (migration 0009). P16.12 added: the production reverse proxy keeps Host, serves the CSP and strips `/api`. Next: P14 — waits for the owner.
 
@@ -228,6 +289,14 @@ P0 — **complete** 2026-09-23. Local suite PASS ([phase-00](test-reports/phase-
 |---|---|---|
 | Gate track G-E (confirm or fix every GATE-tagged TDL line and constant; live fixtures in the harness; gate statuses) | Live captures from the owner's Windows VM with TallyPrime (`make capture-kit`, then the kit README) | 2026-09-25 |
 | Agent real-machine checklist, `docs/agent-windows-checklist.md` (service as `NT SERVICE\\TallyAgent`, encrypt as the installing user / decrypt as the service, ACLs, real TallyPrime) | The owner runs it on the Windows VM with the `agent-build` x64 zip; repeated on a real x64 PC in P16.8b | 2026-09-28 |
+| **P16.5 real-Tally benchmark and PERF-VAL-1 evidence** (Windows edition/build, Tally machine CPU/RAM, storage, TallyPrime version, dataset id, Agent version, measured bandwidth/latency) | A real x64 Windows PC running TallyPrime (D-043 #3, SRS 17.2). The synthetic and mock-Tally halves are in scope and not blocked | 2026-10-06 |
+| **P16.6 restore drill** (BKP-1.2: restore to staging, compare row counts, record the achieved RPO/RTO) | Hosting and a staging environment. The scripts, configuration and runbook are in scope | 2026-10-06 |
+| **P16.8a code signing** (REQUIRED before launch, D-042 #8) | An EV Authenticode certificate with its key in a hardware token or cloud HSM. Long lead time, so worth ordering early | 2026-10-06 |
+| **P16.8b the Agent on real x64 hardware** (REQUIRED before launch, D-043 #3) | The x64 PC — and the Windows VM checklist above first, since the installer builds on what it proves | 2026-10-06 |
+| **P16.12's three live checks** (Host preserved, the CSP and HSTS served, `/api` stripped, verified with `npm run e2e:live` against the deployed URL in Chrome and Safari) | Hosting, a domain and TLS. The Caddyfile, the production compose and the runbook are in scope | 2026-10-06 |
+| **P16.10 acceptance run** (every AC and the "blocked by Gxx" entries) | The gates, so the capture kit. Out of this session's scope by instruction | 2026-10-06 |
+| **D-004, D-008, D-009, D-013, D-022, D-023 still PROPOSED** | The capture kit: all 37 gates are NOT_TESTED, and these six cannot be settled without live Tally (D-004/D-022 need G25/G31, D-013 needs G33) | 2026-10-06 |
+| **`docs/reconciliation-basis.md` accountant review** (P10's definition of done) | An accountant. Not a mechanical blocker for P16, but a correctness risk on the figures reconciliation rests on, and it should not reach launch unreviewed | 2026-09-29 |
 
 ## Questions for the product owner
 | # | Question | Raised in | Answer |
@@ -248,6 +317,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
+| 16 | [phase-16](test-reports/phase-16.md) | Suite PASS - 1,924 tests, 0 failed, 3 skipped (Windows-only), 90.9% coverage; plus Vitest 152 and Playwright 66. **The phase is NOT complete** - see the report's first note |
 | 15 | [phase-15](test-reports/phase-15.md) | PASS - 1,853 tests, 0 failed, 3 skipped (Windows-only), 90.8% coverage; plus Vitest 152 and Playwright 66 |
 | 14 | [phase-14](test-reports/phase-14.md) | PASS - 1,744 tests, 0 failed, 3 skipped (Windows-only), 90.8% coverage; plus Vitest 141 and Playwright 64 |
 | 12 | [phase-12](test-reports/phase-12.md) | PASS - 1,438 tests, 0 failed, 3 skipped (Windows-only), 90.0% coverage; CI green: check 36712395193 |

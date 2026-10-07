@@ -2789,7 +2789,8 @@
           "RATE_LIMITED",
           "HTTPS_REQUIRED",
           "CHUNK_FAILED",
-          "AGENT_LOST"
+          "AGENT_LOST",
+          "DATABASE_UNAVAILABLE"
         ],
         "title": "ErrorCode",
         "type": "string"

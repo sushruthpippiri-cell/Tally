@@ -1,0 +1,62 @@
+# Production (P16.12, D-056 #2/#7). `docker-compose.yml` beside it is the local development
+# file and is not used here: it publishes 8000 and 5432 to the host, which is exactly what this
+# file must not do.
+#
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# **Only the proxy publishes ports.** The backend is reachable solely over the internal network,
+# so every request arrives through Caddy and therefore with TLS, HSTS and the security headers.
+# Publishing 8000 as well would make all of that optional for anyone who knows the address.
+# tools/tests/test_deploy_config.py fails if any other service grows a `ports:` entry.
+#
+# There is no database service: production uses managed PostgreSQL with point-in-time recovery
+# in an Indian region (D-056 #2). Its firewall must admit only this backend - a hosting setting,
+# checked in docs/runbooks/deploy.md, not something this file can enforce.
+#
+# Every value comes from the environment with no default. A missing one fails the start; a
+# development default that silently reached production would be worse (SEC-1.14).
+name: tally
+
+services:
+  caddy:
+    build:
+      context: ..
+      dockerfile: deploy/caddy/Dockerfile
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set the public hostname, e.g. app.example.in}
+      ACME_EMAIL: ${ACME_EMAIL:?set the address for certificate expiry notices}
+    ports:
+      - "80:80" # ACME HTTP-01 challenge, and the redirect to https
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - caddy_data:/data # certificates and ACME account keys: losing these re-issues on restart
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    # No `ports:`. This is the point of the file.
+    environment:
+      ENV: prod
+      DATABASE_URL: ${DATABASE_URL:?managed PostgreSQL, asyncpg driver, the app role}
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?the owner role, psycopg driver}
+      JWT_SECRET: ${JWT_SECRET:?at least 32 bytes; prod refuses to start without it}
+      CORS_ORIGINS: ${CORS_ORIGINS:?the site's own https origin}
+      # D-033 #5-6: X-Forwarded-For/-Proto are honoured only from these peers. It must contain
+      # the Docker network Caddy sits on, or every client looks like one IP to the rate limiter
+      # and HTTPS_REQUIRED fires on traffic that really is https.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:?the proxy's network, e.g. 172.16.0.0/12}
+      LOG_RETENTION_DAYS: ${LOG_RETENTION_DAYS:-180} # D-056 #4; minimum 90 (SRS 15)
+      # D-056 #5: the anomaly explainer stays off. ANTHROPIC_API_KEY is deliberately absent -
+      # with no key, anomalies are still found and shown and the explanation reads
+      # "unavailable" (AC-58, NFR-REL-1).
+
+volumes:
+  caddy_data:
+  caddy_config:

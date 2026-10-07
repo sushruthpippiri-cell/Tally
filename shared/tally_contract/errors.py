@@ -44,6 +44,9 @@ class ErrorCode(StrEnum):
     HTTPS_REQUIRED = "HTTPS_REQUIRED"  # not in SRS v7.3
     CHUNK_FAILED = "CHUNK_FAILED"  # not in SRS v7.3
     AGENT_LOST = "AGENT_LOST"  # not in SRS v7.3
+    # SRS 16 "Database unavailable": HTTP 503, no partial writes. The row names the
+    # behaviour but no code, and an unhandled driver error would have been a 500 (P16.4).
+    DATABASE_UNAVAILABLE = "DATABASE_UNAVAILABLE"  # not in SRS v7.3
 
 
 SRS_CODES: tuple[ErrorCode, ...] = tuple(list(ErrorCode)[:15])

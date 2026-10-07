@@ -286,3 +286,38 @@ def test_a_crashing_builder_is_still_contained(monkeypatch: pytest.MonkeyPatch) 
 
     result = document.parse(GROUPS, "GROUP", explode)
     assert result.document_error is not None and "RuntimeError" in result.document_error.message
+
+
+# --- a document declaring a DTD is refused (SEC-1.6, P16.2) ----------------------------
+
+
+@pytest.mark.req("SEC-1.6")
+def test_a_billion_laughs_document_is_refused_before_any_record_is_built() -> None:
+    """xml.etree does not resolve external entities, so there was never a file-disclosure path,
+    but it does expand internal ones: without this the Agent would expand the document
+    exponentially and run out of memory. Tally's reports never carry a DOCTYPE."""
+    entities = '<!ENTITY a0 "lol">' + "".join(
+        f'<!ENTITY a{i} "{f"&a{i - 1};" * 10}">' for i in range(1, 10)
+    )
+    raw = (
+        f'<?xml version="1.0"?><!DOCTYPE ENVELOPE [{entities}]>'
+        "<ENVELOPE><TA_GROUPS><GROUP><GUID>g</GUID><NAME>&a9;</NAME></GROUP></TA_GROUPS>"
+        "</ENVELOPE>"
+    ).encode()
+    result = parse_collection(raw, CollectionType.GROUP)
+    assert result.document_error is not None
+    assert result.document_error.code == ErrorCode.PARSE_ERROR
+    assert "DTD" in result.document_error.message
+    assert result.records == []
+
+
+@pytest.mark.req("SEC-1.6")
+def test_an_external_entity_never_reaches_the_resolver() -> None:
+    raw = (
+        b'<?xml version="1.0"?><!DOCTYPE ENVELOPE ['
+        b'<!ENTITY secret SYSTEM "file:///etc/passwd">]>'
+        b"<ENVELOPE><TA_GROUPS><GROUP><GUID>g</GUID><NAME>&secret;</NAME></GROUP>"
+        b"</TA_GROUPS></ENVELOPE>"
+    )
+    error = parse_collection(raw, CollectionType.GROUP).document_error
+    assert error is not None and "DTD" in error.message

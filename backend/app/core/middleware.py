@@ -5,20 +5,24 @@ X-Forwarded-For / X-Forwarded-Proto are trusted only from TRUSTED_PROXIES (D-033
 """
 
 import re
-import time
 import uuid
 from collections.abc import Awaitable, Callable
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 
 from fastapi import FastAPI, Request, Response
+from sqlalchemy.exc import InterfaceError, OperationalError
 from starlette.middleware.cors import CORSMiddleware
-from structlog.contextvars import bound_contextvars
+from structlog.contextvars import bound_contextvars, unbind_contextvars
 
 from app.core.agent_credentials import CREDENTIAL_PREFIX, verified_agent
 from app.core.config import Settings
 from app.core.errors import AppError, error_response
+from app.core.rate_limit import RateLimiter
 from app.core.security import decode_token
 from tally_contract.errors import ErrorCode
+from tally_contract.log import get_logger
+
+log = get_logger(__name__)
 
 Network = IPv4Network | IPv6Network
 ANONYMOUS_PER_MINUTE = 100
@@ -32,6 +36,10 @@ _SECURITY_HEADERS = {
 HSTS = "max-age=31536000; includeSubDomains"
 API_CSP = "default-src 'none'; frame-ancestors 'none'"
 _DOCS = ("/docs", "/redoc")  # FastAPI's own pages load scripts; everything else is JSON
+# Liveness and readiness probes are not rate-limited: a load balancer polling faster than
+# the anonymous limit would be answered 429 and would take the backend out of service
+# (P16.11). It also keeps the counter's database round-trip off the liveness path.
+_UNLIMITED = ("/health",)
 
 
 def _trusted(host: str | None, proxies: list[Network]) -> bool:
@@ -59,29 +67,6 @@ def effective_scheme(
     if forwarded_proto and _trusted(peer, proxies):
         return forwarded_proto.split(",")[0].strip().lower()
     return scheme
-
-
-class RateLimiter:
-    """Fixed one-minute windows per key.
-
-    ponytail: per-process memory, so N replicas allow N x the limit; move the counters to
-    Postgres or Redis before running more than one replica: required task P16.11 (D-033 #3).
-    """
-
-    def __init__(self, clock: Callable[[], float] = time.monotonic, seconds: int = 60) -> None:
-        self._clock, self._seconds = clock, seconds
-        self._counts: dict[str, tuple[int, int]] = {}  # key -> (window, count)
-
-    def hit(self, key: str, limit: int) -> int | None:
-        """Count one request; seconds until the window resets if over the limit, else None."""
-        now = self._clock()
-        window = int(now // self._seconds)
-        if len(self._counts) > 50_000:  # drop keys from finished windows
-            self._counts = {k: v for k, v in self._counts.items() if v[0] == window}
-        seen_window, count = self._counts.get(key, (window, 0))
-        count = count + 1 if seen_window == window else 1
-        self._counts[key] = (window, count)
-        return None if count <= limit else max(1, self._seconds - int(now % self._seconds))
 
 
 def _rate_key(request: Request, ip: str, config: Settings) -> tuple[str, int]:
@@ -113,7 +98,13 @@ def install_middleware(app: FastAPI, config: Settings) -> None:
         request_id = header_id if _REQUEST_ID.match(header_id) else uuid.uuid4().hex
         peer = request.client.host if request.client else None
         with bound_contextvars(request_id=request_id):
-            response = await _handle(request, call_next, peer)
+            try:
+                response = await _handle(request, call_next, peer)
+            finally:
+                # company_id, user_id and agent_id are bound by the dependencies that resolve
+                # them (P16.3, SRS 15). Drop them here so they cannot leak into the next
+                # request handled by the same task.
+                unbind_contextvars("company_id", "user_id", "agent_id")
         response.headers.update(_SECURITY_HEADERS)
         if not request.url.path.startswith(_DOCS):  # the API serves no pages (D-051 #4)
             response.headers["Content-Security-Policy"] = API_CSP
@@ -129,16 +120,26 @@ def install_middleware(app: FastAPI, config: Settings) -> None:
             proto = request.headers.get("x-forwarded-proto")
             if effective_scheme(request.url.scheme, peer, proto, proxies) != "https":
                 return error_response(ErrorCode.HTTPS_REQUIRED, "HTTPS is required", 400)
-        ip = client_ip(peer, request.headers.get("x-forwarded-for"), proxies)
-        key, limit = _rate_key(request, ip, config)
-        retry_after = limiter.hit(key, limit)
-        if retry_after is not None:
-            return error_response(
-                ErrorCode.RATE_LIMITED,
-                "Too many requests; try again later",
-                429,
-                {"Retry-After": str(retry_after)},
-            )
+        if not request.url.path.startswith(_UNLIMITED):
+            ip = client_ip(peer, request.headers.get("x-forwarded-for"), proxies)
+            key, limit = _rate_key(request, ip, config)
+            try:
+                retry_after = await limiter.hit(key, limit)
+            except (InterfaceError, OperationalError):
+                # The counters are in PostgreSQL (P16.11), and middleware runs outside the
+                # exception handlers, so without this a database outage would be a bare 500
+                # from every endpoint rather than SRS 16's 503.
+                log.error("database_unavailable", where="rate_limiter")
+                return error_response(
+                    ErrorCode.DATABASE_UNAVAILABLE, "The service is temporarily unavailable", 503
+                )
+            if retry_after is not None:
+                return error_response(
+                    ErrorCode.RATE_LIMITED,
+                    "Too many requests; try again later",
+                    429,
+                    {"Retry-After": str(retry_after)},
+                )
         return await call_next(request)
 
     # Added last, so it is outermost: preflights are answered and error responses carry CORS.

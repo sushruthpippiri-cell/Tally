@@ -16,6 +16,7 @@ from app.models.config import (
     CompanySetting,
     CustomFieldMapping,
     FeatureConfig,
+    RateLimitCounter,
 )
 from app.models.masters import CostCentre, Group, Ledger, StockItem, VoucherType
 from app.models.sync import (
@@ -57,6 +58,7 @@ __all__ = [
     "ReconciliationResult",
     "ReconciliationRun",
     "ReconciliationTallyValue",
+    "RateLimitCounter",
     "Role",
     "StockItem",
     "StockOpeningBalance",

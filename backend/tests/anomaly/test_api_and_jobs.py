@@ -74,7 +74,7 @@ def url(books: Books, rest: str = "") -> str:
 # --- AC-55: with the flag off, nothing happens at all ---------------------------------------
 
 
-@pytest.mark.req("AC-55")
+@pytest.mark.req("AC-55", "FR-3.1")
 async def test_with_the_flag_off_no_anomaly_is_created_and_no_model_is_called(
     session: AsyncSession, books: Books, monkeypatch: pytest.MonkeyPatch
 ) -> None:

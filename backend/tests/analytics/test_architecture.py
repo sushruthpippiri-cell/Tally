@@ -129,6 +129,7 @@ def test_no_analytics_query_reads_amount_raw() -> None:
     assert raw_amount_reads(_app_sources()) == []
 
 
+@pytest.mark.req("NFR-MAINT-2")  # "defined once and reused" - the same property
 @pytest.mark.req_partial("ACC-4.4")  # the API and exports: tests/api/test_exports.py
 def test_every_metric_has_one_query_path() -> None:
     sources = _app_sources()
@@ -185,3 +186,50 @@ def test_the_caller_and_table_guards_catch() -> None:
     assert money_table_imports({"exports/csv.py": dashboard}) == ["exports/csv.py: VoucherEntry"]
     assert money_table_imports({"services/x.py": "q = select(models.VoucherItem)"})
     assert detail_query_callers({"analytics/query.py": dashboard}) == []
+
+
+# --- anomaly evidence never reaches an accounting figure (ACC-4.6) ----------------------
+
+# The direction that matters: an accounting figure must never be derived from an anomaly flag.
+# The import-linter contract forbids the package import; this catches the subtler form, where a
+# module reads the table or its columns directly.
+ANOMALY_NAMES = {"AnomalyFlag", "anomaly_flags", "AnomalyRule", "ExplanationStatus"}
+MAY_READ_ANOMALIES = ("anomaly/", "models/", "api/anomalies.py", "services/anomaly.py", "jobs/")
+
+
+def anomaly_reads(sources: dict[str, str]) -> list[str]:
+    found = []
+    for path, src in sources.items():
+        if path.startswith(MAY_READ_ANOMALIES):
+            continue
+        for node in ast.walk(ast.parse(src)):
+            where = f"{path}:{getattr(node, 'lineno', '?')}"
+            # A string may hold SQL, so the table name is looked for inside it; an identifier
+            # has to match exactly, or `anomaly_rules` would flag the ordinary word "rules".
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                found += [f"{where}: {n}" for n in ANOMALY_NAMES if n in node.value]
+                continue
+            name = (
+                node.attr
+                if isinstance(node, ast.Attribute)
+                else node.id
+                if isinstance(node, ast.Name)
+                else node.name
+                if isinstance(node, ast.alias)
+                else ""
+            )
+            if name in ANOMALY_NAMES:
+                found.append(f"{where}: {name}")
+    return found
+
+
+@pytest.mark.req("ACC-4.6")
+def test_no_accounting_figure_is_derived_from_anomaly_evidence() -> None:
+    assert anomaly_reads(_app_sources()) == []
+
+
+def test_the_anomaly_guard_catches() -> None:
+    bad = "from app.models.config import AnomalyFlag\nq = select(AnomalyFlag)\n"
+    assert anomaly_reads({"analytics/metrics/sales.py": bad})
+    assert anomaly_reads({"reconciliation/compare.py": "x = text('select * from anomaly_flags')"})
+    assert anomaly_reads({"anomaly/rules.py": bad}) == []  # the module that owns them

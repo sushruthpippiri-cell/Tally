@@ -4,7 +4,8 @@ PHASE ?= dev
 TEST_DB_URL ?= postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally_test
 
 .PHONY: up down migrate test test-backend test-agent lint format typecheck importlint check dev-tls dev-https \
-        traceability phase-report hooks capture-kit update-fixtures bench-data bench-analytics demo-data
+        traceability phase-report hooks capture-kit update-fixtures bench-data bench-analytics \
+        loadtest demo-data
 
 hooks:  ## Install the git pre-commit hook (ruff + mypy); once per clone
 	git config core.hooksPath .githooks
@@ -44,7 +45,10 @@ importlint:
 check: lint typecheck importlint test  ## Run before calling any task done
 
 traceability:
-	uv run python -m tally_tools.traceability
+	uv run python -m tally_tools.traceability --check
+	@git diff --quiet docs/traceability.md || { \
+	  echo 'docs/traceability.md is stale - commit the regenerated file'; \
+	  git --no-pager diff --stat docs/traceability.md; exit 1; }
 
 phase-report:  ## Fresh DB + full suite + check, then docs/test-reports/phase-NN.md
 	@test -n "$(PHASE)" || (echo "usage: make phase-report PHASE=00" && exit 1)
@@ -72,6 +76,12 @@ demo-data:  ## Migrate the dev database and load a small, realistic demo company
 
 bench-data:  ## Recreate tally_bench (never dev/test) with the seeded SRS 17.2 dataset
 	uv run python -m tally_tools.benchmark
+
+loadtest:  ## PERF-1.1 under concurrency: USERS (default 10), HOST, LOAD_EMAIL, LOAD_PASSWORD
+	uv run --group dev locust -f tools/tally_tools/loadtest/locustfile.py --headless \
+	  --users $(or $(USERS),10) --spawn-rate $(or $(USERS),10) --run-time $(or $(RUNTIME),2m) \
+	  --host $(or $(HOST),http://localhost:8000) \
+	  --html logs/loadtest.html --csv logs/loadtest
 
 bench-analytics:  ## Time every metric on tally_bench; writes docs/benchmarks/p8-analytics.md
 	uv run python -m tally_tools.bench_analytics

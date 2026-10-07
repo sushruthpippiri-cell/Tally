@@ -66,6 +66,7 @@ def _stage(executor: Executor, raw: bytes) -> int:
     )
 
 
+@pytest.mark.req("AGT-4.1")
 def test_a_5000_voucher_window_streams_into_the_queue_without_holding_its_records(
     tmp_path: Path,
 ) -> None:

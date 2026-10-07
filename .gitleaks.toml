@@ -1,0 +1,23 @@
+# Secret scanning (P16.2, SEC-1.14). Run in CI over the whole history; see
+# .github/workflows/check.yml, which pins the image by digest and gives it no network.
+#
+# Allowlists are deliberately narrow: a rule, a reason, and a pattern tight enough that a real
+# secret in the same file would still be found. Dev-only defaults that are meant to be in the
+# repo (the local Postgres passwords in deploy/, the dev JWT secret) are named individually.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """PostgreSQL EXPLAIN ANALYZE output in the generated benchmark reports. The plan
+prints 'Group Key: voucher_entries_4.voucher_id', and the generic-api-key rule reads anything
+after 'Key:' as a secret. Matched on the plan's own wording, so an actual key pasted into one of
+these files is still reported."""
+# Both must hold: this file AND this wording. Without AND, gitleaks treats the two as
+# alternatives and the path alone would excuse every finding in the file.
+condition = "AND"
+regexTarget = "line"
+regexes = [
+  '''(Group|Sort|Hash|Presorted|Cache|Index|Merge) Key: [a-z_0-9.,  ()-]+''',
+]
+paths = ['''docs/benchmarks/.*\.md''']

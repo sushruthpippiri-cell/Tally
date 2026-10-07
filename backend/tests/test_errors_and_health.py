@@ -1,9 +1,11 @@
 import logging
+from typing import Any
 
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.core.errors import AppError, install_error_handlers
 from app.main import create_app
@@ -110,3 +112,68 @@ def test_health_db_unavailable_returns_503_and_logs(caplog: pytest.LogCaptureFix
     r = TestClient(app).get("/health/db")
     assert r.status_code == 503
     assert_logged(caplog, "health_db_failed", level="ERROR", error="ConnectionError")
+
+
+# --- SRS 16: "Database unavailable - HTTP 503; no partial writes" (P16.4) ---------------
+
+
+@pytest.mark.req("TEST-1.4")
+def test_a_lost_database_is_503_with_a_catalogue_code_not_500() -> None:
+    """Before P16.4 nothing handled a driver error, so an outage on an ordinary route was a
+    bare 500 with no code. SRS 16 asks for 503 and the service-unavailable page.
+
+    /health/db already mapped its own failure, so this uses an ordinary route - the case that
+    was not covered.
+    """
+    app = create_app()
+
+    @app.get("/boom-db")
+    async def _boom() -> None:
+        raise OperationalError("SELECT 1", {}, OSError("connection refused"))
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/boom-db")
+    assert response.status_code == 503
+    assert response.json()["code"] == "DATABASE_UNAVAILABLE"
+
+
+@pytest.mark.req("TEST-1.4")
+def test_a_lost_database_in_the_rate_limiter_is_also_503() -> None:
+    """The limiter counts in PostgreSQL (P16.11) and runs in middleware, outside the exception
+    handlers, so it needs its own answer or an outage is a bare 500 from every endpoint."""
+
+    class _Down:
+        """A session factory whose sessions cannot be opened, as a lost database behaves."""
+
+        def __call__(self) -> Any:
+            return self
+
+        async def __aenter__(self) -> Any:
+            raise OperationalError("INSERT", {}, OSError("connection refused"))
+
+        async def __aexit__(self, *_: object) -> None:
+            return None
+
+    app = create_app()
+    # install_middleware closes over the limiter, so the object has to be changed, not replaced.
+    app.state.rate_limiter._factory = _Down()
+    with TestClient(app, raise_server_exceptions=False) as client:
+        # Any path the limiter sees, and one that needs no database of its own, so the 503 can
+        # only have come from the limiter. /health would not do: it is exempt.
+        response = client.get("/openapi.json")
+    assert response.status_code == 503
+    assert response.json()["code"] == "DATABASE_UNAVAILABLE"
+
+
+@pytest.mark.req("TEST-1.4")
+def test_an_integrity_error_is_still_a_500() -> None:
+    """Only "cannot reach the database" is 503. A constraint violation is a bug in our SQL and
+    must stay loud, or a real defect would be reported to operations as an outage."""
+    app = create_app()
+
+    @app.get("/boom-integrity")
+    async def _boom() -> None:
+        raise IntegrityError("INSERT", {}, Exception("duplicate key"))
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        assert client.get("/boom-integrity").status_code == 500

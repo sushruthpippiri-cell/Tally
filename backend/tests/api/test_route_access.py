@@ -7,9 +7,9 @@ Routes added in later phases are covered without editing this file:
 - any other route must be listed in NON_COMPANY_ROUTES below, so adding a public,
   user-level or Agent-credential route is a deliberate, reviewed choice.
 
-Ceiling: this proves each route enforces the permission it *declares*. Whether that is the
-right SRS 19.2 action is proven by that route's own tests (e.g. AC-59 for settings/users);
-the write-method guard below catches the commonest slip.
+Two halves, so a route is wrong in neither direction: the tests above prove each route
+enforces the permission it *declares*, and test_every_route_declares_the_permission_srs_19_2_names
+(P16.1) proves the declared permission is the one SRS 19.2 names.
 """
 
 import uuid
@@ -21,6 +21,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute, RouteContext, iter_route_contexts
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.routing import Route
 
@@ -146,6 +147,7 @@ def test_enumeration_found_the_routes() -> None:
 
 
 @pytest.mark.parametrize("endpoint", COMPANY_ROUTES, ids=_id)
+@pytest.mark.req("SEC-1.7")
 def test_company_route_declares_exactly_one_permission(
     endpoint: tuple[str, str, RouteContext],
 ) -> None:
@@ -204,7 +206,7 @@ async def test_user_of_another_company_gets_403_and_no_data(
     assert (missing.status_code, missing.content) == (other.status_code, other.content)
 
 
-@pytest.mark.req("AC-60", "RBAC-1.1", "SEC-1.2")
+@pytest.mark.req("AC-59", "AC-60", "RBAC-1.1", "SEC-1.2")
 @pytest.mark.parametrize("endpoint", COMPANY_ROUTES, ids=_id)
 async def test_each_role_gets_exactly_what_srs_14_1_allows(
     api: httpx.AsyncClient,
@@ -280,6 +282,7 @@ async def test_an_initial_password_opens_nothing_but_change_password(
 
 @pytest.mark.req_partial("SEC-2.0a")  # every Agent route needs the bearer; long random: P3.1
 @pytest.mark.parametrize("endpoint", AGENT_ROUTES, ids=_id)
+@pytest.mark.req("SEC-1.8")
 async def test_agent_routes_take_only_a_valid_agent_credential(
     api: httpx.AsyncClient, session: AsyncSession, endpoint: tuple[str, str, RouteContext]
 ) -> None:
@@ -320,6 +323,7 @@ async def test_deactivated_user_is_rejected_on_company_routes(
 
 
 @pytest.mark.req("RBAC-1.2")
+@pytest.mark.req("NFR-SCALE-1")
 async def test_roles_are_held_per_company(
     api: httpx.AsyncClient, session: AsyncSession, companies: tuple[Company, Company]
 ) -> None:
@@ -343,3 +347,170 @@ def test_every_agent_endpoint_is_documented_in_openapi() -> None:
         for operation in spec["paths"][path].values():
             assert operation.get("summary"), f"{path} has no summary"
             assert "agent protocol" in operation["tags"]
+
+
+# --- the declared permission is the one SRS 19.2 names (AC-59) --------------------------
+
+# SRS 19.2's Access column, transcribed by hand and grouped under its own row headings, so this
+# table is the specification rather than a copy of the code - the same way
+# tests/core/test_permissions.py pins the SRS 14.1 matrix. Routes SRS 19.2 does not list
+# individually carry the decision that added them.
+_ANY = frozenset(RoleName)  # SRS "JWT": any signed-in user of the company
+_OWNER_ADMIN = frozenset({RoleName.OWNER, RoleName.ADMIN})
+_OWNER_ACCOUNTANT = frozenset({RoleName.OWNER, RoleName.ACCOUNTANT})
+_OWNER = frozenset({RoleName.OWNER})
+
+SRS_19_2: dict[tuple[str, str], frozenset[RoleName]] = {
+    # Not listed row by row in 19.2: the company itself. Reading it is JWT, changing it is a
+    # settings change.
+    ("GET", "/companies/{company_id}"): _ANY,
+    ("PUT", "/companies/{company_id}"): _OWNER_ADMIN,
+    # "Users - GET/POST/PUT /companies/{id}/users - Owner"
+    ("GET", "/companies/{company_id}/users"): _OWNER,
+    ("POST", "/companies/{company_id}/users"): _OWNER,
+    ("PUT", "/companies/{company_id}/users/{user_id}"): _OWNER,
+    # "Settings and flags - GET/PUT /companies/{id}/settings - Owner/Admin to change"
+    ("GET", "/companies/{company_id}/settings"): _ANY,
+    ("PUT", "/companies/{company_id}/settings"): _OWNER_ADMIN,
+    # "Custom field mappings - GET/PUT /companies/{id}/settings/custom-fields - Owner/Admin"
+    ("GET", "/companies/{company_id}/settings/custom-fields"): _OWNER_ADMIN,
+    ("PUT", "/companies/{company_id}/settings/custom-fields"): _OWNER_ADMIN,
+    ("GET", "/companies/{company_id}/settings/custom-fields/tdl"): _OWNER_ADMIN,
+    # "Registration token - POST .../agents/register-token - Owner/Admin"
+    ("POST", "/companies/{company_id}/agents/register-token"): _OWNER_ADMIN,
+    # "List Agents - GET /companies/{id}/agents - JWT"
+    ("GET", "/companies/{company_id}/agents"): _ANY,
+    # "Rotate / revoke Agent - Owner/Admin"; "Agent Tally settings - Owner/Admin"
+    ("POST", "/companies/{company_id}/agents/{agent_id}/rotate-credential"): _OWNER_ADMIN,
+    ("POST", "/companies/{company_id}/agents/{agent_id}/revoke"): _OWNER_ADMIN,
+    ("PUT", "/companies/{company_id}/agents/{agent_id}/tally-settings"): _OWNER_ADMIN,
+    # "Manual sync - POST .../sync - Owner/Accountant/Admin"
+    ("POST", "/companies/{company_id}/sync"): _ANY,
+    ("POST", "/companies/{company_id}/agents/{agent_id}/sync"): _ANY,
+    # "Schedules - GET/POST/PUT /companies/{id}/sync-schedules - Owner/Admin"
+    ("GET", "/companies/{company_id}/sync-schedules"): _OWNER_ADMIN,
+    ("POST", "/companies/{company_id}/sync-schedules"): _OWNER_ADMIN,
+    ("PUT", "/companies/{company_id}/sync-schedules/{schedule_id}"): _OWNER_ADMIN,
+    # "Sync status, errors, lease status - JWT (errors: Owner/Admin)". A command and the run
+    # list are the same status family; the key-list confirmation is a D-041 addition that
+    # changes what sync treats as deleted, so it sits with settings.
+    ("GET", "/companies/{company_id}/sync/status"): _ANY,
+    ("GET", "/companies/{company_id}/sync/lease-status"): _ANY,
+    ("GET", "/companies/{company_id}/sync/runs"): _ANY,
+    ("GET", "/companies/{company_id}/commands/{command_id}"): _ANY,
+    ("GET", "/companies/{company_id}/sync/errors"): _OWNER_ADMIN,
+    ("POST", "/companies/{company_id}/sync/key-lists/{list_id}/confirm"): _OWNER_ADMIN,
+    # "Data quality - GET /companies/{id}/data-quality - JWT"
+    ("GET", "/companies/{company_id}/data-quality"): _ANY,
+    ("GET", "/companies/{company_id}/data-quality/{check_id}"): _ANY,
+    # "Masters - GET /companies/{id}/masters/groups, /voucher-types - JWT"
+    ("GET", "/companies/{company_id}/masters/groups"): _ANY,
+    ("GET", "/companies/{company_id}/masters/voucher-types"): _ANY,
+    ("GET", "/companies/{company_id}/masters/options"): _ANY,
+    # "Analytics - GET /companies/{id}/analytics/{metric} (...) - JWT"; "Drill-down - JWT".
+    # The named metrics are the same row: 19.2 lists them inside {metric}.
+    ("GET", "/companies/{company_id}/analytics/{metric}"): _ANY,
+    ("GET", "/companies/{company_id}/analytics/{metric}/drilldown"): _ANY,
+    ("GET", "/companies/{company_id}/analytics/customers"): _ANY,
+    ("GET", "/companies/{company_id}/analytics/suppliers"): _ANY,
+    ("GET", "/companies/{company_id}/analytics/products"): _ANY,
+    ("GET", "/companies/{company_id}/analytics/aging"): _ANY,
+    ("GET", "/companies/{company_id}/analytics/aging/bills"): _ANY,
+    ("GET", "/companies/{company_id}/analytics/aging/allocations"): _ANY,
+    ("GET", "/companies/{company_id}/analytics/payment-behaviour"): _ANY,
+    ("GET", "/companies/{company_id}/analytics/stock"): _ANY,
+    # "Voucher detail - GET /companies/{id}/vouchers/{voucher_id} - JWT"
+    ("GET", "/companies/{company_id}/vouchers/{voucher_id}"): _ANY,
+    # "Exports - GET /companies/{id}/exports/{report}?format=csv|pdf - JWT"
+    ("GET", "/companies/{company_id}/exports/{report}"): _ANY,
+    # "Reconciliation - GET .../reconciliation; POST .../reconciliation/run - JWT"
+    ("GET", "/companies/{company_id}/reconciliation"): _ANY,
+    ("POST", "/companies/{company_id}/reconciliation/run"): _ANY,
+    # "Anomalies - GET /companies/{id}/anomalies; POST .../review - JWT; review
+    # Owner/Accountant". The other two are D-055: the disclosure is what the Owner must read
+    # before enabling the feature (#7), and the discard counts are for Owners/Admins (#3).
+    ("GET", "/companies/{company_id}/anomalies"): _ANY,
+    ("POST", "/companies/{company_id}/anomalies/{anomaly_id}/review"): _OWNER_ACCOUNTANT,
+    ("GET", "/companies/{company_id}/anomalies/disclosure"): _OWNER_ADMIN,
+    ("GET", "/companies/{company_id}/anomalies/explanation-health"): _OWNER_ADMIN,
+    # Not in 19.2: reading the audit trail is a log view (LOG-1.1).
+    ("GET", "/companies/{company_id}/audit"): _OWNER_ADMIN,
+}
+
+
+def _roles_with(permission: Permission) -> frozenset[RoleName]:
+    return frozenset(r for r, held in ROLE_PERMISSIONS.items() if permission in held)
+
+
+def deviations(
+    routes: list[tuple[str, str, RouteContext]],
+    table: dict[tuple[str, str], frozenset[RoleName]],
+) -> tuple[list[str], list[str], list[str]]:
+    """(looser than the table, stricter than it, not in it) for each route's declared
+    permission."""
+    looser, stricter, unclassified = [], [], []
+    for method, path, ctx in routes:
+        if (method, path) not in table:
+            unclassified.append(f"{method} {path}")
+            continue
+        allowed = table[(method, path)]
+        declared = _roles_with(_requires(ctx)[0].permission)
+        if extra := declared - allowed:
+            looser.append(f"{method} {path}: also allows {sorted(r.value for r in extra)}")
+        if missing := allowed - declared:
+            stricter.append(f"{method} {path}: SRS allows {sorted(r.value for r in missing)}")
+    return looser, stricter, unclassified
+
+
+@pytest.mark.req("AC-59", "SEC-1.2", "RBAC-1.1")
+def test_every_route_declares_the_permission_srs_19_2_names() -> None:
+    """Closes this file's stated ceiling: the tests above prove a route enforces the permission
+    it declares, this one proves the declared permission is the right one.
+
+    Looser than SRS 19.2 is a hole and fails. Stricter is safe, so it is reported rather than
+    failed - a deliberate one belongs in the list below with its reason, and in
+    docs/security-review.md. There are none today: all 50 company routes agree with 19.2.
+    """
+    looser, stricter, unclassified = deviations(COMPANY_ROUTES, SRS_19_2)
+    # A new route is classified against the SRS here before it can ship.
+    assert unclassified == []
+    assert looser == []
+    assert stricter == []
+
+
+def test_the_srs_19_2_guard_catches_a_hole_and_an_omission() -> None:
+    """The guard itself fails on bad input (the mutation check stays in the suite, as in
+    tests/analytics/test_architecture.py)."""
+    settings = [e for e in COMPANY_ROUTES if e[1].endswith("/settings") and e[0] == "PUT"]
+    assert settings, "PUT /settings should exist"
+    # PUT /settings declares MANAGE_SETTINGS (Owner/Admin). Claiming the SRS said Owner only
+    # makes it looser; claiming the SRS said any role makes it stricter.
+    looser, stricter, _ = deviations(settings, {("PUT", settings[0][1]): _OWNER})
+    assert looser and "ADMIN" in looser[0] and not stricter
+    looser, stricter, _ = deviations(settings, {("PUT", settings[0][1]): _ANY})
+    assert stricter and "ACCOUNTANT" in stricter[0] and not looser
+    # An unlisted route is reported rather than silently passing.
+    assert deviations(settings, {})[2] == [f"PUT {settings[0][1]}"]
+
+
+# --- every request body is a Pydantic model (SEC-1.10, CLAUDE.md rule 14) ---------------
+
+
+@pytest.mark.req("SEC-1.10")
+def test_every_request_body_is_a_pydantic_model() -> None:
+    """A dict or a bare `str` body would be unvalidated input reaching a service. FastAPI tells
+    us which parameters it treats as the body, so this needs no source scanning."""
+    offenders = []
+    for method, path, ctx in ENDPOINTS:
+        if not isinstance(ctx.original_route, APIRoute):
+            continue
+        for field in ctx.dependant.body_params:
+            annotation = field.field_info.annotation
+            origin = getattr(annotation, "__origin__", annotation)
+            if isinstance(origin, type) and issubclass(origin, BaseModel):
+                continue
+            # An uploaded file is not a JSON body and has no schema to validate.
+            if annotation is not None and "UploadFile" in str(annotation):
+                continue
+            offenders.append(f"{method} {path}: {field.name}: {annotation}")
+    assert offenders == [], f"request bodies that are not Pydantic models: {offenders}"
