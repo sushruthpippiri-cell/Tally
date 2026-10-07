@@ -1,0 +1,60 @@
+# Production reverse proxy (P16.12, D-056 #6). Caddy serves the built SPA and proxies the API,
+# so the browser sees one origin. It terminates TLS and obtains its certificate automatically.
+#
+# Three things this file must do. Each is commented with what breaks without it, because each
+# has already broken something once.
+{
+	email {$ACME_EMAIL}
+	# TLS 1.2 is the floor (SEC-1.3). Caddy negotiates 1.3 where the client supports it.
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# (2a) HSTS, for the API and the app alike. This is the one security header that is the
+	# proxy's own: frontend/security/csp.ts deliberately leaves it out, because `vite preview`
+	# serves plain http in development and HSTS there would pin the developer's browser to
+	# https://localhost for a year.
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	header -Server
+
+	# (3) Strip /api before the backend. The SPA calls /api/* on its own origin; the backend
+	# itself has no /api prefix (D-051 #4). The refresh cookie's Path stays /api/auth, which is
+	# what the *browser* sees, so it is unaffected by the strip.
+	handle /api/* {
+		uri strip_prefix /api
+		# (1) The browser's Host header is passed through unchanged. This is Caddy's default -
+		# and the whole reason Caddy was chosen over nginx, whose proxy_pass rewrites Host
+		# unless told otherwise. The refresh and logout endpoints compare Origin against Host
+		# for CSRF (D-051 #2), so a rewritten Host makes every reload look cross-site and signs
+		# everyone out. That is not hypothetical: it happened with the Vite dev proxy in P13.3.
+		#
+		# No `header_up Host` line here on purpose. Adding one would be the bug.
+		reverse_proxy backend:8000 {
+			# The backend trusts X-Forwarded-* only from TRUSTED_PROXIES (D-033 #5-6), so this
+			# proxy's address must be in that list or every client looks like one IP to the
+			# rate limiter and HTTPS_REQUIRED fires on real https traffic.
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	# (2b) The app's own security headers, on the SPA only. API responses carry the backend's
+	# stricter policy (`default-src 'none'`, D-051 #4) and must not have it overwritten here.
+	# These values are generated from frontend/security/csp.ts; tools/tests/test_deploy_config.py
+	# fails if the two drift apart.
+	handle {
+		header {
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+			X-Content-Type-Options "nosniff"
+			Referrer-Policy "no-referrer"
+		}
+		root * /srv
+		# The SPA owns its routes: a deep link like /c/<id>/sales is served index.html and
+		# resolved by the router, not answered 404 by the file server.
+		try_files {path} /index.html
+		file_server
+	}
+}
