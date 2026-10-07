@@ -11,10 +11,10 @@ separately below and are **not** verified: they are what the acceptance run (P16
 left to do.
 
 - Requirement IDs in the SRS: **328**
-- Fully covered by at least one test: **237**
+- Fully covered by at least one test: **238**
 - Verified by hand: **11**
 - Accounted for but **not yet verified** (blocked): **30**
-- Partially covered only: **50**
+- Partially covered only: **49**
 - Not accounted for at all: **0**
 
 ## Covered
@@ -202,12 +202,13 @@ left to do.
 | TEST-3.3 | backend/tests/races/test_crash.py::test_killed_mid_voucher_leaves_nothing_of_that_chunk<br>backend/tests/races/test_crash.py::test_killed_mid_batch_keeps_committed_chunks_and_their_watermark |
 | AC-01 | backend/tests/e2e/test_agent_end_to_end.py::test_register_sync_edit_and_delete_end_to_end |
 | AC-02 | backend/tests/e2e/test_agent_end_to_end.py::test_register_sync_edit_and_delete_end_to_end |
+| AC-03 | backend/tests/e2e/test_use_cases.py::test_uc5_a_voucher_cancelled_in_tally_becomes_cancelled_and_is_kept |
 | AC-04 | backend/tests/e2e/test_agent_end_to_end.py::test_register_sync_edit_and_delete_end_to_end<br>backend/tests/sync/test_key_lists.py::test_an_active_voucher_missing_from_the_key_list_becomes_missing_in_tally |
 | AC-05 | backend/tests/sync/test_run_bookkeeping.py::test_a_run_failing_part_way_is_partial_and_the_next_resumes_without_duplicates |
 | AC-06 | backend/tests/sync/test_ingest_vouchers.py::test_a_stale_voucher_is_ignored_and_logged |
-| AC-07 | backend/tests/sync/test_watermarks.py::test_each_collection_is_pulled_and_advanced_from_its_own_watermark |
+| AC-07 | backend/tests/e2e/test_use_cases.py::test_uc8_an_agent_lost_mid_command_fails_it_and_a_new_command_can_be_issued<br>backend/tests/sync/test_watermarks.py::test_each_collection_is_pulled_and_advanced_from_its_own_watermark |
 | AC-08 | backend/tests/sync/test_ingest_vouchers.py::test_a_modified_voucher_has_its_children_replaced_with_no_orphans |
-| AC-09 | backend/tests/races/test_lease_races.py::test_two_agents_at_once_exactly_one_gets_the_lease |
+| AC-09 | backend/tests/e2e/test_use_cases.py::test_uc9_a_rotated_credential_is_shown_once_and_the_old_one_stops_working<br>backend/tests/races/test_lease_races.py::test_two_agents_at_once_exactly_one_gets_the_lease |
 | AC-10 | backend/tests/reconciliation/test_missing_in_tally.py::test_a_ledger_missing_from_a_full_reconciliation_is_kept_as_missing_in_tally |
 | AC-11 | backend/tests/sync/test_key_lists.py::test_a_missing_ledger_listed_again_with_the_same_alter_id_is_active_again |
 | AC-12 | backend/tests/sync/test_full_only.py::test_a_scheduled_incremental_run_syncs_a_full_only_collection_by_full_pull |
@@ -307,7 +308,6 @@ left to do.
 | TEST-1.1 | shared/tests/test_contract_fixtures.py::test_fixture_parses_to_its_expected_result |
 | TEST-2.1 | backend/tests/reconciliation/test_tolerance.py::test_the_srs_worked_examples |
 | TEST-4.2 | backend/tests/e2e/test_agent_end_to_end.py::test_a_full_sync_is_reconciled_end_to_end_and_a_tally_difference_fails_it<br>backend/tests/reconciliation/test_compare.py::test_a_bank_ledger_opening_plus_movements_matches_tallys_closing |
-| AC-03 | backend/tests/sync/test_ingest_vouchers.py::test_a_cancelled_voucher_keeps_its_row_and_is_audited |
 | AC-17 | backend/tests/api/test_command_lifecycle.py::test_sync_now_is_claimed_run_and_completed_each_state_visible |
 | AC-19 | backend/tests/jobs/test_command_jobs.py::test_offline_agent_command_waits_labelled_and_is_claimed_on_return |
 | AC-24 | backend/tests/api/test_agent_management.py::test_tally_settings_reject_batches_over_10000_and_reach_the_agent<br>agent/tests/test_agent_sync.py::test_a_timed_out_window_is_retried_once_at_half_size |
