@@ -8,6 +8,7 @@ the Agent), never Tally's behaviour: only live captures do that (docs/validation
 """
 
 import argparse
+import json
 import re
 import threading
 import time
@@ -18,9 +19,32 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
 from xml.sax.saxutils import escape
 
 from tally_contract import tally_constants as tc
+
+
+class Reports(dict[str, list["Row"]]):
+    """The mock's rows, by report, counting its own mutations.
+
+    `MockConfig.bodies` caches rendered responses, and a stale one is a silently wrong answer -
+    which is worse than a slow mock. Relying on callers to invalidate does not work: a test that
+    assigns `mock.data["TA_LedgerClosing"] = [...]` directly made reconciliation pass when it
+    should have failed. Every mutation in this codebase replaces a report's list rather than
+    editing it in place (Row is frozen), so counting assignments catches all of them, in O(1).
+    """
+
+    version: int = 0
+
+    def __setitem__(self, key: str, value: list["Row"]) -> None:
+        self.version += 1
+        super().__setitem__(key, value)
+
+    def __delitem__(self, key: str) -> None:
+        self.version += 1
+        super().__delitem__(key)
 
 
 @dataclass(frozen=True)
@@ -45,11 +69,53 @@ class MockConfig:
     tdl_version: str = tc.TDL_VERSION
     requests: list[tuple[str, str | None]] = field(default_factory=list)  # (report, company)
     calls: list[dict[str, str]] = field(default_factory=list)  # report + static variables
-    data: dict[str, list[Row]] = field(default_factory=dict)  # report -> rows; else a sample
+    # Either form: __post_init__ wraps a plain dict in the counting subclass.
+    data: Reports | dict[str, list[Row]] = field(default_factory=Reports)
     slow: dict[str, list[float]] = field(default_factory=dict)  # report -> delays, one per call
     # The period selected in Tally: what a request that names no dates gets (GATE-G37, as
     # drafted). None: no limit.
     selected_period: tuple[date, date] | None = None
+    # Rendered bodies, keyed by (report, window). At the SRS 17.2 size a full sync asks for the
+    # same 100,000-voucher report once per batch, and rebuilding it each time - plus the
+    # reconciliation scan, which reads every voucher with a regex - is most of the mock's cost.
+    # `invalidate()` clears both; every mutation helper calls it, so a cached body can never
+    # outlive the data it was built from (P16.5).
+    bodies: dict[tuple[str, tuple[Any, ...]], str] = field(default_factory=dict, repr=False)
+    recon: dict[tuple[str, str], str] = field(default_factory=dict, repr=False)
+    cached_version: int = field(default=-1, repr=False)
+
+    def reports(self) -> Reports:
+        """`data` as the counting subclass, wrapping it if a caller replaced the whole
+        attribute (`mock.data = sample_company(...)`, which __post_init__ never sees). Any
+        rendered body from before the swap is dropped."""
+        if not isinstance(self.data, Reports):
+            self.data = Reports(self.data)
+            self.cached_version = -1  # whatever was cached belongs to the old rows
+        return self.data
+
+    def __post_init__(self) -> None:
+        # Callers pass a plain dict (sample_company's return, a literal in a test); the counting
+        # subclass is what makes the response cache safe, so wrap it here rather than asking
+        # every caller to remember.
+        if not isinstance(self.data, Reports):
+            self.data = Reports(self.data)
+
+    def invalidate(self) -> None:
+        self.bodies.clear()
+        self.recon.clear()
+
+    def fresh(self) -> None:
+        """Drop the caches if the rows have changed since they were filled.
+
+        `reports()` is called first, on its own line: it may reset `cached_version` when it wraps
+        a swapped-in dict, and Python evaluates the left side of a comparison first - so reading
+        `self.cached_version` inside the condition saw the value from before the wrap and the
+        cache survived a swap it should not have.
+        """
+        reports = self.reports()
+        if self.cached_version != reports.version:
+            self.invalidate()
+            self.cached_version = reports.version
 
 
 def company_guid(name: str) -> str:
@@ -103,6 +169,11 @@ def _recon_totals(config: MockConfig, variables: dict[str, str]) -> str:
     """What our TA_ReconTotals is drafted to return (GATE-G36): per (ledger, voucher type),
     the debit and credit sums of the non-cancelled vouchers dated in the period. Computed from
     the mock's own vouchers, as Tally computes it from its own."""
+    period = (variables.get(tc.VAR_FROM_DATE, ""), variables.get(tc.VAR_TO_DATE, ""))
+    config.fresh()
+    cached = config.recon.get(period)
+    if cached is not None:
+        return cached
     start = _day(variables.get(tc.VAR_FROM_DATE)) or date.min  # always sent (D-048 #2)
     end = _day(variables.get(tc.VAR_TO_DATE)) or date.max
     sums: dict[tuple[str, str, str], list[Decimal]] = {}
@@ -127,12 +198,31 @@ def _recon_totals(config: MockConfig, variables: dict[str, str]) -> str:
         f"<DEBIT>{debit}</DEBIT><CREDIT>{credit}</CREDIT></RECON_TOTAL>"
         for (guid, name, vtype), (debit, credit) in sorted(sums.items())
     )
-    return f"<ENVELOPE><TA_RECONTOTALS>{body}</TA_RECONTOTALS></ENVELOPE>"
+    rendered = f"<ENVELOPE><TA_RECONTOTALS>{body}</TA_RECONTOTALS></ENVELOPE>"
+    config.recon[period] = rendered
+    return rendered
 
 
 def _data_body(config: MockConfig, report: str, variables: dict[str, str]) -> str:
     """Rows filtered as our TDL is drafted to filter them: the ALTERID window (from, to], 0/0
-    meaning everything (D-013), and the date window for rows that carry a date."""
+    meaning everything (D-013), and the date window for rows that carry a date.
+
+    Cached per (report, window): the filtering and the join are pure functions of those, and at
+    benchmark size this is called once per upload batch over the same 100,000 rows.
+    """
+    key = (
+        report,
+        (
+            variables.get(tc.VAR_FROM_ALTER_ID, ""),
+            variables.get(tc.VAR_TO_ALTER_ID, ""),
+            variables.get(tc.VAR_FROM_DATE, ""),
+            variables.get(tc.VAR_TO_DATE, ""),
+        ),
+    )
+    config.fresh()
+    cached = config.bodies.get(key)
+    if cached is not None:
+        return cached
     source = report if report in config.data else report.removesuffix("Keys")
     low = int(variables.get(tc.VAR_FROM_ALTER_ID) or 0)
     high = int(variables.get(tc.VAR_TO_ALTER_ID) or 0)
@@ -156,7 +246,9 @@ def _data_body(config: MockConfig, report: str, variables: dict[str, str]) -> st
         body = "".join(
             f"<KEY><GUID>{r.guid}</GUID><ALTERID>{r.alter_id}</ALTERID></KEY>" for r in rows
         )
-    return f"<ENVELOPE><{report.upper()}>{body}</{report.upper()}></ENVELOPE>"
+    rendered = f"<ENVELOPE><{report.upper()}>{body}</{report.upper()}></ENVELOPE>"
+    config.bodies[key] = rendered
+    return rendered
 
 
 def answer(config: MockConfig, body: bytes) -> tuple[int, bytes]:
@@ -239,6 +331,50 @@ def running(config: MockConfig) -> Iterator[str]:
         httpd.server_close()
 
 
+_RECORD = re.compile(r"<(?P<tag>[A-Z_]+)><GUID>(?P<guid>[^<]*)</GUID>")
+_ALTER = re.compile(r"<ALTERID>(\d+)</ALTERID>")
+_DATE = re.compile(r"<DATE>(\d{8})</DATE>")
+
+
+def load_dataset(directory: Path) -> MockConfig:
+    """Serve the generated benchmark dataset (`make dataset`) instead of the 12-voucher sample.
+
+    The files are split back into `Row`s because the mock filters by ALTERID and date, which it
+    cannot do over one opaque blob. The split is a one-off cost at startup; `MockConfig.bodies`
+    then keeps each rendered window, so a full sync pays for the join once rather than once per
+    batch (P16.5).
+    """
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    company = manifest["company"]
+    data: dict[str, list[Row]] = {}
+    for path in sorted(directory.glob("TA_*.xml")):
+        report = path.stem
+        text = path.read_text(encoding="utf-8")
+        tag = tc.RECORD_TAGS.get(report)
+        if tag is None:
+            continue
+        rows: list[Row] = []
+        for chunk in text.split(f"<{tag}>")[1:]:
+            record = f"<{tag}>" + chunk.split(f"</{tag}>")[0] + f"</{tag}>"
+            guid = _RECORD.match(record)
+            alter = _ALTER.search(record)
+            day = _DATE.search(record)
+            rows.append(
+                Row(
+                    guid["guid"] if guid else "",
+                    int(alter[1]) if alter else 0,
+                    record,
+                    datetime.strptime(day[1], tc.RESPONSE_DATE_FORMAT).date() if day else None,
+                )
+            )
+        data[report] = rows
+    # TA_Info reports the mock's own state, not the dataset's, so the company GUID comes from
+    # the manifest rather than a file (see dataset_gen).
+    return MockConfig(
+        companies=[company["name"]], guids={company["name"]: company["guid"]}, data=Reports(data)
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m tally_tools.mock_tally")
     parser.add_argument("--port", type=int, default=9000)
@@ -247,7 +383,17 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--fail-report", action="append", default=[])
     parser.add_argument("--utf16", action="store_true")
     parser.add_argument("--sample", action="store_true", help="serve sample_company() data")
+    parser.add_argument(
+        "--dataset", type=Path, help="serve a generated dataset directory (`make dataset`)"
+    )
     args = parser.parse_args(argv)
+    if args.dataset:
+        config = load_dataset(args.dataset)
+        config.tdl_loaded = not args.no_tdl
+        config.fail_reports = set(args.fail_report)
+        config.utf16 = args.utf16
+        server(config, args.port).serve_forever()
+        return
     companies = args.company or ["Test Co"]
     config = MockConfig(
         companies=companies,
@@ -394,13 +540,19 @@ def voucher_row(i: int, alter: int, day: date, amount: str = "1180.00") -> Row:
 
 
 # --- edits between runs (P7.8): Tally raises the ALTERID of what it changes -------------------
+#
+# These take the MockConfig rather than its `data` dict so that each one invalidates the rendered
+# bodies (P16.5). Passing the dict alone would let a caller mutate the data and be served a body
+# built before the change - which is exactly the bug a cache invites.
 
 
 def _last_voucher_alter_id(data: dict[str, list[Row]]) -> int:
     return max((r.alter_id for r in data["TA_Vouchers"]), default=0)
 
 
-def _replace(data: dict[str, list[Row]], report: str, row: Row) -> None:
+def _replace(config: MockConfig, report: str, row: Row) -> None:
+    data = config.data
+    config.invalidate()
     data[report] = [row if r.guid == row.guid else r for r in data[report]]
     company = data["TA_Company"][0]
     xml = re.sub(
@@ -415,42 +567,46 @@ def _voucher(data: dict[str, list[Row]], guid: str) -> Row:
     return next(r for r in data["TA_Vouchers"] if r.guid == guid)
 
 
-def edit_voucher(data: dict[str, list[Row]], guid: str, amount: str) -> Row:
+def edit_voucher(config: MockConfig, guid: str, amount: str) -> Row:
     """The voucher's amount changes and it gets the next ALTERID, as a Tally edit does."""
+    data = config.data
     old = _voucher(data, guid)
     assert old.day is not None
     row = voucher_row(
         int(guid.removeprefix("v-")), _last_voucher_alter_id(data) + 1, old.day, amount
     )
-    _replace(data, "TA_Vouchers", row)
+    _replace(config, "TA_Vouchers", row)
     return row
 
 
-def add_voucher(data: dict[str, list[Row]], day: date, amount: str = "1180.00") -> Row:
+def add_voucher(config: MockConfig, day: date, amount: str = "1180.00") -> Row:
     """A new voucher entered in Tally, dated `day` (a post-dated one if after today), with the
     next ALTERID."""
+    data = config.data
     alter = _last_voucher_alter_id(data) + 1
     row = voucher_row(len(data["TA_Vouchers"]) + 1, alter, day, amount)
     data["TA_Vouchers"] = [*data["TA_Vouchers"], row]
-    _replace(data, "TA_Vouchers", row)
+    _replace(config, "TA_Vouchers", row)
     return row
 
 
-def cancel_voucher(data: dict[str, list[Row]], guid: str) -> Row:
+def cancel_voucher(config: MockConfig, guid: str) -> Row:
     """Cancelled in Tally: kept, flagged, with a new ALTERID (GATE-G9)."""
+    data = config.data
     old = _voucher(data, guid)
     alter = _last_voucher_alter_id(data) + 1
     xml = re.sub(r"<ALTERID>\d+</ALTERID>", f"<ALTERID>{alter}</ALTERID>", old.xml, count=1)
     row = Row(
         guid, alter, xml.replace("</VOUCHER>", "<ISCANCELLED>Yes</ISCANCELLED></VOUCHER>"), old.day
     )
-    _replace(data, "TA_Vouchers", row)
+    _replace(config, "TA_Vouchers", row)
     return row
 
 
-def delete(data: dict[str, list[Row]], report: str, guid: str) -> None:
+def delete(config: MockConfig, report: str, guid: str) -> None:
     """Deleted in Tally: gone from every pull and key list, with no ALTERID signal (G11)."""
-    data[report] = [r for r in data[report] if r.guid != guid]
+    config.invalidate()
+    config.data[report] = [r for r in config.data[report] if r.guid != guid]
 
 
 if __name__ == "__main__":

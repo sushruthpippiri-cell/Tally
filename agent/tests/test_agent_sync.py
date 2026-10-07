@@ -203,7 +203,7 @@ def test_every_voucher_request_names_its_dates_whatever_period_tally_has_selecte
     mock, _ = mock_tally
     fake_backend.plan["collections"]["VOUCHER"] |= {"mode": mode, "key_list_due": True}
     agent = make_agent()
-    add_voucher(mock.data, date(2026, 4, 1))  # post-dated: after the plan's today, 2026-03-16
+    add_voucher(mock, date(2026, 4, 1))  # post-dated: after the plan's today, 2026-03-16
     mock.selected_period = (date(2024, 5, 1), date(2024, 5, 31))
     fake_backend.offer("INCREMENTAL")
     assert run_agent_once(agent).status == "COMPLETED"
