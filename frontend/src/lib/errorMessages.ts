@@ -80,6 +80,10 @@ export const MESSAGES: Record<ErrorCode, Message> = {
   RATE_LIMITED: "Too many requests. Please wait a moment and try again.",
   PASSWORD_CHANGE_REQUIRED: "Choose your own password before you continue.",
   HTTPS_REQUIRED: "This service only works over a secure (https) connection.",
+  // SRS 16 "Database unavailable": the service-unavailable wording. Nothing was saved -
+  // a request that cannot reach the database writes nothing at all (P16.4).
+  DATABASE_UNAVAILABLE:
+    "The service is temporarily unavailable and nothing was saved. Please try again in a few minutes.",
 };
 
 /** The message for an error from the API; a network failure has its own. */
