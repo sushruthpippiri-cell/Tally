@@ -4,7 +4,7 @@ PHASE ?= dev
 TEST_DB_URL ?= postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally_test
 
 .PHONY: up down migrate test test-backend test-agent lint format typecheck importlint check dev-tls dev-https \
-        traceability phase-report hooks capture-kit update-fixtures bench-data bench-analytics \
+        traceability phase-report hooks capture-kit update-fixtures dataset bench-data bench-analytics \
         loadtest demo-data
 
 hooks:  ## Install the git pre-commit hook (ruff + mypy); once per clone
@@ -73,6 +73,9 @@ update-fixtures:  ## Show fixture expectations that would change; FORCE=1 rewrit
 
 demo-data:  ## Migrate the dev database and load a small, realistic demo company (D-053 #8)
 	uv run python -m tally_tools.demo_data
+
+dataset:  ## Write the SRS 17.2 dataset as Tally XML into dataset/ (for mock Tally); VOUCHERS=n
+	uv run python -m tally_tools.dataset_gen --out dataset $(if $(VOUCHERS),--vouchers $(VOUCHERS))
 
 bench-data:  ## Recreate tally_bench (never dev/test) with the seeded SRS 17.2 dataset
 	uv run python -m tally_tools.benchmark

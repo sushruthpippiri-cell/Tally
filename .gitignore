@@ -46,3 +46,7 @@ deadletter.jsonl
 logs/
 # throwaway dev certificates (tally_tools.dev_backend); git has no inline comments
 dev-https/
+
+# Generated benchmark dataset (tally_tools.dataset_gen): ~200 MB of Tally XML,
+# reproducible from its seed, so it is never committed.
+dataset/
