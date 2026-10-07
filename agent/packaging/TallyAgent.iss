@@ -47,10 +47,14 @@ UninstallDisplayName={#AppName}
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Dirs]
-; AGT-2.6: the data folder holds the queue, the logs and the DPAPI-encrypted credential. Only
-; the service account, SYSTEM and Administrators may read it - inheritance is broken so the
-; machine's default "Users: read" does not apply.
-Name: "{commonappdata}\TallyAgent"; Permissions: everyone-none
+; AGT-2.6: the data folder holds the queue, the logs and the DPAPI-encrypted credential. Only the
+; service account, SYSTEM and Administrators may read it.
+;
+; No Permissions parameter here. Inno's access types are full/modify/readexec/read/append - there
+; is no "none", and the [Run] icacls line below is what actually sets the ACL: it breaks
+; inheritance (/inheritance:r) and names the virtual service account, which is not an identity
+; Inno can express. This entry only creates the directory.
+Name: "{commonappdata}\TallyAgent"
 
 [Icons]
 Name: "{group}\Tally Agent installation guide"; Filename: "{app}\agent-install.md"

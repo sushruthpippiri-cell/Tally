@@ -65,6 +65,15 @@ def test_the_installer_runs_only_executables_the_build_stages() -> None:
             assert filename in staged, f"{filename} is not staged by agent-build.yml"
 
 
+def test_no_dirs_entry_claims_an_access_type_inno_does_not_have() -> None:
+    """ISCC rejected `Permissions: everyone-none` on the first real compile: the access types are
+    full/modify/readexec/read/append and there is no "none". The icacls line is what sets the
+    ACL anyway, so the parameter was wrong and redundant at once."""
+    valid = {"full", "modify", "readexec", "read", "append"}
+    for value in re.findall(r"Permissions:\s*([\w-]+)", _section("Dirs")):
+        assert value.split("-")[-1] in valid, f"no such Inno access type: {value}"
+
+
 @pytest.mark.req("AGT-2.6")
 def test_the_data_folder_is_restricted_to_the_service_account() -> None:
     """The queue, the logs and the DPAPI-encrypted credential live there. Inheritance must be
