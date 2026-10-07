@@ -21,6 +21,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute, RouteContext, iter_route_contexts
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.routing import Route
 
@@ -146,6 +147,7 @@ def test_enumeration_found_the_routes() -> None:
 
 
 @pytest.mark.parametrize("endpoint", COMPANY_ROUTES, ids=_id)
+@pytest.mark.req("SEC-1.7")
 def test_company_route_declares_exactly_one_permission(
     endpoint: tuple[str, str, RouteContext],
 ) -> None:
@@ -280,6 +282,7 @@ async def test_an_initial_password_opens_nothing_but_change_password(
 
 @pytest.mark.req_partial("SEC-2.0a")  # every Agent route needs the bearer; long random: P3.1
 @pytest.mark.parametrize("endpoint", AGENT_ROUTES, ids=_id)
+@pytest.mark.req("SEC-1.8")
 async def test_agent_routes_take_only_a_valid_agent_credential(
     api: httpx.AsyncClient, session: AsyncSession, endpoint: tuple[str, str, RouteContext]
 ) -> None:
@@ -320,6 +323,7 @@ async def test_deactivated_user_is_rejected_on_company_routes(
 
 
 @pytest.mark.req("RBAC-1.2")
+@pytest.mark.req("NFR-SCALE-1")
 async def test_roles_are_held_per_company(
     api: httpx.AsyncClient, session: AsyncSession, companies: tuple[Company, Company]
 ) -> None:
@@ -487,3 +491,26 @@ def test_the_srs_19_2_guard_catches_a_hole_and_an_omission() -> None:
     assert stricter and "ACCOUNTANT" in stricter[0] and not looser
     # An unlisted route is reported rather than silently passing.
     assert deviations(settings, {})[2] == [f"PUT {settings[0][1]}"]
+
+
+# --- every request body is a Pydantic model (SEC-1.10, CLAUDE.md rule 14) ---------------
+
+
+@pytest.mark.req("SEC-1.10")
+def test_every_request_body_is_a_pydantic_model() -> None:
+    """A dict or a bare `str` body would be unvalidated input reaching a service. FastAPI tells
+    us which parameters it treats as the body, so this needs no source scanning."""
+    offenders = []
+    for method, path, ctx in ENDPOINTS:
+        if not isinstance(ctx.original_route, APIRoute):
+            continue
+        for field in ctx.dependant.body_params:
+            annotation = field.field_info.annotation
+            origin = getattr(annotation, "__origin__", annotation)
+            if isinstance(origin, type) and issubclass(origin, BaseModel):
+                continue
+            # An uploaded file is not a JSON body and has no schema to validate.
+            if annotation is not None and "UploadFile" in str(annotation):
+                continue
+            offenders.append(f"{method} {path}: {field.name}: {annotation}")
+    assert offenders == [], f"request bodies that are not Pydantic models: {offenders}"

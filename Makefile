@@ -44,7 +44,10 @@ importlint:
 check: lint typecheck importlint test  ## Run before calling any task done
 
 traceability:
-	uv run python -m tally_tools.traceability
+	uv run python -m tally_tools.traceability --check
+	@git diff --quiet docs/traceability.md || { \
+	  echo 'docs/traceability.md is stale - commit the regenerated file'; \
+	  git --no-pager diff --stat docs/traceability.md; exit 1; }
 
 phase-report:  ## Fresh DB + full suite + check, then docs/test-reports/phase-NN.md
 	@test -n "$(PHASE)" || (echo "usage: make phase-report PHASE=00" && exit 1)
