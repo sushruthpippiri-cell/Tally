@@ -30,6 +30,7 @@ dev = [
   "types-pyyaml",
   "types-psutil",
   "trustme",  # a throwaway CA for the Agent's TLS tests (D-042 #4)
+  "locust",  # PERF-1.1 under concurrency (P16.5); nothing else measures more than one user
 ]
 
 [tool.ruff]
@@ -88,6 +89,12 @@ warn_unused_ignores = true
 # APScheduler 3.x and WeasyPrint ship no type information.
 module = ["apscheduler.*", "weasyprint.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Locust's event decorators are untyped, so mypy calls anything they decorate untyped too. The
+# load test is one file of hooks; disabling the one rule there beats a blanket `Any`.
+module = ["tally_tools.loadtest.*"]
+disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]
 # strict for the contract package and backend core (P0.5)
