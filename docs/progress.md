@@ -3,7 +3,14 @@
 Claude Code updates this at the end of every session. Newest entries at the top of each section.
 
 ## Current phase
-P16 (hardening and acceptance) — **in progress, NOT complete**, branch `phase-16`, **PR #4 (draft)**.
+P16 (hardening and acceptance) — **NOT complete**, and deliberately not waiting on a branch.
+**PR #4 merged** 2026-10-07 with a merge commit (`f9f0358`), per-task commits preserved, branch
+deleted. Phase 16 is blocked on hosting, hardware, a code-signing certificate and the Tally
+capture kit for the foreseeable future, so its finished work is on `main` and **the rest goes
+through follow-up PRs off `main`** — one per task or group, branched `phase-16-<what>`, each with
+per-task commits gated on `make check`, a PR and green CI (CLAUDE.md's branch rule now says so).
+**The phase is marked done only when the last follow-up is merged and the blocked items have come
+back.**
 Deliberately limited to the tasks that need nothing from the owner; everything waiting on hosting,
 hardware, a code-signing certificate or the Windows VM is in the Blocked table below rather than
 attempted. **D-056 ACCEPTED** (owner): RPO ≤ 24 h / RTO ≤ 4 h as the committed worst case (closing
@@ -56,6 +63,16 @@ mock-Tally XML half is net-new, and the mock holds every row's XML in memory and
 whole list per request, so 100,000 vouchers needs work on the mock too.
 
 Everything else in P16 is blocked on the owner and listed in the Blocked table below.
+
+### Phase 16 follow-ups
+
+| Task | What is left | PR |
+|---|---|---|
+| P16.5 | `tools/dataset_gen` (database + mock-Tally XML, with a seed/version manifest), the sync benchmark for PERF-1.2/1.3, the EXPLAIN ANALYZE review, and PERF-1.1 re-run on `tally_bench`. The mock holds every row's XML in memory and re-joins the whole list per request, so 100,000 vouchers needs work on the mock itself | — |
+| P16.7 | The UC→spec coverage map for UC-10…UC-14, and a browser→backend→Agent→Tally test if one proves worth its flakiness. UC-6 and UC-7 stay where they are proved deterministically | — |
+| ACC-7.1 / ACC-8.1 | A source guard, like `test_architecture.py`'s, so a future metric cannot classify by ledger name or voucher-type name. Behavioural tests exist; nothing structural stops it | — |
+| P16.9 | Teach `traceability.py` to read `@req` annotations from the Playwright and Vitest suites, which would move five hand-verified rows into ordinary coverage | — |
+| P16.10 | The acceptance run — depends on the gates, so on the capture kit | — |
 
 **Two things found by CI, not locally**, both worth remembering: `make check` does not run the
 frontend's typecheck (that is the neighbour `frontend` job), so an API change needs both before a
