@@ -45,10 +45,12 @@ jobs:
         shell: pwsh
         run: |
           $version = "0.1.0"
-          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" `
-            "/DAppVersion=$version" `
-            "/DSourceDir=$PWD\dist\TallyAgent" `
-            "/O$PWD\dist" `
+          # ${env:ProgramFiles(x86)}, not "$env:ProgramFiles(x86)": the second interpolates
+          # $env:ProgramFiles and leaves a literal "(x86)", losing the space - which is how the
+          # first real run of this step failed, before ISCC was reached at all.
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc" }
+          & $iscc "/DAppVersion=$version" "/DSourceDir=$PWD\dist\TallyAgent" "/O$PWD\dist" `
             agent\packaging\TallyAgent.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
       - name: Smoke test the installer
