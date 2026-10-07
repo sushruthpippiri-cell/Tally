@@ -39,8 +39,30 @@ Also fixed two test-infrastructure hazards the move to Postgres counters exposed
 limiter now gets a loop-local engine, and `app.core.db`'s cached engine is disposed after every
 test — nothing reached it from tests before, because `get_session` is always overridden.
 
-Remaining in scope: P16.5 (synthetic + mock-Tally only), P16.7, P16.9 (including creating
-`docs/manual-verification.md`), and the code and docs for P16.6, P16.8 and P16.12.
+Also done: **P16.12** (Caddy, the production compose where only the proxy publishes ports, and
+a test that the proxy's headers cannot drift from `frontend/security/csp.ts` — proven by
+mutation); **P16.6** (the snapshot/restore-drill scripts, which refuse any database not named
+`*_staging`, and `docs/runbooks/restore.md`); **P16.8** (the Inno Setup installer with its
+first-run wizard, compiled in CI, with 13 structural tests that run free on Linux); **P16.9**
+(the gate, `docs/manual-verification.md`, and the regex fix that removed 28 phantom
+requirements); **P16.7** (UC-5's cancellation half, UC-8 and UC-9 end to end, with UC-6 and UC-7
+deliberately left to the suites that already prove them deterministically); and **part of
+P16.5** (the Locust concurrency harness and `docs/benchmarks/TEMPLATE.md`).
+
+**Not done, and the phase is not done:** `tools/dataset_gen` and the mock-Tally sync benchmark
+(PERF-1.2/1.3) and the EXPLAIN ANALYZE review — the rest of P16.5. The database half of
+dataset_gen is nearly free, since `benchmark.generate()` is already pure over a `Sink`; the
+mock-Tally XML half is net-new, and the mock holds every row's XML in memory and re-joins the
+whole list per request, so 100,000 vouchers needs work on the mock too.
+
+Everything else in P16 is blocked on the owner and listed in the Blocked table below.
+
+**Two things found by CI, not locally**, both worth remembering: `make check` does not run the
+frontend's typecheck (that is the neighbour `frontend` job), so an API change needs both before a
+push — adding an error code left the frontend red because `MESSAGES` is a `Record` over the
+generated `ErrorCode` union. And the secret scan caught its own documentation: the paragraph
+describing how the gitleaks allowlist was tested spelled out the credential-shaped line planted
+to test it.
 
 P14 (analytics UI, drill-down, exports) — **complete** 2026-10-05. Session 1 merged (PR #1); session 2 merged (**PR #2**, merge commit `595356d`, branch deleted). **CI green on `main`**: `check` 37304277377 (with its `frontend` job) and `agent-windows` 37304277495; `capture-kit` not triggered, last green 36539892090. D-053 ACCEPTED; **D-054 ACCEPTED** (owner) with two corrections folded in: every read of one export shares a REPEATABLE READ, READ ONLY snapshot (one transaction is not enough — READ COMMITTED would let a sync break AC-39 mid-download), and the PDF concurrency limit is one per-process `PDF_MAX_CONCURRENT` from server configuration, not a `company_settings` key. The owner also directed that the PDF's fonts be bundled in the repo under their OFL/Bitstream licences rather than installed as Docker/CI font packages. Done: P14.0–P14.5 (session 1); P14.6 (money formatting shared with the frontend through `fixtures/money-formatting.json`; CSV for every metric, the three rankings, both aging sides, payment behaviour and stock), P14.7 (PDF with hand-written SVG charts, bundled fonts, 2,000-row cap, off-event-loop worker), P14.8 (export endpoint, audited, snapshot-isolated; export buttons on every view), P14.9 (AC-39, AC-61, EXP-1.6/SEC-1.11, LOG-1.1, FR-DD-5 as a property, ACC-4.4 in full). Local: `make check` PASS; Vitest 141; Playwright 64; **live check against `make up` + `make demo-data`: all 20 reports exported as CSV and PDF (40 files), sales 27,01,875.00 − product-attributed 26,95,475.00 = the difference 6,400.00**. Report: [phase-14](test-reports/phase-14.md) PASS (1,741 passed, 3 skipped - Windows-only; 90.8% coverage). CI was green on the PR at `8bb93e5` (`check` 37216663831, `agent-windows` 37215854951) before the merge.
 
@@ -295,6 +317,7 @@ Testing and logs rules (logs captured at DEBUG and saved per run, log-record ass
 ## Test reports
 | Phase | Report | Result |
 |---|---|---|
+| 16 | [phase-16](test-reports/phase-16.md) | Suite PASS - 1,924 tests, 0 failed, 3 skipped (Windows-only), 90.9% coverage; plus Vitest 152 and Playwright 66. **The phase is NOT complete** - see the report's first note |
 | 15 | [phase-15](test-reports/phase-15.md) | PASS - 1,853 tests, 0 failed, 3 skipped (Windows-only), 90.8% coverage; plus Vitest 152 and Playwright 66 |
 | 14 | [phase-14](test-reports/phase-14.md) | PASS - 1,744 tests, 0 failed, 3 skipped (Windows-only), 90.8% coverage; plus Vitest 141 and Playwright 64 |
 | 12 | [phase-12](test-reports/phase-12.md) | PASS - 1,438 tests, 0 failed, 3 skipped (Windows-only), 90.0% coverage; CI green: check 36712395193 |
