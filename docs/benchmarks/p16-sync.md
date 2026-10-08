@@ -11,32 +11,33 @@ which is the part we can change. PERF-1.2 and PERF-1.3 stay blocked in
 `docs/manual-verification.md` on target hardware and real Tally; these figures are cited
 there as interim evidence.
 
-Generated 2026-03-16 12:01 UTC by `make bench-sync`.
+Generated 2026-03-16 12:04 UTC by `make bench-sync`.
 
 ## Dataset
 
 | | |
 |---|---|
 | Identifier | seed 8, version 1 |
-| Digest | `24a63e9eb53f5c11…` |
-| Vouchers / entries | 2,000 / 10,000 |
+| Digest | `e072b809beeade75…` |
+| Vouchers / entries | 100,000 / 500,000 |
 | Ledgers / stock items | 5,000 / 10,000 |
-| Mock load time | 0.06 s (once, at startup) |
+| Mock load time | 0.67 s (once, at startup) |
 
 ## Results
 
 | Target | Budget | Measured here | Of budget |
 |---|---|---|---|
-| PERF-1.2 full sync | 30 min | **0.9 min** | 3% |
-| PERF-1.3 incremental (500 changed) | 2 min | **0.1 min** | 5% |
+| PERF-1.2 full sync | 30 min | **3.9 min** | 13% |
+| PERF-1.3 incremental (500 changed) | 2 min | **0.4 min** | 18% |
 
 ## Upload volume, and what a real link would add
 
 | | |
 |---|---|
-| Uploaded by the full sync | **10.4 MB** in 41 batches |
-| Uploaded by the incremental | 2.84 MB |
-| At SRS 17.2's 10 Mbps floor | about **0.1 min** of transfer |
+| Uploaded by the full sync | **275.9 MB** in 237 batches |
+| Uploaded by the incremental | 21.78 MB |
+| At SRS 17.2's 10 Mbps floor | about **3.7 min** of transfer |
+| **Full sync, compute + transfer** | about **7.6 min** against a 30 min budget |
 
 That transfer time is **not** in the figures above: loopback has no meaningful cost. On a
 10 Mbps office link it is additional, and it is the one part of the budget the code

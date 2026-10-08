@@ -24,6 +24,14 @@ Three places where the database's shape and Tally's differ, and what this does a
 - **Line sequence.** The database rows are 0-based; the parser numbers `LEDGERENTRY` elements
   1-based as it reads them. The XML carries no sequence at all - element order is the sequence -
   so this resolves itself, and the round-trip test compares order rather than the number.
+
+**Known gap: no closing reports.** `TA_StockClosing` and `TA_LedgerClosing` are not emitted, so
+the mock answers them from its own 12-voucher sample and the reconciliation run that follows a
+sync has nothing real to compare against (it logs a `record_parse_failed` for the sample's
+STOCK_CLOSING, which carries no ASOFDATE). That does not affect the sync timings this dataset
+exists for - reconciliation runs after the sync completes - but it does mean a benchmark cannot
+yet exercise REC-1.x at size. Emitting them needs the closing balances derived from the same
+rows, which is a follow-up rather than a line of XML.
 """
 
 import argparse

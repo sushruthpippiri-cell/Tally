@@ -68,7 +68,8 @@ Everything else in P16 is blocked on the owner and listed in the Blocked table b
 
 | Task | What is left | PR |
 |---|---|---|
-| P16.5 | `tools/dataset_gen` (database + mock-Tally XML, with a seed/version manifest), the sync benchmark for PERF-1.2/1.3, the EXPLAIN ANALYZE review, and PERF-1.1 re-run on `tally_bench`. The mock holds every row's XML in memory and re-joins the whole list per request, so 100,000 vouchers needs work on the mock itself | — |
+| P16.5 | **Done in PR #7**: the dataset generator (XML + manifest), mock Tally at size, and the sync benchmark. PERF-1.2 measured at **3.7 min** of a 30 min budget and PERF-1.3 at **21 s** of 2 min, on this Mac against mock Tally - recorded as interim evidence, with the three PERF rows still blocked on real hardware and Tally | **#7** |
+| P16.5 remainder | The EXPLAIN ANALYZE review and PERF-1.1 on `tally_bench`; and the generator does not emit `TA_StockClosing`/`TA_LedgerClosing`, so reconciliation cannot be exercised at size (the mock answers them from its 12-voucher sample). Split out of PR #7 rather than forced into it | — |
 | P16.7 | The UC→spec coverage map for UC-10…UC-14, and a browser→backend→Agent→Tally test if one proves worth its flakiness. UC-6 and UC-7 stay where they are proved deterministically | — |
 | ACC-7.1 / ACC-8.1 | A source guard, like `test_architecture.py`'s, so a future metric cannot classify by ledger name or voucher-type name. Behavioural tests exist; nothing structural stops it | — |
 | P16.9 | Teach `traceability.py` to read `@req` annotations from the Playwright and Vitest suites, which would move five hand-verified rows into ordinary coverage | — |

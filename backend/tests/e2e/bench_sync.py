@@ -98,6 +98,10 @@ def _render(t: dict[str, Any]) -> str:
         f"| Uploaded by the full sync | **{megabytes} MB** in {full.get('batches', 0)} batches |",
         f"| Uploaded by the incremental | {incr.get('megabytes_uploaded', 0)} MB |",
         f"| At SRS 17.2's 10 Mbps floor | about **{transfer / 60:.1f} min** of transfer |",
+        (
+            f"| **Full sync, compute + transfer** | about "
+            f"**{(full.get('seconds', 0) + transfer) / 60:.1f} min** against a 30 min budget |"
+        ),
         "",
         "That transfer time is **not** in the figures above: loopback has no meaningful cost. On a",
         "10 Mbps office link it is additional, and it is the one part of the budget the code",
