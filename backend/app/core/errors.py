@@ -50,6 +50,39 @@ def error_response(
     return JSONResponse(_body(code, message), status_code=status, headers=headers)
 
 
+def driver_fields(exc: BaseException) -> dict[str, str]:
+    """The database driver's **primary message and SQLSTATE only**, for logging.
+
+    PostgreSQL returns the offending row in a DETAIL line - `Failing row contains (127, …,
+    Sharma Traders invoice 4,50,000, …)` - which is every column's value: a party name, an
+    amount, a narration. `str()` on the error includes it, so the fields are read one by one
+    off the exception chain and `detail` is never one of them. asyncpg keeps the primary
+    message on the chained `PostgresError`, which the DBAPI wrapper does not expose directly.
+
+    Residual, worth knowing rather than hiding: a *primary* message can itself quote a literal
+    (`invalid input syntax for type integer: "abc"`). Constraint violations - the common case -
+    name the constraint and no values. There is no narrower field than this one.
+    """
+    fields: dict[str, str] = {}
+    original = getattr(exc, "orig", None)
+    for err in (exc, original, getattr(original, "__cause__", None)):
+        if err is None:
+            continue
+        state = getattr(err, "sqlstate", None)
+        if state and "sqlstate" not in fields:
+            fields["sqlstate"] = str(state)
+        message = getattr(err, "message", None)
+        if message and "driver_message" not in fields:
+            fields["driver_message"] = str(message)[:200]
+    if "driver_message" not in fields:
+        # Not a PostgresError (a connection-level failure carries no structured fields): the
+        # first line only, so a DETAIL block on a later line can never be included.
+        fields["driver_message"] = str(original if original is not None else exc).split("\n", 1)[0][
+            :200
+        ]
+    return fields
+
+
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError) -> JSONResponse:
@@ -83,14 +116,9 @@ def install_error_handlers(app: FastAPI) -> None:
         """
         if isinstance(exc, InterfaceError) and not exc.connection_invalidated:
             raise exc
-        # The driver's own message (`exc.orig`), not SQLAlchemy's: SQLAlchemy's str() includes
-        # the statement and sometimes its parameters, which would put business data in the logs.
-        # Without this the log said only "InterfaceError", which is not enough to act on.
-        log.error(
-            "database_unavailable",
-            error=type(exc).__name__,
-            driver_message=str(getattr(exc, "orig", "") or "")[:200],
-        )
+        # `driver_fields` and nothing else: never str(exc) or str(exc.orig), which carry the
+        # statement, its parameters and PostgreSQL's DETAIL line with the whole failing row.
+        log.error("database_unavailable", error=type(exc).__name__, **driver_fields(exc))
         return JSONResponse(
             _body(ErrorCode.DATABASE_UNAVAILABLE, "The service is temporarily unavailable"),
             status_code=503,

@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError, InterfaceError, OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError, install_error_handlers
 from app.main import create_app
@@ -195,3 +196,77 @@ def test_an_integrity_error_is_still_a_500() -> None:
 
     with TestClient(app, raise_server_exceptions=False) as client:
         assert client.get("/boom-integrity").status_code == 500
+
+
+# --- the driver's message never carries the failing row (SEC-1.12 in spirit) -------------
+
+# A value that looks like a customer's books. If it reaches a log record, so would a real one.
+PLANTED = "Sharma Traders invoice 4,50,000"
+
+
+@pytest.mark.req("SEC-1.13")
+async def test_a_constraint_violation_logs_the_message_and_sqlstate_but_no_row_values(
+    session: AsyncSession,
+) -> None:
+    """PostgreSQL returns the offending row in a DETAIL line - "Failing row contains (…)" - with
+    every column's value. `str()` on the error includes it, so logging the error would put a
+    party name, an amount or a narration into the logs.
+
+    A real violation from the real database, not a fabricated exception: the DETAIL has to be
+    genuine for the test to mean anything.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.exc import IntegrityError
+
+    from app.core.errors import driver_fields
+
+    with pytest.raises(IntegrityError) as caught:
+        await session.execute(
+            text(
+                "INSERT INTO ai_tool_log (company_id, tool_name, status, result_summary,"
+                " created_at) VALUES (gen_random_uuid(), 'get_anomaly_evidence',"
+                " 'NOT_A_STATUS', :planted, now())"
+            ),
+            {"planted": PLANTED},
+        )
+    await session.rollback()
+
+    # The exception itself does carry the row - that is the whole risk.
+    assert PLANTED in str(caught.value)
+    assert "Failing row contains" in str(caught.value)
+
+    fields = driver_fields(caught.value)
+
+    # What is logged: the constraint that was violated, and the SQLSTATE to act on.
+    assert fields["sqlstate"] == "23514"  # check_violation
+    assert "ck_ai_tool_log_status" in fields["driver_message"]
+    # And nothing from the row.
+    for forbidden in (PLANTED, "Failing row", "DETAIL", "get_anomaly_evidence"):
+        assert forbidden not in fields["driver_message"], forbidden
+    assert set(fields) == {"sqlstate", "driver_message"}, "no other field may be logged"
+
+
+@pytest.mark.req("SEC-1.13")
+def test_the_logged_record_for_an_outage_carries_no_detail(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """End to end through the handler: the record that actually reaches the log."""
+    app = create_app()
+
+    @app.get("/boom-detail")
+    async def _boom() -> None:
+        raise OperationalError(
+            "INSERT INTO vouchers ...",
+            {"narration": PLANTED},
+            Exception(f"connection failed\nDETAIL:  Failing row contains (1, {PLANTED})."),
+        )
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        assert client.get("/boom-detail").status_code == 503
+
+    record = assert_logged(caplog, "database_unavailable", level="error")
+    rendered = repr(record)
+    assert PLANTED not in rendered, "the failing row reached the log record"
+    assert "DETAIL" not in rendered and "Failing row" not in rendered
+    # The statement and its parameters must not come along either.
+    assert "INSERT INTO vouchers" not in rendered

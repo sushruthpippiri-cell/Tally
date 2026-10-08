@@ -16,7 +16,7 @@ from structlog.contextvars import bound_contextvars, unbind_contextvars
 
 from app.core.agent_credentials import CREDENTIAL_PREFIX, verified_agent
 from app.core.config import Settings
-from app.core.errors import AppError, error_response
+from app.core.errors import AppError, driver_fields, error_response
 from app.core.rate_limit import RateLimiter
 from app.core.security import decode_token
 from tally_contract.errors import ErrorCode
@@ -133,7 +133,7 @@ def install_middleware(app: FastAPI, config: Settings) -> None:
                     "database_unavailable",
                     where="rate_limiter",
                     error=type(exc).__name__,
-                    driver_message=str(getattr(exc, "orig", "") or "")[:200],
+                    **driver_fields(exc),
                 )
                 return error_response(
                     ErrorCode.DATABASE_UNAVAILABLE, "The service is temporarily unavailable", 503
