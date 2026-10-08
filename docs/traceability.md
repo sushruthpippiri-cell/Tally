@@ -351,7 +351,7 @@ Each has an entry in manual-verification.md naming what it waits for.
 | ACC-8.1 | A source guard (our own work) |
 | FR-STK-8 | GATE-G27: the capture kit |
 | FR-STK-9 | GATE-G27 |
-| PERF-1.1 | Target hardware and hosting. The interim figure is a developer Mac over loopback, which PERF-VAL-1 does not accept as evidence |
+| PERF-1.1 | Target hardware and hosting - but the miss is ours, not the machine's, and is tracked as a follow-up rather than excused by it |
 | PERF-1.2 | Target hardware and **real Tally**. The mock has no extraction cost and loopback has no transfer cost, so the interim figure measures only our own share |
 | PERF-1.3 | Target hardware and real Tally, as PERF-1.2 |
 | PERF-VAL-1 | A real x64 PC running TallyPrime |
