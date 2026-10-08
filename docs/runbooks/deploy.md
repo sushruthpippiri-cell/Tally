@@ -91,26 +91,18 @@ headers are optional for anyone who knows the address.
 Also confirm the managed database's firewall admits **only** this backend. That is a hosting
 setting, not something the compose file can enforce.
 
-## One check on the logs
+## Database errors never reach the logs as data
 
-The backend never logs a database error's DETAIL line, because PostgreSQL puts the whole
-failing row there - every column value, including a party name, an amount or a narration.
-`app/core/errors.py`'s `driver_fields` reads the primary message and SQLSTATE only, and a test
-plants a customer-looking value in a real constraint violation and asserts it never reaches the
-log record.
+Nothing to check here by hand, which is the point. PostgreSQL returns the offending row in a
+`DETAIL:  Failing row contains (…)` line - every column value, so a party name, an amount or a
+narration - and SQLAlchemy adds the statement and its bound parameters. Both used to reach the
+server's log when an unhandled database error made uvicorn print a traceback.
 
-What that test cannot cover is the **ASGI server's own** error logging: if an unhandled driver
-error ever escapes the handlers, uvicorn writes a traceback, and a traceback's last line is
-`str(exc)` - which does include DETAIL. Confirm once, against the deployed configuration:
-
-```sh
-# Provoke a 500 on a throwaway company, then read the backend's own log.
-docker compose -f docker-compose.prod.yml logs backend | grep -i "Failing row" || echo "clean"
-```
-
-If anything appears, set uvicorn's `--log-config` to filter it before go-live. This is cheap to
-check and expensive to discover later, because logs are often shipped somewhere less guarded
-than the database.
+`app/core/log_redaction.py` now replaces a database exception with a safe surrogate before any
+formatter sees it, keeping the stack frames and the SQLSTATE and dropping the text.
+`backend/tests/e2e/test_log_redaction.py` proves it through a real uvicorn subprocess, and fails
+if the filter is removed. An earlier draft of this runbook asked you to grep the deployed logs
+for `Failing row`; that was a workaround, and the behaviour is enforced in code instead.
 
 ## Browsers
 
