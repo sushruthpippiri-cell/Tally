@@ -91,6 +91,27 @@ headers are optional for anyone who knows the address.
 Also confirm the managed database's firewall admits **only** this backend. That is a hosting
 setting, not something the compose file can enforce.
 
+## One check on the logs
+
+The backend never logs a database error's DETAIL line, because PostgreSQL puts the whole
+failing row there - every column value, including a party name, an amount or a narration.
+`app/core/errors.py`'s `driver_fields` reads the primary message and SQLSTATE only, and a test
+plants a customer-looking value in a real constraint violation and asserts it never reaches the
+log record.
+
+What that test cannot cover is the **ASGI server's own** error logging: if an unhandled driver
+error ever escapes the handlers, uvicorn writes a traceback, and a traceback's last line is
+`str(exc)` - which does include DETAIL. Confirm once, against the deployed configuration:
+
+```sh
+# Provoke a 500 on a throwaway company, then read the backend's own log.
+docker compose -f docker-compose.prod.yml logs backend | grep -i "Failing row" || echo "clean"
+```
+
+If anything appears, set uvicorn's `--log-config` to filter it before go-live. This is cheap to
+check and expensive to discover later, because logs are often shipped somewhere less guarded
+than the database.
+
 ## Browsers
 
 Check in **Chrome and Safari**. Safari is the one that matters: it will not return a `Secure`

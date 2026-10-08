@@ -16,7 +16,7 @@ from structlog.contextvars import bound_contextvars, unbind_contextvars
 
 from app.core.agent_credentials import CREDENTIAL_PREFIX, verified_agent
 from app.core.config import Settings
-from app.core.errors import AppError, error_response
+from app.core.errors import AppError, driver_fields, error_response
 from app.core.rate_limit import RateLimiter
 from app.core.security import decode_token
 from tally_contract.errors import ErrorCode
@@ -125,11 +125,16 @@ def install_middleware(app: FastAPI, config: Settings) -> None:
             key, limit = _rate_key(request, ip, config)
             try:
                 retry_after = await limiter.hit(key, limit)
-            except (InterfaceError, OperationalError):
+            except (InterfaceError, OperationalError) as exc:
                 # The counters are in PostgreSQL (P16.11), and middleware runs outside the
                 # exception handlers, so without this a database outage would be a bare 500
                 # from every endpoint rather than SRS 16's 503.
-                log.error("database_unavailable", where="rate_limiter")
+                log.error(
+                    "database_unavailable",
+                    where="rate_limiter",
+                    error=type(exc).__name__,
+                    **driver_fields(exc),
+                )
                 return error_response(
                     ErrorCode.DATABASE_UNAVAILABLE, "The service is temporarily unavailable", 503
                 )

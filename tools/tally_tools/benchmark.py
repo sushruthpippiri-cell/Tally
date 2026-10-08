@@ -344,7 +344,7 @@ def _buffered() -> tuple[dict[str, list[tuple[Any, ...]]], Sink]:
     return tables, lambda table, row: tables[table].append(row)
 
 
-def load(url: str = BENCH_DB) -> dict[str, int]:
+def load(url: str = BENCH_DB, vouchers: int = VOUCHERS) -> dict[str, int]:
     """Recreate, migrate and fill the benchmark database; the row count of each table."""
     reset_database(url, guard=assert_bench_database)
     subprocess.run(
@@ -354,7 +354,7 @@ def load(url: str = BENCH_DB) -> dict[str, int]:
         env={**os.environ, "DATABASE_MIGRATION_URL": url},
     )
     tables, sink = _buffered()
-    generate(sink)
+    generate(sink, vouchers=vouchers)
     dsn = make_url(url).render_as_string(hide_password=False).replace("+psycopg", "")
     with psycopg.connect(dsn) as conn:
         for table, rows in tables.items():
@@ -374,8 +374,11 @@ def load(url: str = BENCH_DB) -> dict[str, int]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m tally_tools.benchmark")
     parser.add_argument("--url", default=BENCH_DB)
+    # The SRS 17.2 size by default; a smaller count is for trying the loader out, never for a
+    # figure - a benchmark on 1,000 vouchers measures nothing.
+    parser.add_argument("--vouchers", type=int, default=VOUCHERS)
     args = parser.parse_args(argv)
-    for table, n in load(args.url).items():
+    for table, n in load(args.url, args.vouchers).items():
         sys.stdout.write(f"{table:<26} {n:>9,}\n")
     return 0
 

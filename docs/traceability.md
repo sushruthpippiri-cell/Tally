@@ -11,10 +11,10 @@ separately below and are **not** verified: they are what the acceptance run (P16
 left to do.
 
 - Requirement IDs in the SRS: **328**
-- Fully covered by at least one test: **238**
+- Fully covered by at least one test: **239**
 - Verified by hand: **11**
 - Accounted for but **not yet verified** (blocked): **30**
-- Partially covered only: **49**
+- Partially covered only: **48**
 - Not accounted for at all: **0**
 
 ## Covered
@@ -185,7 +185,7 @@ left to do.
 | SEC-1.10 | backend/tests/api/test_route_access.py::test_every_request_body_is_a_pydantic_model |
 | SEC-1.11 | backend/tests/api/test_exports.py::test_a_user_without_access_to_the_company_gets_no_file<br>backend/tests/api/test_exports.py::test_another_companys_id_in_the_path_is_refused |
 | SEC-1.12 | backend/tests/anomaly/test_api_and_jobs.py::test_the_disclosure_is_what_is_actually_sent<br>backend/tests/anomaly/test_explainer.py::test_nothing_human_typed_is_ever_sent<br>backend/tests/anomaly/test_mcp_server.py::test_another_companys_anomaly_is_not_found<br>backend/tests/anomaly/test_schema_and_rls.py::test_the_readonly_role_sees_only_the_company_set_at_spawn |
-| SEC-1.13 | backend/tests/jobs/test_retention.py::test_the_purge_never_touches_audit_logs |
+| SEC-1.13 | backend/tests/jobs/test_retention.py::test_the_purge_never_touches_audit_logs<br>backend/tests/test_errors_and_health.py::test_a_constraint_violation_logs_the_message_and_sqlstate_but_no_row_values<br>backend/tests/test_errors_and_health.py::test_the_logged_record_for_an_outage_carries_no_detail |
 | SEC-1.14 | backend/tests/anomaly/test_api_and_jobs.py::test_a_wrong_model_id_is_reported_clearly_once<br>backend/tests/anomaly/test_explainer.py::test_no_model_name_is_written_in_the_source |
 | LOG-1.1 | backend/tests/api/test_exports.py::test_an_export_is_audited_with_the_range_it_took<br>backend/tests/core/test_audit_actions.py::test_every_log_1_1_clause_has_at_least_one_action<br>backend/tests/core/test_audit_actions.py::test_the_registry_has_nothing_the_source_never_writes<br>backend/tests/jobs/test_retention.py::test_sync_and_ai_logs_older_than_the_retention_period_go<br>backend/tests/jobs/test_retention.py::test_an_error_still_holding_a_watermark_back_is_never_purged |
 | LOG-1.2 | backend/tests/core/test_audit_actions.py::test_a_registered_action_records_every_log_1_2_field<br>backend/tests/core/test_log_context.py::test_a_refused_request_logs_the_request_company_and_user<br>backend/tests/core/test_log_context.py::test_an_agent_credential_binds_the_agent_and_its_company<br>backend/tests/core/test_log_context.py::test_a_job_logs_its_name_instead_of_a_request_id |
@@ -194,9 +194,10 @@ left to do.
 | Q-1.2 | backend/tests/core/test_periods.py::test_financial_quarters_from_1_april<br>backend/tests/core/test_periods.py::test_1_january_start_gives_calendar_quarters |
 | NFR-MAINT-2 | backend/tests/analytics/test_architecture.py::test_every_metric_has_one_query_path |
 | BKP-1.2 | tools/tests/test_restore_drill.py::test_a_missing_row_is_reported_with_both_counts<br>tools/tests/test_restore_drill.py::test_a_changed_reconciliation_figure_is_reported<br>tools/tests/test_restore_drill.py::test_the_drill_refuses_a_url_that_is_not_staging |
+| TEST-1.1 | tools/tests/test_dataset_gen.py::test_every_report_parses_with_no_record_errors<br>tools/tests/test_dataset_gen.py::test_every_voucher_balances_and_keeps_its_children<br>tools/tests/test_dataset_gen.py::test_the_key_list_form_parses_from_the_same_file<br>tools/tests/test_dataset_gen.py::test_no_record_is_pretty_printed |
 | TEST-1.2 | shared/tests/test_contract_fixtures.py::test_every_case_the_srs_lists_has_a_fixture |
 | TEST-1.3 | shared/tests/test_contract_fixtures.py::test_fixture_parses_to_its_expected_result |
-| TEST-1.4 | shared/tests/test_contract_fixtures.py::test_bad_input_is_logged_and_never_raises<br>backend/tests/test_errors_and_health.py::test_a_lost_database_is_503_with_a_catalogue_code_not_500<br>backend/tests/test_errors_and_health.py::test_a_lost_database_in_the_rate_limiter_is_also_503<br>backend/tests/test_errors_and_health.py::test_an_integrity_error_is_still_a_500 |
+| TEST-1.4 | shared/tests/test_contract_fixtures.py::test_bad_input_is_logged_and_never_raises<br>backend/tests/test_errors_and_health.py::test_a_lost_database_is_503_with_a_catalogue_code_not_500<br>backend/tests/test_errors_and_health.py::test_a_lost_database_in_the_rate_limiter_is_also_503<br>backend/tests/test_errors_and_health.py::test_a_statement_with_too_many_parameters_is_a_500_not_an_outage<br>backend/tests/test_errors_and_health.py::test_an_integrity_error_is_still_a_500 |
 | TEST-3.1 | backend/tests/races/test_lease_races.py::test_two_agents_at_once_exactly_one_gets_the_lease |
 | TEST-3.2 | backend/tests/jobs/test_command_jobs.py::test_a_running_command_past_its_lease_is_lost_and_never_reassigned |
 | TEST-3.3 | backend/tests/races/test_crash.py::test_killed_mid_voucher_leaves_nothing_of_that_chunk<br>backend/tests/races/test_crash.py::test_killed_mid_batch_keeps_committed_chunks_and_their_watermark |
@@ -305,7 +306,6 @@ left to do.
 | TZ-1.1 | backend/tests/api/test_aging_api.py::test_today_is_the_companys_local_date<br>backend/tests/api/test_schedules.py::test_next_fire_is_computed_in_the_company_time_zone<br>backend/tests/api/test_stock_api.py::test_days_since_last_sale_use_the_companys_local_date<br>backend/tests/core/test_periods.py::test_2358_ist_belongs_to_the_local_day<br>backend/tests/core/test_periods.py::test_today_is_the_company_day_not_the_server_day |
 | TZ-1.2 | backend/tests/core/test_periods.py::test_2358_ist_belongs_to_the_local_day |
 | Q-1.1 | backend/tests/core/test_periods.py::test_financial_by_default_calendar_when_chosen |
-| TEST-1.1 | shared/tests/test_contract_fixtures.py::test_fixture_parses_to_its_expected_result |
 | TEST-2.1 | backend/tests/reconciliation/test_tolerance.py::test_the_srs_worked_examples |
 | TEST-4.2 | backend/tests/e2e/test_agent_end_to_end.py::test_a_full_sync_is_reconciled_end_to_end_and_a_tally_difference_fails_it<br>backend/tests/reconciliation/test_compare.py::test_a_bank_ledger_opening_plus_movements_matches_tallys_closing |
 | AC-17 | backend/tests/api/test_command_lifecycle.py::test_sync_now_is_claimed_run_and_completed_each_state_visible |
@@ -351,9 +351,9 @@ Each has an entry in manual-verification.md naming what it waits for.
 | ACC-8.1 | A source guard (our own work) |
 | FR-STK-8 | GATE-G27: the capture kit |
 | FR-STK-9 | GATE-G27 |
-| PERF-1.1 | P16.5's benchmark run (our own work) |
-| PERF-1.2 | P16.5's benchmark run (our own work) |
-| PERF-1.3 | P16.5's benchmark run (our own work) |
+| PERF-1.1 | Target hardware and hosting. The interim figure is a developer Mac over loopback, which PERF-VAL-1 does not accept as evidence |
+| PERF-1.2 | Target hardware and **real Tally**. The mock has no extraction cost and loopback has no transfer cost, so the interim figure measures only our own share |
+| PERF-1.3 | Target hardware and real Tally, as PERF-1.2 |
 | PERF-VAL-1 | A real x64 PC running TallyPrime |
 | PERF-VAL-2 | P16.5's benchmark run, then the real machine |
 | NFR-UI-3 | An owner or accountant to read the dashboard cold and say what was unclear |

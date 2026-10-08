@@ -23,6 +23,15 @@ Four honest categories, and it is worth being clear which is which:
 4. **Needs the owner.** Live TallyPrime, a real x64 PC, hosting, or an accountant. These are the
    rows in `docs/progress.md`'s Blocked table.
 
+Some rows carry **interim** evidence: a figure we have measured that is *not* the evidence the
+requirement asks for. The performance targets are the clearest case — PERF-VAL-1 makes a
+benchmark valid evidence only if it records the Windows edition and build, the Tally machine's
+CPU and RAM, the TallyPrime version, and the measured bandwidth and latency of the run. A figure
+from a developer Mac talking to a mock over loopback satisfies none of that: no TallyPrime
+extraction time, no ≥ 10 Mbps link, not the SRS 17.2 hardware. It measures **our own share of the
+budget**, which is the part we can change, and that is worth having — but the row stays blocked,
+and an interim figure must never be quoted to a customer as what their PC will do (PERF-VAL-2).
+
 | ID | Why it cannot be a test | How it is verified | Blocked on |
 |---|---|---|---|
 | FR-3.7 | A layout requirement: evidence and explanation in separate, clearly labelled areas | `frontend/e2e/pages.spec.ts` "the Anomalies section separates evidence from the explanation" and `src/pages/anomalies.test.tsx`, which assert two `aria-label`led regions | - |
@@ -37,9 +46,9 @@ Four honest categories, and it is worth being clear which is which:
 | ACC-8.1 | As ACC-7.1, for `base_voucher_type` versus the voucher-type name | `backend/tests/sync/test_hierarchy.py::test_voucher_types_resolve_through_their_chain_to_a_base_type` and the metric tests. Same structural gap as ACC-7.1 | A source guard (our own work) |
 | SEC-2.4 | "No HMAC request-signing scheme is used or claimed" — a requirement that something is *absent* | No signing code exists: the Agent authenticates with a bearer credential over TLS (`agent/tally_agent/backend_client.py`), and `backend/tests/core/test_agent_auth.py` shows that is the whole mechanism. A grep for `hmac` in `agent/` and `backend/app/` finds nothing | - |
 | VAL-1.3 | "This table is a maintained project artifact, updated with evidence" is about upkeep, not behaviour | `docs/validation-gate.md` is the table and `backend/app/config/gate_status.yaml` is what the code reads; `app/core/gates.py` and its tests make a gate's status change behaviour. Upkeep is only demonstrable once there is evidence to record | The capture kit: all 37 gates are NOT_TESTED, so nothing has been recorded yet |
-| PERF-1.1 | A measurement | The Locust run P16.5 adds: 10 concurrent users, dashboard summary ≤ 3 s | P16.5's benchmark run (our own work) |
-| PERF-1.2 | A measurement | P16.5's sync benchmark through mock Tally: a full sync of the SRS 17.2 dataset ≤ 30 min | P16.5's benchmark run (our own work) |
-| PERF-1.3 | A measurement | P16.5's incremental benchmark: ~500 changed records ≤ 2 min | P16.5's benchmark run (our own work) |
+| PERF-1.1 | A measurement, and the budget covers hardware we do not have | **Interim:** `docs/benchmarks/p16-concurrency.md` — 10 concurrent users against a real backend. Our own share of the budget only | Target hardware and hosting. The interim figure is a developer Mac over loopback, which PERF-VAL-1 does not accept as evidence |
+| PERF-1.2 | A measurement, and the budget includes TallyPrime's own extraction time | **Interim:** `docs/benchmarks/p16-sync.md` — a full sync of the SRS 17.2 dataset through mock Tally, with the megabytes uploaded so a 10 Mbps link's transfer time can be estimated | Target hardware and **real Tally**. The mock has no extraction cost and loopback has no transfer cost, so the interim figure measures only our own share |
+| PERF-1.3 | A measurement, as PERF-1.2 | **Interim:** `docs/benchmarks/p16-sync.md` — ~500 changed records through mock Tally | Target hardware and real Tally, as PERF-1.2 |
 | PERF-VAL-1 | Every field it asks for describes a machine we do not have | `docs/benchmarks/TEMPLATE.md` (P16.5) lists each field; the owner fills it in on the benchmark machine | A real x64 PC running TallyPrime |
 | PERF-VAL-2 | "Measured with the stated number of concurrent users" | The Locust run records its concurrency; the single-user figures in `docs/benchmarks/p8-analytics.md` state plainly that they are *not* PERF-VAL evidence | P16.5's benchmark run, then the real machine |
 | AC-64 | The acceptance form of PERF-1.x under SRS 17.2 conditions | The performance suite's recorded output | The benchmark machine (P16.5 + the x64 PC) |

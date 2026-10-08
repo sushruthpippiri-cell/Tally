@@ -110,7 +110,7 @@ async def test_uc5_a_voucher_cancelled_in_tally_becomes_cancelled_and_is_kept(
 
     try:
         before, before_total = await _vouchers(committed), sales()
-        cancel_voucher(mock.data, "v-4")
+        cancel_voucher(mock, "v-4")
         _sync_now(server, company, owner, "INCREMENTAL")
         assert (await _run(agent)).status == "COMPLETED"
 

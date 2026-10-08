@@ -4,7 +4,8 @@ PHASE ?= dev
 TEST_DB_URL ?= postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally_test
 
 .PHONY: up down migrate test test-backend test-agent lint format typecheck importlint check dev-tls dev-https \
-        traceability phase-report hooks capture-kit update-fixtures bench-data bench-analytics \
+        traceability phase-report hooks capture-kit update-fixtures dataset bench-data bench-sync \
+        bench-analytics \
         loadtest demo-data
 
 hooks:  ## Install the git pre-commit hook (ruff + mypy); once per clone
@@ -74,6 +75,9 @@ update-fixtures:  ## Show fixture expectations that would change; FORCE=1 rewrit
 demo-data:  ## Migrate the dev database and load a small, realistic demo company (D-053 #8)
 	uv run python -m tally_tools.demo_data
 
+dataset:  ## Write the SRS 17.2 dataset as Tally XML into dataset/ (for mock Tally); VOUCHERS=n
+	uv run python -m tally_tools.dataset_gen --out dataset $(if $(VOUCHERS),--vouchers $(VOUCHERS))
+
 bench-data:  ## Recreate tally_bench (never dev/test) with the seeded SRS 17.2 dataset
 	uv run python -m tally_tools.benchmark
 
@@ -82,6 +86,19 @@ loadtest:  ## PERF-1.1 under concurrency: USERS (default 10), HOST, LOAD_EMAIL, 
 	  --users $(or $(USERS),10) --spawn-rate $(or $(USERS),10) --run-time $(or $(RUNTIME),2m) \
 	  --host $(or $(HOST),http://localhost:8000) \
 	  --html logs/loadtest.html --csv logs/loadtest
+
+# Its own database, created fresh: sharing `tally_test` with the suite is not safe, because the
+# `committed` fixture's teardown truncates companies and users - which deleted the Agent's row
+# mid-run and made its credential invalid. The `_test` suffix is what assert_test_database wants.
+SYNCBENCH_OWNER ?= postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally_syncbench_test
+SYNCBENCH_APP ?= postgresql+asyncpg://tally_app:tally_app_dev@localhost:5432/tally_syncbench_test
+
+bench-sync:  ## PERF-1.2/1.3 through mock Tally -> real Agent -> backend; needs `make dataset`
+	uv run python -c "from tally_tools.phase_report import reset_database; \
+	  reset_database('$(SYNCBENCH_OWNER)')"
+	cd backend && DATABASE_MIGRATION_URL=$(SYNCBENCH_OWNER) uv run alembic upgrade head
+	TEST_DATABASE_URL=$(SYNCBENCH_APP) TEST_DATABASE_MIGRATION_URL=$(SYNCBENCH_OWNER) \
+	  uv run pytest backend/tests/e2e/bench_sync.py -s
 
 bench-analytics:  ## Time every metric on tally_bench; writes docs/benchmarks/p8-analytics.md
 	uv run python -m tally_tools.bench_analytics

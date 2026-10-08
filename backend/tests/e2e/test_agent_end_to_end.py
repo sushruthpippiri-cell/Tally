@@ -78,7 +78,7 @@ async def test_register_sync_edit_and_delete_end_to_end(
         assert await _counts(committed) == FIXTURE
 
         # AC-02: edited in Tally (₹1,180 -> ₹2,360, a new ALTERID); an INCREMENTAL applies it.
-        edited = edit_voucher(mock.data, "v-3", "2360.00")
+        edited = edit_voucher(mock, "v-3", "2360.00")
         _sync_now(server, company, owner, "INCREMENTAL")
         assert (await _run(agent)).status == "COMPLETED"
         async with committed() as s:
@@ -100,7 +100,7 @@ async def test_register_sync_edit_and_delete_end_to_end(
         assert Decimal(audit.after_value["total"]) == Decimal("2360")
 
         # AC-04: deleted in Tally; the key list after the next INCREMENTAL marks it missing.
-        delete(mock.data, "TA_Vouchers", "v-5")
+        delete(mock, "TA_Vouchers", "v-5")
         _sync_now(server, company, owner, "INCREMENTAL")
         assert (await _run(agent)).status == "COMPLETED"
         async with committed() as s:
@@ -132,7 +132,7 @@ async def test_a_post_dated_voucher_syncs_in_the_run_after_it_is_created(
     uploading = Uploading(agent)
     try:
         await _full(server, company, owner, agent)
-        post_dated = add_voucher(mock.data, date(2026, 4, 1))
+        post_dated = add_voucher(mock, date(2026, 4, 1))
         _sync_now(server, company, owner, "INCREMENTAL")
         assert (await _run(agent)).status == "COMPLETED"
         async with committed() as s:
