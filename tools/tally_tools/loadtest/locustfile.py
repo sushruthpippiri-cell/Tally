@@ -15,6 +15,7 @@ per-request average would flatter us: the user waits for the slowest of the twel
 
 import os
 import random
+import time
 from typing import Any
 
 from locust import HttpUser, between, events, task
@@ -65,39 +66,39 @@ class Accountant(HttpUser):
 
     @task
     def open_the_dashboard(self) -> None:
-        """Timed as one event: the user waits for the whole view, not for an average call."""
-        with self.client.get(
-            f"/companies/{self.company}/analytics/sales",
-            params=PERIOD,
-            headers=self.headers,
-            name="DASHBOARD (12 summary calls)",
-            catch_response=True,
-        ) as tracked:
-            failed = []
-            for metric in SUMMARY_METRICS[1:]:
-                sub = self.client.get(
-                    f"/companies/{self.company}/analytics/{metric}",
-                    params=PERIOD,
-                    headers=self.headers,
-                    name=f"  /analytics/{metric}",
-                )
-                if sub.status_code != 200:
-                    failed.append(f"{metric}: {sub.status_code}")
-            for ranking in RANKINGS:
-                sub = self.client.get(
-                    f"/companies/{self.company}/analytics/{ranking}",
-                    params=PERIOD | {"top_n": 10},
-                    headers=self.headers,
-                    name=f"  /analytics/{ranking}",
-                )
-                if sub.status_code != 200:
-                    failed.append(f"{ranking}: {sub.status_code}")
-            if failed:
-                tracked.failure("; ".join(failed))
-            elif tracked.status_code != 200:
-                tracked.failure(f"sales: {tracked.status_code}")
-            else:
-                tracked.success()
+        """One dashboard open, timed as the user experiences it: every call the landing view
+        makes, measured as a single event.
+
+        The timing is taken around the whole group and reported through a custom event, not by
+        wrapping one call in `catch_response`. That was the first version and it was wrong:
+        `catch_response` records the *enclosing request's* own duration, so a block labelled
+        "the dashboard" was in fact reporting the time of the `sales` call alone - a figure
+        several times smaller than the thing it claimed to measure.
+        """
+        started = time.perf_counter()
+        failed: list[str] = []
+        calls: list[tuple[str, dict[str, Any]]] = [
+            (metric, dict(PERIOD)) for metric in SUMMARY_METRICS
+        ]
+        calls += [(ranking, dict(PERIOD) | {"top_n": 10}) for ranking in RANKINGS]
+        for name, params in calls:
+            response = self.client.get(
+                f"/companies/{self.company}/analytics/{name}",
+                params=params,
+                headers=self.headers,
+                name=f"  /analytics/{name}",
+            )
+            if response.status_code != 200:
+                failed.append(f"{name}: {response.status_code}")
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        self.environment.events.request.fire(
+            request_type="GROUP",
+            name=f"DASHBOARD ({len(calls)} calls)",
+            response_time=elapsed_ms,
+            response_length=0,
+            exception=Exception("; ".join(failed)) if failed else None,
+            context={},
+        )
 
     @task(1)
     def drill_into_a_month(self) -> None:
@@ -118,7 +119,8 @@ def _assert_perf_1_1(environment: Any, **_: Any) -> None:
 
     The 95th percentile, not the mean - the number that decides whether it felt slow.
     """
-    dashboard = environment.stats.get("DASHBOARD (12 summary calls)", "GET")
+    name = f"DASHBOARD ({len(SUMMARY_METRICS) + len(RANKINGS)} calls)"
+    dashboard = environment.stats.get(name, "GROUP")
     budget_ms = int(os.environ.get("LOAD_BUDGET_MS", "3000"))
     if dashboard.num_requests == 0:
         environment.process_exit_code = 1
