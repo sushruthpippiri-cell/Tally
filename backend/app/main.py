@@ -24,6 +24,7 @@ from app.api import (
 from app.api import settings as settings_api
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
+from app.core.log_redaction import install as install_log_redaction
 from app.core.middleware import install_middleware
 from tally_contract.log import configure_logging, get_logger
 
@@ -31,6 +32,10 @@ from tally_contract.log import configure_logging, get_logger
 def create_app(config: Settings | None = None) -> FastAPI:
     config = config or get_settings()
     configure_logging(config.env)
+    # Before anything can format a traceback: an unhandled database error carries
+    # PostgreSQL's DETAIL (the whole failing row) and SQLAlchemy's bound parameters, and
+    # the server re-raises it after the 500 so it can log exactly that (P16.5).
+    install_log_redaction()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:

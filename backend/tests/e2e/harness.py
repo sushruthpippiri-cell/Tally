@@ -49,20 +49,30 @@ SHARMA = "Sharma Traders"
 class Server:
     """The backend in its own process: killable, restartable on the same port."""
 
-    def __init__(self, **env: str) -> None:
+    def __init__(self, log: Path | None = None, **env: str) -> None:
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0))
             self.port = s.getsockname()[1]
         self.url = f"http://127.0.0.1:{self.port}"
         self.env = os.environ | {"PYTHONPATH": str(BACKEND)} | env
         self.proc: subprocess.Popen[bytes] | None = None
+        # Where to capture the server's own output. Only the log-redaction test needs it; left
+        # None, the subprocess inherits stdout as before so pytest shows its logs.
+        self.log = log
+        self._log_file: Any = None
 
     def start(self) -> None:
         now = datetime.now(UTC).isoformat()  # the test's clock, not the machine's
+        if self.log is not None:
+            # "wb": the capture file is fresh for each server, so truncating is right, and
+            # binary because the subprocess writes bytes (no encoding to name).
+            self._log_file = self.log.open("wb")
         self.proc = subprocess.Popen(
             [sys.executable, "-m", "tests.e2e.server", str(self.port), now],
             cwd=BACKEND,
             env=self.env,
+            stdout=self._log_file,
+            stderr=subprocess.STDOUT if self._log_file else None,
         )
         for _ in range(300):
             try:
@@ -77,19 +87,26 @@ class Server:
         assert self.proc is not None
         self.proc.send_signal(signal.SIGKILL)
         self.proc.wait()
+        self._close_log()
+
+    def _close_log(self) -> None:
+        if self._log_file is not None:
+            self._log_file.close()
+            self._log_file = None
 
     def stop(self) -> None:
         if self.proc is not None and self.proc.poll() is None:
             self.proc.terminate()
             self.proc.wait(10)
+        self._close_log()
 
 
 @pytest.fixture
 def start_server() -> Iterator[Any]:
     servers: list[Server] = []
 
-    def start(**env: str) -> Server:
-        server = Server(**env)
+    def start(log: Path | None = None, **env: str) -> Server:
+        server = Server(log=log, **env)
         server.start()
         servers.append(server)
         return server
