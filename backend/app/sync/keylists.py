@@ -32,6 +32,7 @@ from app.schemas.sync import KeyListOut
 from app.services.settings import get_setting
 from app.services.sync_runs import open_run
 from app.sync import lifecycle
+from app.sync.context import in_param_batches
 from app.sync.ingest import chunk_guard, major
 from tally_contract.errors import ErrorCode
 from tally_contract.log import get_logger
@@ -105,22 +106,19 @@ async def receive(
         await session.commit()
         return _out(kl)
     if chunk.chunk_seq not in kl.received_chunks:
-        if chunk.keys:
-            await session.execute(
-                insert(SyncKeyListKey)
-                .values(
-                    [
-                        {
-                            "list_id": kl.list_id,
-                            "company_id": agent.company_id,
-                            "tally_guid": k.guid,
-                            "alter_id": k.alter_id,
-                        }
-                        for k in chunk.keys
-                    ]
-                )
-                .on_conflict_do_nothing()
-            )
+        keys = [
+            {
+                "list_id": kl.list_id,
+                "company_id": agent.company_id,
+                "tally_guid": k.guid,
+                "alter_id": k.alter_id,
+            }
+            for k in chunk.keys
+        ]
+        # Four columns per key, so one statement holds at most ~8,000 of them; a voucher key
+        # list for a real company arrives in far larger chunks than that (P16.5).
+        for batch in in_param_batches(keys, columns=4):
+            await session.execute(insert(SyncKeyListKey).values(batch).on_conflict_do_nothing())
         kl.received_chunks = sorted([*kl.received_chunks, chunk.chunk_seq])
     if chunk.is_final:
         if kl.final_seq is not None and kl.final_seq != chunk.chunk_seq:

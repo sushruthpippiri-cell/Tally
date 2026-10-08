@@ -92,3 +92,20 @@ class ChunkOutcome:
     unchanged: int = 0  # equal ALTERID (SYNC-3.3)
     stale: list[tuple[str, int, int]] = field(default_factory=list)  # guid, stored, incoming
     failures: list[RecordFailure] = field(default_factory=list)
+
+
+# PostgreSQL accepts at most 32,767 bind parameters in one statement. A multi-row
+# `insert(...).values([...])` sends rows x columns of them, so a large chunk silently exceeds it
+# and asyncpg raises InterfaceError - which, before P16.5's benchmark drove enough records
+# through to find it, no test had ever reached (12 and 200 vouchers both fit).
+MAX_BIND_PARAMS = 32_767
+
+
+def in_param_batches[T](rows: list[T], columns: int) -> list[list[T]]:
+    """`rows` split so no statement exceeds PostgreSQL's bind-parameter limit.
+
+    Deliberately not "chunks of N": the safe count depends on how many columns each row carries,
+    so the caller passes that rather than guessing a number that happens to work today.
+    """
+    size = max(1, MAX_BIND_PARAMS // max(1, columns))
+    return [rows[i : i + size] for i in range(0, len(rows), size)]

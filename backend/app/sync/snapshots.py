@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.balances import StockSnapshot
 from app.models.masters import StockItem
-from app.sync.context import ChunkOutcome, IngestContext, RecordFailure
+from app.sync.context import ChunkOutcome, IngestContext, RecordFailure, in_param_batches
 from tally_contract.errors import ErrorCode
 from tally_contract.records import StockSnapshotRecord
 
@@ -47,8 +47,10 @@ async def write_snapshots(
             "unit": r.unit,
             "sync_run_id": ctx.sync_run_id,
         }
-    if rows:
-        stmt = insert(StockSnapshot).values(list(rows.values()))
+    # Six columns per snapshot, so one statement holds at most ~5,400; a company with 10,000
+    # stock items sends more than that in a single closing report (P16.5).
+    for part in in_param_batches(list(rows.values()), columns=6):
+        stmt = insert(StockSnapshot).values(part)
         await session.execute(
             stmt.on_conflict_do_update(
                 index_elements=[StockSnapshot.stock_item_id, StockSnapshot.as_of_date],

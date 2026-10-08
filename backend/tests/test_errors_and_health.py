@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError, InterfaceError, OperationalError
 
 from app.core.errors import AppError, install_error_handlers
 from app.main import create_app
@@ -163,6 +163,24 @@ def test_a_lost_database_in_the_rate_limiter_is_also_503() -> None:
         response = client.get("/openapi.json")
     assert response.status_code == 503
     assert response.json()["code"] == "DATABASE_UNAVAILABLE"
+
+
+@pytest.mark.req("TEST-1.4")
+def test_a_statement_with_too_many_parameters_is_a_500_not_an_outage() -> None:
+    """asyncpg raises InterfaceError both for a lost connection and for a statement exceeding
+    PostgreSQL's 32,767 bind parameters. P16.5's benchmark hit the second; calling it 503 told
+    the Agent a permanent defect was transient, and it retried with backoff until its command's
+    lease lapsed. A bug must stay loud."""
+    app = create_app()
+
+    @app.get("/boom-params")
+    async def _boom() -> None:
+        raise InterfaceError(
+            "INSERT", {}, Exception("the number of query arguments cannot exceed 32767")
+        )
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        assert client.get("/boom-params").status_code == 500
 
 
 @pytest.mark.req("TEST-1.4")

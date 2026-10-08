@@ -4,7 +4,8 @@ PHASE ?= dev
 TEST_DB_URL ?= postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally_test
 
 .PHONY: up down migrate test test-backend test-agent lint format typecheck importlint check dev-tls dev-https \
-        traceability phase-report hooks capture-kit update-fixtures dataset bench-data bench-analytics \
+        traceability phase-report hooks capture-kit update-fixtures dataset bench-data bench-sync \
+        bench-analytics \
         loadtest demo-data
 
 hooks:  ## Install the git pre-commit hook (ruff + mypy); once per clone
@@ -85,6 +86,9 @@ loadtest:  ## PERF-1.1 under concurrency: USERS (default 10), HOST, LOAD_EMAIL, 
 	  --users $(or $(USERS),10) --spawn-rate $(or $(USERS),10) --run-time $(or $(RUNTIME),2m) \
 	  --host $(or $(HOST),http://localhost:8000) \
 	  --html logs/loadtest.html --csv logs/loadtest
+
+bench-sync:  ## PERF-1.2/1.3 through mock Tally -> real Agent -> backend; needs `make dataset`
+	uv run pytest backend/tests/e2e/bench_sync.py -s -p no:randomly
 
 bench-analytics:  ## Time every metric on tally_bench; writes docs/benchmarks/p8-analytics.md
 	uv run python -m tally_tools.bench_analytics

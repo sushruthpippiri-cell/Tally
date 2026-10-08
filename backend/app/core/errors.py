@@ -73,8 +73,24 @@ def install_error_handlers(app: FastAPI) -> None:
         bug in our SQL and must keep its 500. Nothing is committed on the way out: a request's
         session commits only where the code says so, so a failure part way through leaves the
         transaction to roll back.
+
+        An `InterfaceError` that left the connection usable is **not** an outage: asyncpg raises
+        it both for a lost connection and for a statement with too many bind parameters, which is
+        a bug in our SQL. P16.5's benchmark hit the second and this handler called it 503, so the
+        Agent treated a permanent defect as transient and retried it with backoff until its lease
+        lapsed. SQLAlchemy's own `connection_invalidated` tells the two apart, so a programming
+        error gets its 500 and is loud.
         """
-        log.error("database_unavailable", error=type(exc).__name__)
+        if isinstance(exc, InterfaceError) and not exc.connection_invalidated:
+            raise exc
+        # The driver's own message (`exc.orig`), not SQLAlchemy's: SQLAlchemy's str() includes
+        # the statement and sometimes its parameters, which would put business data in the logs.
+        # Without this the log said only "InterfaceError", which is not enough to act on.
+        log.error(
+            "database_unavailable",
+            error=type(exc).__name__,
+            driver_message=str(getattr(exc, "orig", "") or "")[:200],
+        )
         return JSONResponse(
             _body(ErrorCode.DATABASE_UNAVAILABLE, "The service is temporarily unavailable"),
             status_code=503,
