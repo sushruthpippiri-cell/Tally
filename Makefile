@@ -6,7 +6,7 @@ TEST_DB_URL ?= postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/t
 .PHONY: up down migrate test test-backend test-agent lint format typecheck importlint check dev-tls dev-https \
         traceability phase-report hooks capture-kit update-fixtures dataset bench-data bench-sync \
         bench-analytics \
-        loadtest demo-data
+        loadtest loadtest-bench demo-data
 
 hooks:  ## Install the git pre-commit hook (ruff + mypy); once per clone
 	git config core.hooksPath .githooks
@@ -99,6 +99,10 @@ bench-sync:  ## PERF-1.2/1.3 through mock Tally -> real Agent -> backend; needs 
 	cd backend && DATABASE_MIGRATION_URL=$(SYNCBENCH_OWNER) uv run alembic upgrade head
 	TEST_DATABASE_URL=$(SYNCBENCH_APP) TEST_DATABASE_MIGRATION_URL=$(SYNCBENCH_OWNER) \
 	  uv run pytest backend/tests/e2e/bench_sync.py -s
+
+loadtest-bench:  ## PERF-1.1 on tally_bench (SRS 17.2 size), not the demo dataset; USERS=n
+	uv run python -m tally_tools.loadtest.bench --users $(or $(USERS),10) \
+	  --run-time $(or $(RUNTIME),2m)
 
 bench-analytics:  ## Time every metric on tally_bench; writes docs/benchmarks/p8-analytics.md
 	uv run python -m tally_tools.bench_analytics
