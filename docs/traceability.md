@@ -11,9 +11,9 @@ separately below and are **not** verified: they are what the acceptance run (P16
 left to do.
 
 - Requirement IDs in the SRS: **328**
-- Fully covered by at least one test: **239**
+- Fully covered by at least one test: **240**
 - Verified by hand: **11**
-- Accounted for but **not yet verified** (blocked): **30**
+- Accounted for but **not yet verified** (blocked): **29**
 - Partially covered only: **48**
 - Not accounted for at all: **0**
 
@@ -189,6 +189,7 @@ left to do.
 | SEC-1.14 | backend/tests/anomaly/test_api_and_jobs.py::test_a_wrong_model_id_is_reported_clearly_once<br>backend/tests/anomaly/test_explainer.py::test_no_model_name_is_written_in_the_source |
 | LOG-1.1 | backend/tests/api/test_exports.py::test_an_export_is_audited_with_the_range_it_took<br>backend/tests/core/test_audit_actions.py::test_every_log_1_1_clause_has_at_least_one_action<br>backend/tests/core/test_audit_actions.py::test_the_registry_has_nothing_the_source_never_writes<br>backend/tests/jobs/test_retention.py::test_sync_and_ai_logs_older_than_the_retention_period_go<br>backend/tests/jobs/test_retention.py::test_an_error_still_holding_a_watermark_back_is_never_purged |
 | LOG-1.2 | backend/tests/core/test_audit_actions.py::test_a_registered_action_records_every_log_1_2_field<br>backend/tests/core/test_log_context.py::test_a_refused_request_logs_the_request_company_and_user<br>backend/tests/core/test_log_context.py::test_an_agent_credential_binds_the_agent_and_its_company<br>backend/tests/core/test_log_context.py::test_a_job_logs_its_name_instead_of_a_request_id |
+| PERF-1.1 | tools/tests/test_loadtest_profile.py::test_the_profile_requests_the_figures_the_home_page_requests<br>tools/tests/test_loadtest_profile.py::test_product_difference_is_not_on_the_home_view |
 | PERF-1.4 | backend/tests/anomaly/test_mcp_server.py::test_the_evidence_call_is_well_under_two_seconds |
 | NFR-SCALE-1 | backend/tests/api/test_route_access.py::test_roles_are_held_per_company |
 | Q-1.2 | backend/tests/core/test_periods.py::test_financial_quarters_from_1_april<br>backend/tests/core/test_periods.py::test_1_january_start_gives_calendar_quarters |
@@ -351,7 +352,6 @@ Each has an entry in manual-verification.md naming what it waits for.
 | ACC-8.1 | A source guard (our own work) |
 | FR-STK-8 | GATE-G27: the capture kit |
 | FR-STK-9 | GATE-G27 |
-| PERF-1.1 | Target hardware and hosting - but the miss is ours, not the machine's, and is tracked as a follow-up rather than excused by it |
 | PERF-1.2 | Target hardware and **real Tally**. The mock has no extraction cost and loopback has no transfer cost, so the interim figure measures only our own share |
 | PERF-1.3 | Target hardware and real Tally, as PERF-1.2 |
 | PERF-VAL-1 | A real x64 PC running TallyPrime |
