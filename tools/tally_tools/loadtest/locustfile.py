@@ -1,16 +1,26 @@
-"""PERF-1.1 under concurrency (P16.5): the dashboard summary at ≤ 3 s with 10 users.
+"""PERF-1.1 under concurrency (P16.5): the home view, at <= 3 s, with 10 users.
 
-Everything measured before this was single-session - `bench_analytics.py` is a median of five
-sequential runs, which says what one query costs and nothing about what ten accountants opening
-the dashboard at nine in the morning costs. PERF-VAL-2 asks for the concurrency to be recorded,
-so it has to be a dimension of the measurement rather than an assumption.
+**What is measured is what the product does.** The home view is FR-4.1's: sales, cash and bank
+position, receivables, payables, last sync and reconciliation status, and Agent health. In the
+frontend that is `HomePage.tsx` - four analytics figures plus `/sync/status` and `/agents` - and the
+layout's one availability probe, seven requests in all. `tools/tests/test_loadtest_profile.py`
+pins this list against those files, so it cannot drift again.
 
-    make loadtest                       # 10 users against a local backend
-    make loadtest USERS=25 HOST=https://staging.example.in
+It drifted once. The first version of this harness (and `bench_analytics.DASHBOARD` before it)
+timed a twelve-call set that included cash flow, expenses, purchases, rankings and
+`product_difference`, none of which the home view requests. The 6.8 s it reported described a
+page no user opens.
 
-What it measures: one **dashboard open**, as the browser performs it - the twelve summary calls
-the Sales/Cash-flow landing view makes, issued together, timed as one user-visible event. A
-per-request average would flatter us: the user waits for the slowest of the twelve, not the mean.
+Two profiles, because they answer different questions:
+
+* **realistic** (`LOAD_PROFILE=realistic`, the default): each user opens the home view, reads it
+  for 5-15 s, then opens a section and reads that for 5-15 s. This is "10 users using the
+  product" and is the PERF-1.1 figure.
+* **stress** (`LOAD_PROFILE=stress`): no think time. Ten users hammering the home view back to
+  back is a capacity test, not a use of the product, and is reported separately.
+
+The default period is the financial year to date, which is what the home view opens on
+(`frontend/src/lib/filters.ts`). `LOAD_FROM`/`LOAD_TO` override it for the three-year worst case.
 """
 
 import os
@@ -18,99 +28,94 @@ import random
 import time
 from typing import Any
 
-from locust import HttpUser, between, events, task
+from locust import HttpUser, between, constant, events, task
 
-# The twelve calls one dashboard open makes, matching bench_analytics.DASHBOARD so the
-# concurrent figures can be compared with the single-user ones.
-# The API's own slugs are hyphenated (the MetricName enum in the path), even though the
-# internal metric keys use underscores.
-SUMMARY_METRICS = (
-    "sales",
-    "purchases",
-    "expenses",
-    "cash-flow",
-    "cash-bank-position",
-    "receivables",
-    "payables",
-    "product-difference",
-)
-RANKINGS = ("customers", "products")
+# What HomePage.tsx requests, in the order it requests it. Pinned by
+# tools/tests/test_loadtest_profile.py, which reads the .tsx.
+HOME_ANALYTICS = ("sales", "cash-bank-position", "receivables", "payables")
+HOME_OTHER = ("/sync/status", "/agents")
+# CompanyLayout asks this on every company page to decide whether to list the nav item
+# (FR-PAY-6). Cheap while gate G25 has not passed; real work on every page load once it does.
+LAYOUT_PROBE = ("payment-behaviour",)
 
+# A section a user opens after the home view. Rotated so no one section is favoured.
+# Aging is left out: it needs a side and an as-of date, and a section that 422s would put
+# failures in a figure that has none.
+SECTIONS = ("sales", "purchases", "customers", "products", "expenses", "cash-flow", "stock")
+
+# A template ("loadtest{n}@example.com") gives each simulated user their own account; a plain
+# LOAD_EMAIL keeps the single-account behaviour `make loadtest` has always had.
+EMAIL_TEMPLATE = os.environ.get("LOAD_EMAIL_TEMPLATE", "")
 EMAIL = os.environ.get("LOAD_EMAIL", "")
+_NEXT_USER = iter(range(10_000))
 PASSWORD = os.environ.get("LOAD_PASSWORD", "")
+PROFILE = os.environ.get("LOAD_PROFILE", "realistic")
 PERIOD = {
     "from": os.environ.get("LOAD_FROM", "2025-04-01"),
     "to": os.environ.get("LOAD_TO", "2026-03-31"),
 }
+# Reading time between page views; 5-15 s is the owner's figure for realistic use.
+THINK = (5, 15)
+GROUP = "HOME VIEW"
 
 
 class Accountant(HttpUser):
-    """One signed-in user who opens the dashboard, waits, and opens it again."""
+    """One signed-in user."""
 
-    wait_time = between(1, 3)
+    wait_time = constant(0) if PROFILE == "stress" else between(*THINK)
 
     def on_start(self) -> None:
-        if not EMAIL or not PASSWORD:
-            raise RuntimeError("set LOAD_EMAIL and LOAD_PASSWORD (a real user on the target)")
+        email = EMAIL_TEMPLATE.format(n=next(_NEXT_USER)) if EMAIL_TEMPLATE else EMAIL
+        if not email or not PASSWORD:
+            raise RuntimeError("set LOAD_EMAIL (or LOAD_EMAIL_TEMPLATE) and LOAD_PASSWORD")
         response = self.client.post(
-            "/auth/login", json={"email": EMAIL, "password": PASSWORD}, name="/auth/login"
+            "/auth/login", json={"email": email, "password": PASSWORD}, name="/auth/login"
         )
         response.raise_for_status()
-        self.token = response.json()["access_token"]
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        self.headers = {"Authorization": f"Bearer {response.json()['access_token']}"}
         companies = self.client.get("/companies", headers=self.headers, name="/companies")
         companies.raise_for_status()
         body = companies.json()
         assert body, "the target has no companies; seed it with `make bench-data` first"
         self.company = body[0]["company_id"]
 
-    @task
-    def open_the_dashboard(self) -> None:
-        """One dashboard open, timed as the user experiences it: every call the landing view
-        makes, measured as a single event.
+    def _get(self, path: str, **params: Any) -> bool:
+        response = self.client.get(
+            f"/companies/{self.company}{path}",
+            params=params or None,
+            headers=self.headers,
+            name=f"  {path}",
+        )
+        return bool(response.status_code == 200)
 
-        The timing is taken around the whole group and reported through a custom event, not by
-        wrapping one call in `catch_response`. That was the first version and it was wrong:
-        `catch_response` records the *enclosing request's* own duration, so a block labelled
-        "the dashboard" was in fact reporting the time of the `sales` call alone - a figure
-        several times smaller than the thing it claimed to measure.
+    @task(4)
+    def open_the_home_view(self) -> None:
+        """One home-view open, timed as the user experiences it: all seven requests, as one event.
+
+        Timed around the group and reported through a custom event. `catch_response` records the
+        enclosing request's *own* duration, so wrapping one call and issuing the rest inside it
+        reported the time of that one call under the name of the whole - the original bug here.
         """
         started = time.perf_counter()
-        failed: list[str] = []
-        calls: list[tuple[str, dict[str, Any]]] = [
-            (metric, dict(PERIOD)) for metric in SUMMARY_METRICS
+        failed = [
+            p
+            for p in (*HOME_ANALYTICS, *LAYOUT_PROBE)
+            if not self._get(f"/analytics/{p}", **PERIOD)
         ]
-        calls += [(ranking, dict(PERIOD) | {"top_n": 10}) for ranking in RANKINGS]
-        for name, params in calls:
-            response = self.client.get(
-                f"/companies/{self.company}/analytics/{name}",
-                params=params,
-                headers=self.headers,
-                name=f"  /analytics/{name}",
-            )
-            if response.status_code != 200:
-                failed.append(f"{name}: {response.status_code}")
-        elapsed_ms = (time.perf_counter() - started) * 1000
+        failed += [p for p in HOME_OTHER if not self._get(p)]
         self.environment.events.request.fire(
             request_type="GROUP",
-            name=f"DASHBOARD ({len(calls)} calls)",
-            response_time=elapsed_ms,
+            name=GROUP,
+            response_time=(time.perf_counter() - started) * 1000,
             response_length=0,
             exception=Exception("; ".join(failed)) if failed else None,
             context={},
         )
 
     @task(1)
-    def drill_into_a_month(self) -> None:
-        """FR-DD-1: the drill-down is part of the same session's cost."""
-        month = random.randint(1, 12)  # noqa: S311 - choosing a month to read, nothing secret
-        year = 2025 if month >= 4 else 2026
-        self.client.get(
-            f"/companies/{self.company}/analytics/sales/drilldown",
-            params={"from": f"{year}-{month:02d}-01", "to": f"{year}-{month:02d}-28", "limit": 50},
-            headers=self.headers,
-            name="/analytics/sales/drilldown",
-        )
+    def open_a_section(self) -> None:
+        """A drill into one section, as a user does after reading the home view."""
+        self._get(f"/analytics/{random.choice(SECTIONS)}", **PERIOD)  # noqa: S311 - not secret
 
 
 @events.quitting.add_listener
@@ -119,14 +124,10 @@ def _assert_perf_1_1(environment: Any, **_: Any) -> None:
 
     The 95th percentile, not the mean - the number that decides whether it felt slow.
     """
-    name = f"DASHBOARD ({len(SUMMARY_METRICS) + len(RANKINGS)} calls)"
-    dashboard = environment.stats.get(name, "GROUP")
+    home = environment.stats.get(GROUP, "GROUP")
     budget_ms = int(os.environ.get("LOAD_BUDGET_MS", "3000"))
-    if dashboard.num_requests == 0:
+    if home.num_requests == 0:
         environment.process_exit_code = 1
         return
-    p95 = dashboard.get_response_time_percentile(0.95)
-    if dashboard.num_failures or p95 > budget_ms:
-        environment.process_exit_code = 1
-    else:
-        environment.process_exit_code = 0
+    p95 = home.get_response_time_percentile(0.95)
+    environment.process_exit_code = 1 if home.num_failures or p95 > budget_ms else 0
