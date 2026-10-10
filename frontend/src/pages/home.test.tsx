@@ -1,9 +1,10 @@
 import { screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { setAccessToken } from "../lib/session";
 import { agent, company, serve, serveCompanies } from "../test/fixtures";
 import { renderApp } from "../test/render";
-import { withMockApi } from "../test/server";
+import { server, withMockApi } from "../test/server";
 
 withMockApi();
 afterEach(() => setAccessToken(null));
@@ -61,5 +62,64 @@ describe("Home (P13.10)", () => {
     expect(screen.getByText("Restart recommended on Godown PC.")).toBeInTheDocument();
     expect(screen.getByText("1 ACTIVE")).toBeInTheDocument();
     expect(screen.getByText("1 OFFLINE")).toBeInTheDocument();
+  });
+});
+
+describe("Home requests exactly what FR-4.1 lists (P16.5)", () => {
+  /** The paths the home view fetched, relative to the company, with the query stripped. */
+  async function homeRequests(): Promise<string[]> {
+    const seen: string[] = [];
+    server.events.on("request:start", ({ request }) => {
+      const url = new URL(request.url);
+      const match = url.pathname.match(/\/api\/companies\/c-1(\/.*)$/);
+      if (match?.[1]) seen.push(match[1]);
+    });
+    const metric = (m: string) =>
+      server.use(
+        http.get(`*/api/companies/c-1/analytics/${m}`, () =>
+          HttpResponse.json({
+            metric: m,
+            summary: { available: true, amount: "0.00", direction: null },
+            notes: [],
+          }),
+        ),
+      );
+    serveCompanies(company());
+    ["sales", "cash-bank-position", "receivables", "payables"].forEach(metric);
+    serve("/sync/status", { warnings: [], collections: [], last_run: null, reconciliation: null });
+    serve("/agents", { warnings: [], agents: [] });
+
+    renderApp("/c/c-1");
+    await screen.findByRole("heading", { name: "Home" });
+    await screen.findByText("Agents");
+    server.events.removeAllListeners();
+    return [...new Set(seen)].sort();
+  }
+
+  it("asks for the four figures, the sync status and the Agents, and nothing else", async () => {
+    // Seven requests: FR-4.1's six, plus the layout's availability probe. CompanyLayout asks
+    // /analytics/payment-behaviour on every company page to decide whether to list that nav item
+    // (FR-PAY-6). While gate G25 has not passed it answers `available: false` at once; once it
+    // passes it is real work on every page load, which is why tools/tally_tools/loadtest includes
+    // it - and why this list names it rather than hiding it.
+    expect(await homeRequests()).toEqual(
+      [
+        "/analytics/cash-bank-position",
+        "/analytics/payables",
+        "/analytics/payment-behaviour",
+        "/analytics/receivables",
+        "/analytics/sales",
+        "/agents",
+        "/sync/status",
+      ].sort(),
+    );
+  });
+
+  it("does not request product-difference: it is a data-quality figure, not a headline", async () => {
+    // PERF-1.1 (P16.5). Measured on the SRS 17.2 dataset it is the most expensive single figure
+    // there is, and the home view never needed it - FR-4.1 lists six things and it is not one.
+    // It loads when its own section opens.
+    const requested = await homeRequests();
+    expect(requested.filter((p) => p.includes("product-difference"))).toEqual([]);
   });
 });

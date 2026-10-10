@@ -100,9 +100,10 @@ bench-sync:  ## PERF-1.2/1.3 through mock Tally -> real Agent -> backend; needs 
 	TEST_DATABASE_URL=$(SYNCBENCH_APP) TEST_DATABASE_MIGRATION_URL=$(SYNCBENCH_OWNER) \
 	  uv run pytest backend/tests/e2e/bench_sync.py -s
 
-loadtest-bench:  ## PERF-1.1 on tally_bench (SRS 17.2 size), not the demo dataset; USERS=n
+loadtest-bench:  ## PERF-1.1 on tally_bench (SRS 17.2 size); USERS=n PROFILE=realistic|stress FROM= TO=
 	uv run python -m tally_tools.loadtest.bench --users $(or $(USERS),10) \
-	  --run-time $(or $(RUNTIME),2m)
+	  --run-time $(or $(RUNTIME),3m) --profile $(or $(PROFILE),realistic) \
+	  $(if $(FROM),--from $(FROM)) $(if $(TO),--to $(TO)) $(if $(CSV),--csv $(CSV))
 
 bench-analytics:  ## Time every metric on tally_bench; writes docs/benchmarks/p8-analytics.md
 	uv run python -m tally_tools.bench_analytics

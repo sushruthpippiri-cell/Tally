@@ -59,6 +59,17 @@ export function MetricSection({
   });
   return (
     <section aria-labelledby={`${metric}-title`} className="space-y-3">
+      {query.isPending && (
+        // The heading used to appear only once the data had: for the seconds a slow figure takes
+        // (the Difference section is 1-2.7 s on a large company) the user saw two grey bars with
+        // nothing saying what they were waiting for. Name the section and say it is working.
+        <div className="space-y-1">
+          <h2 id={`${metric}-title`} className="text-lg font-semibold">
+            {title}
+          </h2>
+          <p className="text-sm text-slate-600">Calculating {title.toLowerCase()}…</p>
+        </div>
+      )}
       <Loaded query={query} label={`Loading ${title}`}>
         {(m) => (
           <>

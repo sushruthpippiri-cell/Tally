@@ -29,11 +29,23 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 ROOT = Path(__file__).parents[3]
 BENCH_APP_URL = "postgresql+asyncpg://tally_app:tally_app_dev@localhost:5432/tally_bench"
 EMAIL = "loadtest@example.com"
+
+
+def user_email(n: int) -> str:
+    return f"loadtest{n}@example.com"
+
+
 PASSWORD = "loadtest-password-16"  # noqa: S105 - a local benchmark database, never deployed
 
 
 async def seed_owner(url: str, email: str = EMAIL, password: str = PASSWORD) -> str:
-    """An Owner on the benchmark company, so Locust can sign in. Idempotent."""
+    """An Owner on the benchmark company, so Locust can sign in. Idempotent.
+
+    One account per simulated user (see `user_email`): the per-user rate limit (1,000/min, SEC-1.9)
+    is a property of the product, and ten users sharing one account would be throttled by it
+    rather than measured. The first stress run did exactly that - 13,215 of 13,466 home opens were
+    429s - and reported the limiter instead of the backend.
+    """
     sys.path.insert(0, str(ROOT / "backend"))
     from app.cli import create_owner
     from app.core.security import hash_password
@@ -114,10 +126,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m tally_tools.loadtest.bench")
     parser.add_argument("--url", default=BENCH_APP_URL)
     parser.add_argument("--users", type=int, default=10)
-    parser.add_argument("--run-time", default="2m")
+    parser.add_argument("--run-time", default="3m")
+    parser.add_argument("--profile", choices=("realistic", "stress"), default="realistic")
+    parser.add_argument("--from", dest="start", default="2025-04-01")
+    parser.add_argument("--to", dest="end", default="2026-03-31")
+    parser.add_argument("--csv", default="loadtest-bench")
     args = parser.parse_args(argv)
 
-    company = asyncio.run(seed_owner(args.url))
+    company = ""
+    for n in range(args.users):  # one account per simulated user, see seed_owner
+        company = asyncio.run(seed_owner(args.url, user_email(n)))
     sys.stdout.write(f"benchmark company {company}\n")
 
     port = _free_port()
@@ -151,15 +169,16 @@ def main(argv: list[str] | None = None) -> int:
                 "--host",
                 url,
                 "--csv",
-                str(ROOT / "logs/loadtest-bench"),
+                str(ROOT / "logs" / args.csv),
             ],  # fmt: skip
             cwd=ROOT,
             env=os.environ
             | {
-                "LOAD_EMAIL": EMAIL,
+                "LOAD_EMAIL_TEMPLATE": "loadtest{n}@example.com",
                 "LOAD_PASSWORD": PASSWORD,
-                "LOAD_FROM": "2025-04-01",
-                "LOAD_TO": "2026-03-31",
+                "LOAD_FROM": args.start,
+                "LOAD_TO": args.end,
+                "LOAD_PROFILE": args.profile,
             },
         )
         return locust.returncode

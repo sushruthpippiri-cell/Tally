@@ -80,7 +80,9 @@ describe("exporting a view (EXP-1.1-1.6)", () => {
     const user = userEvent.setup();
     renderApp("/c/c-1/sales?from=2025-04-01&to=2025-06-30&customer=cust-1");
     const section = await screen.findByRole("region", { name: "Total Sales Revenue" });
-    await user.click(within(section).getByRole("button", { name: "Export CSV" }));
+    // The region is named while it is still loading (P16.5), so its name no longer means "loaded":
+    // wait for the button, which only exists once the data has arrived.
+    await user.click(await within(section).findByRole("button", { name: "Export CSV" }));
     await expect.poll(() => downloads).toEqual(["sales.csv"]);
     const [sent] = requests;
     expect(sent?.pathname).toBe("/api/companies/c-1/exports/sales");
@@ -98,7 +100,7 @@ describe("exporting a view (EXP-1.1-1.6)", () => {
     const user = userEvent.setup();
     renderApp("/c/c-1/sales");
     const section = await screen.findByRole("region", { name: "Total Sales Revenue" });
-    await user.click(within(section).getByRole("button", { name: "Export PDF" }));
+    await user.click(await within(section).findByRole("button", { name: "Export PDF" }));
     await expect.poll(() => downloads).toEqual(["sales.pdf"]);
     expect(requests[0]?.searchParams.get("format")).toBe("pdf");
   });
@@ -119,7 +121,7 @@ describe("exporting a view (EXP-1.1-1.6)", () => {
     const user = userEvent.setup();
     renderApp("/c/c-1/sales");
     const section = await screen.findByRole("region", { name: "Total Sales Revenue" });
-    await user.click(within(section).getByRole("button", { name: "Export CSV" }));
+    await user.click(await within(section).findByRole("button", { name: "Export CSV" }));
     // The catalogue's own wording for FORBIDDEN (P13.5), not a raw status code.
     expect(await within(section).findByRole("alert")).toHaveTextContent(
       "Your role in this company does not allow this.",

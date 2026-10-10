@@ -11,9 +11,9 @@ separately below and are **not** verified: they are what the acceptance run (P16
 left to do.
 
 - Requirement IDs in the SRS: **328**
-- Fully covered by at least one test: **239**
+- Fully covered by at least one test: **240**
 - Verified by hand: **11**
-- Accounted for but **not yet verified** (blocked): **30**
+- Accounted for but **not yet verified** (blocked): **29**
 - Partially covered only: **48**
 - Not accounted for at all: **0**
 
@@ -189,6 +189,7 @@ left to do.
 | SEC-1.14 | backend/tests/anomaly/test_api_and_jobs.py::test_a_wrong_model_id_is_reported_clearly_once<br>backend/tests/anomaly/test_explainer.py::test_no_model_name_is_written_in_the_source |
 | LOG-1.1 | backend/tests/api/test_exports.py::test_an_export_is_audited_with_the_range_it_took<br>backend/tests/core/test_audit_actions.py::test_every_log_1_1_clause_has_at_least_one_action<br>backend/tests/core/test_audit_actions.py::test_the_registry_has_nothing_the_source_never_writes<br>backend/tests/jobs/test_retention.py::test_sync_and_ai_logs_older_than_the_retention_period_go<br>backend/tests/jobs/test_retention.py::test_an_error_still_holding_a_watermark_back_is_never_purged |
 | LOG-1.2 | backend/tests/core/test_audit_actions.py::test_a_registered_action_records_every_log_1_2_field<br>backend/tests/core/test_log_context.py::test_a_refused_request_logs_the_request_company_and_user<br>backend/tests/core/test_log_context.py::test_an_agent_credential_binds_the_agent_and_its_company<br>backend/tests/core/test_log_context.py::test_a_job_logs_its_name_instead_of_a_request_id |
+| PERF-1.1 | tools/tests/test_loadtest_profile.py::test_the_profile_requests_the_figures_the_home_page_requests<br>tools/tests/test_loadtest_profile.py::test_product_difference_is_not_on_the_home_view |
 | PERF-1.4 | backend/tests/anomaly/test_mcp_server.py::test_the_evidence_call_is_well_under_two_seconds |
 | NFR-SCALE-1 | backend/tests/api/test_route_access.py::test_roles_are_held_per_company |
 | Q-1.2 | backend/tests/core/test_periods.py::test_financial_quarters_from_1_april<br>backend/tests/core/test_periods.py::test_1_january_start_gives_calendar_quarters |
@@ -197,7 +198,7 @@ left to do.
 | TEST-1.1 | tools/tests/test_dataset_gen.py::test_every_report_parses_with_no_record_errors<br>tools/tests/test_dataset_gen.py::test_every_voucher_balances_and_keeps_its_children<br>tools/tests/test_dataset_gen.py::test_the_key_list_form_parses_from_the_same_file<br>tools/tests/test_dataset_gen.py::test_no_record_is_pretty_printed |
 | TEST-1.2 | shared/tests/test_contract_fixtures.py::test_every_case_the_srs_lists_has_a_fixture |
 | TEST-1.3 | shared/tests/test_contract_fixtures.py::test_fixture_parses_to_its_expected_result |
-| TEST-1.4 | shared/tests/test_contract_fixtures.py::test_bad_input_is_logged_and_never_raises<br>backend/tests/test_errors_and_health.py::test_a_lost_database_is_503_with_a_catalogue_code_not_500<br>backend/tests/test_errors_and_health.py::test_a_lost_database_in_the_rate_limiter_is_also_503<br>backend/tests/test_errors_and_health.py::test_a_statement_with_too_many_parameters_is_a_500_not_an_outage<br>backend/tests/test_errors_and_health.py::test_an_integrity_error_is_still_a_500 |
+| TEST-1.4 | shared/tests/test_contract_fixtures.py::test_bad_input_is_logged_and_never_raises<br>backend/tests/test_errors_and_health.py::test_a_lost_database_is_503_with_a_catalogue_code_not_500<br>backend/tests/test_errors_and_health.py::test_a_lost_database_in_the_rate_limiter_is_also_503<br>backend/tests/test_errors_and_health.py::test_a_statement_with_too_many_parameters_is_a_500_not_an_outage<br>backend/tests/test_errors_and_health.py::test_an_integrity_error_is_still_a_500<br>tools/tests/test_timeout_guard.py::test_the_default_limit_is_a_minute_and_uses_the_thread_method |
 | TEST-3.1 | backend/tests/races/test_lease_races.py::test_two_agents_at_once_exactly_one_gets_the_lease |
 | TEST-3.2 | backend/tests/jobs/test_command_jobs.py::test_a_running_command_past_its_lease_is_lost_and_never_reassigned |
 | TEST-3.3 | backend/tests/races/test_crash.py::test_killed_mid_voucher_leaves_nothing_of_that_chunk<br>backend/tests/races/test_crash.py::test_killed_mid_batch_keeps_committed_chunks_and_their_watermark |
@@ -351,7 +352,6 @@ Each has an entry in manual-verification.md naming what it waits for.
 | ACC-8.1 | A source guard (our own work) |
 | FR-STK-8 | GATE-G27: the capture kit |
 | FR-STK-9 | GATE-G27 |
-| PERF-1.1 | Target hardware and hosting - but the miss is ours, not the machine's, and is tracked as a follow-up rather than excused by it |
 | PERF-1.2 | Target hardware and **real Tally**. The mock has no extraction cost and loopback has no transfer cost, so the interim figure measures only our own share |
 | PERF-1.3 | Target hardware and real Tally, as PERF-1.2 |
 | PERF-VAL-1 | A real x64 PC running TallyPrime |

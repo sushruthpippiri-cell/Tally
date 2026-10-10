@@ -1,11 +1,12 @@
 import { screen, within } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Schemas } from "../api/types";
 import { periodPresets } from "../lib/filters";
 import { setAccessToken } from "../lib/session";
 import { accountant, company, serve, serveCompanies } from "../test/fixtures";
 import { renderApp } from "../test/render";
-import { withMockApi } from "../test/server";
+import { server, withMockApi } from "../test/server";
 
 withMockApi();
 afterEach(() => setAccessToken(null));
@@ -120,6 +121,44 @@ function ranking(kind: "customers" | "suppliers" | "products"): Schemas["Ranking
 }
 
 describe("required labels and states (P14.5)", () => {
+  it("the slow Difference section is named and says it is calculating, while Sales is already shown", async () => {
+    // product_difference is the most expensive figure there is (1-2.7 s on the SRS 17.2 dataset).
+    // The Sales page does not wait for it - each section loads on its own - and the owner's
+    // decision (P16.5) is to keep it that way. The cost of that decision is the seconds in
+    // between, which must not be a blank: the user is told which section is working.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    serveCompanies(company());
+    serve("/analytics/sales", metric("sales"));
+    serve("/analytics/product-revenue", metric("product-revenue", { summary: figure("900.00") }));
+    server.use(
+      http.get("*/api/companies/c-1/analytics/product-difference", async () => {
+        await held;
+        return HttpResponse.json(
+          metric("product-difference", {
+            label: "Product Attribution Difference",
+            summary: figure("100.00"),
+          }),
+        );
+      }),
+    );
+    renderApp("/c/c-1/sales");
+
+    // The headline figure is there without waiting for the slow one...
+    expect(await screen.findByRole("heading", { name: "Total Sales Revenue" })).toBeInTheDocument();
+    // ...and the slow section is named, with a message, not an anonymous skeleton.
+    expect(screen.getByRole("heading", { name: "Difference" })).toBeInTheDocument();
+    expect(screen.getByText("Calculating difference…")).toBeInTheDocument();
+
+    release();
+    expect(
+      await screen.findByRole("heading", { name: "Product Attribution Difference" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Calculating difference…")).not.toBeInTheDocument();
+  });
+
   it("Sales shows exactly one difference label, the backend's (ACC-VAL-1)", async () => {
     serveCompanies(company());
     serve("/analytics/sales", metric("sales"));
