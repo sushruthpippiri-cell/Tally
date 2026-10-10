@@ -178,3 +178,16 @@ def set_gates(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
 def g26_passed(set_gates: Callable[..., None]) -> None:
     """Return links are trusted only once gate G26 passes (ACC-5.5)."""
     set_gates(G26="PASSED")
+
+
+# The e2e tests start a real uvicorn and a real Agent, and CI runs about twice as slow as a
+# developer machine, so they get twice the default 60 s (pyproject.toml). A test that sets its own
+# `timeout` marker - bench_sync.py disables it, since a 100,000-voucher sync is four minutes by
+# design - keeps it.
+E2E_TIMEOUT_SECONDS = 120
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    for item in items:
+        if "/tests/e2e/" in str(item.fspath) and item.get_closest_marker("timeout") is None:
+            item.add_marker(pytest.mark.timeout(E2E_TIMEOUT_SECONDS))

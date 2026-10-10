@@ -128,6 +128,10 @@ DATASET = Path(os.environ.get("BENCH_DATASET", "dataset"))
 REPORT = Path(__file__).parents[3] / "docs/benchmarks/p16-sync.md"
 EDITS = 500  # PERF-1.3's "about 500 changed records"
 
+# A 100,000-voucher sync takes four minutes by design; the suite-wide per-test timeout (60 s, 120 s
+# for e2e) would kill it. Zero disables the limit for this module only.
+pytestmark = pytest.mark.timeout(0)
+
 __all__ = ["start_server"]
 
 
