@@ -55,7 +55,8 @@ A read-only analytics platform that sits beside TallyPrime. A Windows **Tally Sy
 | `make migrate` | `alembic upgrade head` using the owner role |
 | `make test PHASE=pNN` | All Python tests (backend, shared, agent) against real Postgres; saves log + JUnit XML under `logs/test-runs/` |
 | `make phase-report PHASE=NN` | Fresh DB + migrate + full suite + `make check`, then writes `docs/test-reports/phase-NN.md` |
-| `make check` | lint + typecheck + import-linter + tests. Run before calling any task done |
+| `make check` | lint + typecheck + import-linter + frontend fast checks (lint, typecheck, API types, Vitest) + tests. Run before calling any task done |
+| `make check-all` | `make check` + Playwright e2e. Run before pushing any branch that touches `frontend/` |
 | `make hooks` | Install the git pre-commit hook (once per clone, see below) |
 | `make traceability` | Regenerate `docs/traceability.md` from `@pytest.mark.req` tags |
 | `cd frontend && npm run dev / test / e2e / gen:api` | Frontend dev server, unit tests, Playwright, regenerate API types |
@@ -114,7 +115,7 @@ A read-only analytics platform that sits beside TallyPrime. A Windows **Tally Sy
 1. Read this file, the phase file named in the prompt, `docs/decisions.md`, and the SRS sections the phase lists.
 2. Plan first (plan mode): task IDs, files you will touch, schemas/SQL, tests, open questions. Wait for approval.
 3. Implement one task at a time: tests first for the listed IDs, then code, then `make check`.
-   **Gate every commit on `make check`'s exit status only: `make check && git commit ...`.** Never decide from its output (`make check | grep passed`, `; echo exit=$?` then commit): a pipeline or `;` lets a failing check through. Redirect the output to a log if it is long, but keep the `&&`.
+   **Gate every commit on `make check`'s exit status only: `make check && git commit ...`.** Never decide from its output (`make check | grep passed`, `; echo exit=$?` then commit): a pipeline or `;` lets a failing check through. Redirect the output to a log if it is long, but keep the `&&`. Before **pushing** a branch that touches `frontend/`, run `make check-all` (adds Playwright), since CI runs e2e and a per-commit `make check` does not.
 4. Commit per task: `P5.3: stale-record protection for master upserts`.
 5. New assumption? Add a `D-0xx` entry (status PROPOSED) to `docs/decisions.md` and mention it in your summary.
 6. Blocked on a Tally fact or a business decision? Stop, record it under Questions in `docs/progress.md`, and ask.
