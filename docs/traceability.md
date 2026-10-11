@@ -13,8 +13,8 @@ left to do.
 
 - Requirement IDs in the SRS: **328**
 - Fully covered by at least one test: **242**
-- Verified by hand: **10**
-- Accounted for but **not yet verified** (blocked): **28**
+- Verified by hand: **11**
+- Accounted for but **not yet verified** (blocked): **27**
 - Partially covered only: **48**
 - Not accounted for at all: **0**
 
@@ -331,6 +331,7 @@ left to do.
 | NFR-UI-2 | Touch interaction needs a real event stream |
 | NFR-MAINT-1 | "Kept in separate, version-controlled modules" is a property of the repository layout |
 | BKP-1.6 | "Agent queues are transient and not backed up" — again a requirement that something is absent, plus a recovery claim |
+| TEST-5.1 | End-to-end coverage across RBAC, drill-down totals, export/screen consistency and 360 px layout — a statement about a suite, not one behaviour |
 | AC-65 | Same as NFR-UI-1/2 |
 
 ## Accounted for but not yet verified
@@ -364,7 +365,6 @@ Each has an entry in manual-verification.md naming what it waits for.
 | BKP-1.5 | The restore drill (hosting) |
 | TEST-2.2 | The owner's Windows VM with TallyPrime |
 | TEST-4.1 | The owner's Windows VM |
-| TEST-5.1 | Browser tests for UC-10 and UC-14, UC-12 at 360 px, and a schedule-to-Agent run for UC-2 (our own work) |
 | TEST-5.2 | The benchmark machine |
 | AC-64 | The benchmark machine (P16.5 + the x64 PC) |
 
