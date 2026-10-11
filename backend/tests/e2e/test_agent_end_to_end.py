@@ -5,15 +5,17 @@ The harness these use lives in harness.py; SRS 20's use cases are in test_use_ca
 """
 
 import asyncio
+import re
 import sys
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
+import time_machine
 from sqlalchemy import func, select, text
 
 from app.jobs.reconciliation import reconcile_runs
@@ -24,12 +26,15 @@ from tally_agent.queue import BATCH
 from tally_contract.enums import CollectionType
 from tally_contract.records import AlterIdWindow, BatchEnvelope, CostCentreRecord
 from tally_contract.testing import assert_logged
+from tally_tools import dataset_gen, mock_tally
 from tally_tools.mock_tally import (
     MockConfig,
     Row,
     add_voucher,
+    company_guid,
     delete,
     edit_voucher,
+    load_dataset,
     sample_company,
 )
 from tests.e2e.harness import (
@@ -166,6 +171,113 @@ async def _reconciliation(
     assert r.status_code == 200, r.text
     body: dict[str, Any] = r.json()
     return body
+
+
+@pytest.mark.req_partial("REC-1.4")  # at size and live: P16.10
+async def test_the_generated_dataset_reconciles_with_its_own_closing_balances(
+    committed: Factory,
+    start_server: Any,
+    tally: tuple[MockConfig, int],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P16.5: the closing reports `dataset_gen` derives from its vouchers agree with what the
+    backend computes from the same vouchers - every ledger and stock item is compared and
+    none fails, at a date after the books end (income and expense have reset, ACC-9.2). Then one
+    ledger and one item are made to differ and exactly those two fail."""
+    mock, tally_port = tally
+    meta = dataset_gen.build(tmp_path / "data", vouchers=60)
+    data = load_dataset(tmp_path / "data").data
+    # the harness registers Sharma Traders, so the dataset's company record is that company
+    data["TA_Company"] = [
+        Row(
+            company_guid(SHARMA),
+            r.alter_id,
+            r.xml.replace(meta["company"]["guid"], company_guid(SHARMA)).replace(
+                meta["company"]["name"], SHARMA
+            ),
+        )
+        for r in data["TA_Company"]
+    ]
+    mock.data = data
+    with time_machine.travel(datetime(2026, 10, 11, 12, tzinfo=UTC), tick=True):
+        server = start_server()
+        company, owner, token = await _seed(committed)
+        await _register(server, tally_port, token, tmp_path / "agent")
+        agent = _agent(tmp_path / "agent", tally_port)
+        uploading = Uploading(agent)
+        try:
+            await _full(server, company, owner, agent)
+            passed = await _reconciliation(committed, server, company, owner)
+            assert passed["run"]["overall"] == "PASS", passed
+            assert passed["rows"] == []
+            # ledgers the generator gave no opening row (3%) are a Data Quality skip, not a failure
+            assert {(n["reason"], n["fails"]) for n in passed["not_compared"]} == {
+                ("opening balance unavailable (Data Quality)", False)
+            }
+            compared = passed["run"]["compared"]
+            assert compared >= len(mock.data["TA_LedgerClosing"]) - len(passed["not_compared"])
+            assert compared >= len(mock.data["TA_StockClosing"])
+
+            # A PASS alone cannot tell a match from comparisons that never ran. Change one
+            # ledger's balance in Tally and reconcile the same sync again. A stock quantity is
+            # read twice in one run (D-048 #3: the snapshot, then the comparison figure), so
+            # editing the XML would change both; Tally's answer has to change between the reads.
+            skipped = {n["entity_guid"] for n in passed["not_compared"]}
+            ledger = next(r for r in mock.data["TA_LedgerClosing"] if r.guid not in skipped)
+            item = mock.data["TA_StockClosing"][0]
+            value = re.search(r"<CLOSINGBALANCE>[^<]*<", ledger.xml)
+            assert value
+            mock.data["TA_LedgerClosing"] = [
+                Row(r.guid, r.alter_id, r.xml.replace(value[0], "<CLOSINGBALANCE>7777.00<"))
+                if r is ledger
+                else r
+                for r in mock.data["TA_LedgerClosing"]
+            ]
+            stock_reads = 0
+            real_body = mock_tally._data_body
+
+            def second_stock_read_differs(config: MockConfig, report: str, variables: Any) -> str:
+                nonlocal stock_reads
+                body = real_body(config, report, variables)
+                if report != "TA_StockClosing":
+                    return body
+                stock_reads += 1
+                if stock_reads == 1:  # the snapshot the run stores
+                    return body
+                return re.sub(  # the comparison figure read moments later
+                    rf"(<GUID>{item.guid}</GUID><ASOFDATE>[^<]*</ASOFDATE><CLOSINGQTY>)[^ <]*",
+                    r"\g<1>7777",
+                    body,
+                )
+
+            monkeypatch.setattr(mock_tally, "_data_body", second_stock_read_differs)
+            r = httpx.post(
+                f"{server.url}/companies/{company.company_id}/reconciliation/run",
+                json={},
+                headers=auth_header(owner),
+                trust_env=False,
+            )
+            assert r.status_code == 201, r.text
+            assert (await _run(agent)).status == "COMPLETED"
+            assert stock_reads >= 2
+            failed = await _reconciliation(committed, server, company, owner)
+            assert failed["run"]["overall"] == "FAIL"
+            assert not any(n["fails"] for n in failed["not_compared"])
+
+            def name(report: str, guid: str) -> str:
+                row = next(r for r in mock.data[report] if r.guid == guid)
+                found = re.search(r"<NAME>([^<]*)</NAME>", row.xml)
+                assert found
+                return found[1]
+
+            assert sorted((x["metric"], x["entity_name"]) for x in failed["rows"]) == [
+                ("LEDGER_BALANCE", name("TA_Ledgers", ledger.guid)),
+                ("STOCK_QTY", name("TA_StockItems", item.guid)),
+            ], failed["rows"]
+            assert {x["tally_value"] for x in failed["rows"]} == {"-7777.0000", "7777.0000"}
+        finally:
+            uploading.close()
 
 
 @pytest.mark.req("REC-1.4")
