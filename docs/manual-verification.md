@@ -12,11 +12,10 @@ and the acceptance run (P16.10) is where the blocked ones are reported as outsta
 
 Four honest categories, and it is worth being clear which is which:
 
-1. **Proved by a test this tool does not scan.** `tools/tally_tools/traceability.py` reads
-   `@pytest.mark.req` from the Python suites only; the Playwright and Vitest suites carry no such
-   markers. These requirements *are* tested — the row names the spec and the test title. Teaching
-   the scanner to read the TypeScript suites would turn these into ordinary covered rows, and is
-   the obvious next improvement.
+1. **Proved by tests that together cover the requirement, but no single one does.**
+   `tools/tally_tools/traceability.py` reads `@pytest.mark.req` from the Python suites and
+   `// @req` / `// @req_partial` comments from the Playwright and Vitest suites. A row of this kind
+   names the tests; each carries a `@req_partial` saying what it leaves to its neighbours.
 2. **Structural, and true by construction.** Enforced by the repository's layout, by
    import-linter, or by a guard already in the suite under a different id.
 3. **Needs a measurement.** A benchmark run, with its numbers recorded.
@@ -34,7 +33,6 @@ and an interim figure must never be quoted to a customer as what their PC will d
 
 | ID | Why it cannot be a test | How it is verified | Blocked on |
 |---|---|---|---|
-| FR-3.7 | A layout requirement: evidence and explanation in separate, clearly labelled areas | `frontend/e2e/pages.spec.ts` "the Anomalies section separates evidence from the explanation" and `src/pages/anomalies.test.tsx`, which assert two `aria-label`led regions | - |
 | FR-4.2 | The list of dashboard sections is a property of the built app's routes | `frontend/e2e/pages.spec.ts` walks all 20 `ROUTES` and asserts each renders its own `h1` | - |
 | NFR-UI-1 | Page-level horizontal scrolling can only be observed in a browser | `frontend/e2e/pages.spec.ts` `expectNoHorizontalScroll` on every route, in the 360 px project, with deliberately long names and wide tables | - |
 | NFR-UI-2 | Touch interaction needs a real event stream | `frontend/e2e/analytics.spec.ts` drives chart, filter, drill-down and export **by `tap()`** in the 360 px project, which Playwright configures with `hasTouch` | - |
@@ -76,21 +74,23 @@ and an interim figure must never be quoted to a customer as what their PC will d
 
 ## What this list says about the project
 
-Of the 41 rows, counted from `docs/traceability.md`:
+Of the 37 rows, counted from `docs/traceability.md`:
 
-- **11 are verified** and need nothing further: SEC-2.4, AGT-6.2, SYNC-5.5, FR-3.7, FR-4.2,
-  NFR-REL-1, NFR-UI-1, NFR-UI-2, NFR-MAINT-1, BKP-1.6, AC-65.
-- **11 wait on live Tally** — the capture kit or the Windows VM. The single largest dependency in
+- **10 are verified** and need nothing further: SEC-2.4, AGT-6.2, SYNC-5.5, FR-4.2, NFR-REL-1,
+  NFR-UI-1, NFR-UI-2, NFR-MAINT-1, BKP-1.6, AC-65.
+- **15 wait on live Tally** — the capture kit or the Windows VM. The single largest dependency in
   the project, and the reason all 37 gates are NOT_TESTED.
-- **7 wait on a benchmark run**, six of which are our own work (P16.5) and two of those then need
-  the real x64 PC.
+- **6 wait on a benchmark run** on the target hardware. (PERF-1.1 also has a row above, but a test
+  now covers it, so `docs/traceability.md` does not count it here.)
 - **4 wait on hosting**, all backup requirements.
-- **1 is our own work, not the owner's**: TEST-5.1 wants P16.7. (ACC-7.1 and ACC-8.1 left this
-  list when their source guard was written.) Listed honestly rather than marked verified.
+- **1 is our own work, not the owner's**: TEST-5.1 wants P16.7. Listed honestly rather than marked
+  verified.
 - **1 has no owner and no plan**: **NFR-UI-3** ("a non-technical owner can read the dashboard
   without training") cannot be self-assessed by the people who built it. It needs someone who has
   not seen the product to read the dashboard and say what was unclear. Flagged for the owner.
 
-Five of the eleven verified rows are only *unscanned*, not untested — they are Playwright tests.
-Teaching `traceability.py` to read `@req` annotations from the TypeScript suites would move them
-into the ordinary covered list and shrink this file, and is the obvious next improvement.
+FR-4.2, NFR-UI-1, NFR-UI-2 and AC-65 are tested in the TypeScript suites, which the scanner now
+reads (P16.9). They stay here because no single test proves each in full: the tests carry
+`// @req_partial` saying what each leaves out - for NFR-UI-1 that a wide table scrolls inside its
+own container, for NFR-UI-2 and AC-65 that changing a filter by touch is not exercised. Closing
+those gaps would move them to ordinary coverage.

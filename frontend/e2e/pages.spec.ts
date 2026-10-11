@@ -26,6 +26,8 @@ const ROUTES = [
 ];
 
 for (const section of ROUTES) {
+  // @req_partial NFR-UI-1 - page-level scroll on every route at 360 px; wide tables scrolling inside their own container is not asserted
+  // @req_partial FR-4.2 - every section route renders its own heading; which sections a role sees: company.test.tsx
   test(`${section}: fits the screen with long names and wide tables, under the CSP (NFR-UI-1)`, async ({
     page,
   }) => {
