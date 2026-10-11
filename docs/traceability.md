@@ -364,7 +364,7 @@ Each has an entry in manual-verification.md naming what it waits for.
 | BKP-1.5 | The restore drill (hosting) |
 | TEST-2.2 | The owner's Windows VM with TallyPrime |
 | TEST-4.1 | The owner's Windows VM |
-| TEST-5.1 | P16.7 (our own work) |
+| TEST-5.1 | Browser tests for UC-10 and UC-14, UC-12 at 360 px, and a schedule-to-Agent run for UC-2 (our own work) |
 | TEST-5.2 | The benchmark machine |
 | AC-64 | The benchmark machine (P16.5 + the x64 PC) |
 

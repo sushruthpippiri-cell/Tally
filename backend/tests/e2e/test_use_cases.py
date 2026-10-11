@@ -19,8 +19,8 @@ proven instead:
   and a flaky end-to-end test is worse than none. Added here only if a lease bug ever escapes
   the race suite.
 
-UC-10 to UC-14 are UI reviews, covered by the Playwright suites; the coverage map in
-docs/test-reports/phase-16.md records which spec answers which.
+UC-10 to UC-14 are UI reviews. docs/use-case-coverage.md records which test answers each use
+case, and what it leaves unproved.
 """
 
 import sys

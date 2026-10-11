@@ -49,7 +49,7 @@ and an interim figure must never be quoted to a customer as what their PC will d
 | PERF-VAL-2 | "Measured with the stated number of concurrent users" | The Locust run records its concurrency; the single-user figures in `docs/benchmarks/p8-analytics.md` state plainly that they are *not* PERF-VAL evidence | P16.5's benchmark run, then the real machine |
 | AC-64 | The acceptance form of PERF-1.x under SRS 17.2 conditions | The performance suite's recorded output | The benchmark machine (P16.5 + the x64 PC) |
 | TEST-5.2 | "Performance tests run under Section 17.2 conditions with full recording" | As AC-64 | The benchmark machine |
-| TEST-5.1 | End-to-end coverage across RBAC, drill-down totals, export/screen consistency and 360 px layout — a statement about a suite, not one behaviour | P16.7's use-case suite and its coverage map, plus the existing `backend/tests/e2e/test_agent_end_to_end.py` and the Playwright projects | P16.7 (our own work) |
+| TEST-5.1 | End-to-end coverage across RBAC, drill-down totals, export/screen consistency and 360 px layout — a statement about a suite, not one behaviour | `docs/use-case-coverage.md` maps every use case to its tests, kept true by `tools/tests/test_use_case_coverage.py`; the four named things are each covered (see its last section) | Browser tests for UC-10 and UC-14, UC-12 at 360 px, and a schedule-to-Agent run for UC-2 (our own work) |
 | BKP-1.1 | A provider's backup configuration | `docs/runbooks/restore.md` lists what must be true — daily full, continuous WAL, ≥ 30 days retention, same region, encrypted — and asks for each answer to be recorded | Hosting |
 | BKP-1.3 | Whether an alert reaches a person | `docs/runbooks/restore.md` requires alerting on the **absence** of a recent successful backup, not only on a reported failure, and that the alert be tested once on purpose | Hosting and an alerting destination |
 | BKP-1.4 | Recovery targets are met or not met by a real restore | D-056 #1 accepts RPO ≤ 24 h / RTO ≤ 4 h as the committed worst case; `restore_drill.sh` prints its own elapsed time so the achieved figures are recorded | Hosting and a staging environment |
@@ -83,7 +83,7 @@ Of the 37 rows, counted from `docs/traceability.md`:
 - **6 wait on a benchmark run** on the target hardware. (PERF-1.1 also has a row above, but a test
   now covers it, so `docs/traceability.md` does not count it here.)
 - **4 wait on hosting**, all backup requirements.
-- **1 is our own work, not the owner's**: TEST-5.1 wants P16.7. Listed honestly rather than marked
+- **1 is our own work, not the owner's**: TEST-5.1 wants three browser tests and a schedule-to-Agent run (P16.7's remainder). Listed honestly rather than marked
   verified.
 - **1 has no owner and no plan**: **NFR-UI-3** ("a non-technical owner can read the dashboard
   without training") cannot be self-assessed by the people who built it. It needs someone who has
