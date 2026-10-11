@@ -1,4 +1,5 @@
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Schemas } from "../api/types";
@@ -329,6 +330,42 @@ describe("required labels and states (P14.5)", () => {
     } satisfies Schemas["PaymentBehaviourOut"]);
     renderApp("/c/c-1/payment-behaviour");
     expect(await screen.findByText("insufficient history")).toBeInTheDocument();
+  });
+});
+
+describe("UC-12: the Product Attribution Difference review", () => {
+  it("opens from the Difference section to the vouchers that hold revenue not tied to a stock item", async () => {
+    serveCompanies(company());
+    serve("/analytics/sales", metric("sales"));
+    serve("/analytics/product-revenue", metric("product-revenue", { summary: figure("900.00") }));
+    serve(
+      "/analytics/product-difference",
+      metric("product-difference", {
+        label: "Product Attribution Difference",
+        summary: figure("100.00"),
+      }),
+    );
+    serve("/analytics/product-difference/drilldown", {
+      metric: "product-difference",
+      filters_applied: applied,
+      total: "100.00",
+      total_rows: 1,
+      page: 1,
+      page_size: 50,
+      rows: [row("100.00", 7)],
+    } satisfies Schemas["DrilldownOut"]);
+    const user = userEvent.setup();
+    renderApp("/c/c-1/sales");
+    await user.click(
+      await screen.findByRole("link", {
+        name: "See every voucher behind Product Attribution Difference",
+      }),
+    );
+    expect(await screen.findByText("SI/7")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "SI/7" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/c/c-1/vouchers/v-7"),
+    );
   });
 });
 
