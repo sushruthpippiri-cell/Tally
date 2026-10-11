@@ -4,7 +4,14 @@ import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Schemas } from "../api/types";
 import { setAccessToken } from "../lib/session";
-import { accountant, admin, company, serve, serveCompanies } from "../test/fixtures";
+import {
+  accountant,
+  admin,
+  company,
+  serve,
+  serveCompanies,
+  serveEmptyMetrics,
+} from "../test/fixtures";
 import { renderApp } from "../test/render";
 import { server, withMockApi } from "../test/server";
 
@@ -57,6 +64,7 @@ describe("the Anomalies section (SRS 12)", () => {
   // @req_partial FR-4.2 - Anomalies only when enabled; the other sections: company.test.tsx and pages.spec.ts
   it("is not listed at all while the feature flag is off (FR-3.1)", async () => {
     serveCompanies(company()); // anomaly_detection_enabled: false
+    serveEmptyMetrics("product-revenue", "product-difference");
     serve("/analytics/sales", {
       metric: "sales",
       filters_applied: {
