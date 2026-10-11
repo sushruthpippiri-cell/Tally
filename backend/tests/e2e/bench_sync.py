@@ -19,13 +19,20 @@ import json
 import os
 import re
 import time
+from collections import Counter
+from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
+import time_machine
 from sqlalchemy import func, select
 
+from app.jobs.reconciliation import reconcile_runs
+from app.jobs.runner import LOCK_RECONCILE_RUNS, run_exclusive
+from app.models.agents import AgentCommand
 from app.models.enums import RoleName
 from app.models.vouchers import Voucher, VoucherEntry
 from tally_agent.backend_client import BackendClient
@@ -89,6 +96,29 @@ def _render(t: dict[str, Any]) -> str:
             f"| PERF-1.3 incremental ({incr['changed']} changed) | 2 min "
             f"| **{incr['seconds'] / 60:.1f} min** | {incr['seconds'] / 120:.0%} |"
         )
+    rec = t.get("reconciliation")
+    if rec:
+        lines += [
+            "",
+            "## Reconciliation at this size (REC-1.x)",
+            "",
+            "The reconciliation the full sync queues, on the same 100,000 vouchers. The Agent",
+            "reads Tally's totals, key lists and closing balances from the mock; the comparison",
+            "job then checks them against what the backend holds. An engineering measurement - no",
+            "budget is set for it in SRS 17 - and, like the rest, not evidence under PERF-VAL-1.",
+            "",
+            "| | |",
+            "|---|---|",
+            f"| Result | **{rec['overall']}** - {rec['compared']:,} compared, "
+            f"{rec['failed']} failed |",
+            f"| Agent reading Tally and uploading | {rec['agent_seconds']} s "
+            f"({rec['megabytes_uploaded']} MB) |",
+            f"| Comparison job | {rec['compare_seconds']} s |",
+            f"| Not compared | {rec['not_compared'] or 'none'} |",
+        ]
+        if rec["failures"]:
+            lines += ["", "Failing rows (first 20):", ""]
+            lines += [f"- {m} `{n}`: Tally {tv}, local {lv}" for m, n, tv, lv in rec["failures"]]
     lines += [
         "",
         "## Upload volume, and what a real link would add",
@@ -133,6 +163,15 @@ EDITS = 500  # PERF-1.3's "about 500 changed records"
 pytestmark = pytest.mark.timeout(0)
 
 __all__ = ["start_server"]
+
+
+@pytest.fixture(autouse=True)
+def after_the_books_end() -> Iterator[None]:
+    """The suite's clock is mid-books (2026-03-16); the dataset's books end 2026-03-31, and
+    Tally's closing balances in it are for a date after that. Reconciliation compares as of
+    "today", so today has to be after the books end - as it is on any real day."""
+    with time_machine.travel(datetime(2026, 10, 11, 12, tzinfo=UTC), tick=True):
+        yield
 
 
 def _touch(config: MockConfig, count: int) -> int:
@@ -224,6 +263,34 @@ async def _counts(committed: Factory) -> tuple[int, int]:
         )
 
 
+async def _last_completed_mode(committed: Factory) -> str:
+    """Which sync mode the Agent most recently completed. The Agent runs the oldest command, so a
+    command queued behind another (a FULL sync queues a RECONCILIATION) is not the next one it
+    runs; a figure for "the incremental" that was really the reconciliation looks just like one."""
+    async with committed() as s:
+        return str(
+            await s.scalar(
+                select(AgentCommand.sync_mode)
+                .where(AgentCommand.completed_at.is_not(None))
+                .order_by(AgentCommand.completed_at.desc())
+                .limit(1)
+            )
+        )
+
+
+def _reconciliation(server: Server, company: Any, owner: Any) -> dict[str, Any]:
+    r = httpx.get(
+        f"{server.url}/companies/{company.company_id}/reconciliation",
+        params={"only_failures": True, "page_size": 200},
+        headers=auth_header(owner),
+        trust_env=False,
+        timeout=120,
+    )
+    assert r.status_code == 200, r.text
+    body: dict[str, Any] = r.json()
+    return body
+
+
 def _sync(server: Server, company: Any, owner: Any, mode: str) -> None:
     r = httpx.post(
         f"{server.url}/companies/{company.company_id}/sync",
@@ -299,6 +366,35 @@ async def test_full_then_incremental_sync_of_the_benchmark_dataset(
             assert outcome.status == "COMPLETED", outcome
             assert vouchers == manifest["database_rows"]["vouchers"]
 
+            assert await _last_completed_mode(committed) == "FULL"
+
+            # REC-1.x at the SRS 17.2 size: the reconciliation the FULL sync queued. The Agent
+            # reads Tally's totals and key lists (the mock answers from the same 100,000
+            # vouchers), then the comparison job runs. Recorded and reported, never asserted.
+            before = meter.uploaded
+            started = time.perf_counter()
+            outcome = await _run(agent)
+            agent_seconds = time.perf_counter() - started
+            assert outcome.status == "COMPLETED", outcome
+            assert await _last_completed_mode(committed) == "RECONCILIATION"
+            started = time.perf_counter()
+            await run_exclusive(LOCK_RECONCILE_RUNS, reconcile_runs, committed)
+            compare_seconds = time.perf_counter() - started
+            result = _reconciliation(server, company, owner)
+            timings["reconciliation"] = {
+                "agent_seconds": round(agent_seconds, 1),
+                "compare_seconds": round(compare_seconds, 1),
+                "megabytes_uploaded": round((meter.uploaded - before) / 1e6, 2),
+                "overall": result["run"]["overall"],
+                "compared": result["run"]["compared"],
+                "failed": result["run"]["failed"],
+                "failures": [
+                    (r["metric"], r["entity_name"], r["tally_value"], r["local_value"])
+                    for r in result["rows"][:20]
+                ],
+                "not_compared": dict(Counter(n["reason"] for n in result["not_compared"])),
+            }
+
             # PERF-1.3
             before = meter.uploaded
             changed = _touch(mock, EDITS)
@@ -313,6 +409,7 @@ async def test_full_then_incremental_sync_of_the_benchmark_dataset(
                 "megabytes_uploaded": round((meter.uploaded - before) / 1e6, 2),
             }
             assert outcome.status == "COMPLETED", outcome
+            assert await _last_completed_mode(committed) == "INCREMENTAL"
         finally:
             uploading.close()
             meter.__exit__()

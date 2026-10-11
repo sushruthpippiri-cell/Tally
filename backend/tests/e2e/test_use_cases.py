@@ -1,10 +1,11 @@
 """P16.7: SRS Section 20's use cases, end to end (TEST-5.1).
 
-UC-1, UC-2 and UC-4 are covered by test_agent_end_to_end.py. Three more are added here, each of
+UC-1 and UC-4 are covered by test_agent_end_to_end.py. Four more are added here, each of
 which had no end-to-end presence at all: every one was tested where the Agent is a fixture
 rather than the real program, so nothing showed the two halves agreeing.
 
-  UC-5's cancellation half, UC-8 (the Agent lost mid-command) and UC-9 (credential rotation).
+  UC-2 (a schedule firing to the Agent running its command), UC-5's cancellation half, UC-8
+  (the Agent lost mid-command) and UC-9 (credential rotation).
 
 **UC-6 and UC-7 are deliberately not here**, and are marked `req_partial` where they are
 proven instead:
@@ -24,20 +25,24 @@ case, and what it leaves unproved.
 """
 
 import sys
+from datetime import datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
-from sqlalchemy import select
+import time_machine
+from sqlalchemy import func, select
 
 from app.jobs.commands import command_timeouts
-from app.jobs.runner import LOCK_COMMAND_TIMEOUTS, run_exclusive
+from app.jobs.runner import LOCK_COMMAND_TIMEOUTS, LOCK_FIRE_SCHEDULES, run_exclusive
+from app.jobs.schedules import fire_schedules
 from app.models.agents import Agent as AgentRow
 from app.models.agents import AgentCommand
 from app.models.config import AuditLog
-from app.models.vouchers import Voucher
-from tally_tools.mock_tally import MockConfig, cancel_voucher
+from app.models.vouchers import Voucher, VoucherEntry
+from tally_tools.mock_tally import MockConfig, cancel_voucher, edit_voucher
 from tests.e2e.harness import (
     Server,
     Uploading,
@@ -78,6 +83,78 @@ async def _ready(
 async def _vouchers(committed: Factory) -> int:
     async with committed() as s:
         return len((await s.scalars(select(Voucher.voucher_id))).all())
+
+
+# --- UC-2: a schedule fires, and the Agent runs the command it created ------------------
+
+
+@pytest.mark.req_partial(
+    "RTE-1.3"
+)  # the schedule is bound to its Agent: tests/api/test_schedules.py
+async def test_uc2_a_schedule_firing_gives_the_agent_a_command_it_then_runs(
+    committed: Factory, start_server: Any, tally: tuple[MockConfig, int], tmp_path: Path
+) -> None:
+    """The two halves of UC-2 were proved apart: the job that turns a schedule into a command
+    (tests/jobs/test_schedule_jobs.py) and the Agent running an INCREMENTAL command (here, via
+    `_sync_now`). This is the join: an Owner creates the schedule, the clock reaches its time, the
+    job creates the command with no user behind it, and the Agent - which only ever polls -
+    claims it, pulls what changed above its watermark, and the dashboard's data moves."""
+    mock, tally_port = tally
+    server, company, owner, agent, uploading = await _ready(
+        committed, start_server, tally_port, tmp_path
+    )
+    try:
+        async with committed() as s:
+            agent_id = (await s.scalars(select(AgentRow.agent_id))).one()
+        created = httpx.post(
+            f"{server.url}/companies/{company.company_id}/sync-schedules",
+            json={
+                "agent_id": str(agent_id),
+                "cron_expression": "0 * * * *",
+                "sync_mode": "INCREMENTAL",
+            },
+            headers=auth_header(owner),
+            trust_env=False,
+        )
+        assert created.status_code == 201, created.text
+        next_fire = created.json()["next_fire_at"]
+        assert next_fire is not None
+
+        edit_voucher(mock, "v-3", "2360.00")  # changed in Tally since the first sync
+        async with committed() as s:
+            assert not (
+                await s.scalars(
+                    select(AgentCommand).where(
+                        AgentCommand.created_by.is_(None), AgentCommand.sync_mode == "INCREMENTAL"
+                    )
+                )
+            ).all(), "nothing has fired yet"
+
+        fire_at = datetime.fromisoformat(next_fire.replace("Z", "+00:00")) + timedelta(seconds=30)
+        with time_machine.travel(fire_at, tick=True):
+            # the Agent's default schedules (D-036 #6) are due in the same minute
+            assert (await run_exclusive(LOCK_FIRE_SCHEDULES, fire_schedules, committed) or 0) >= 1
+            outcome = await _run(agent)
+
+        assert outcome.status == "COMPLETED"
+        async with committed() as s:
+            fired = (
+                await s.scalars(
+                    select(AgentCommand).where(
+                        AgentCommand.created_by.is_(None), AgentCommand.sync_mode == "INCREMENTAL"
+                    )
+                )
+            ).all()
+            amount = await s.scalar(
+                select(func.max(VoucherEntry.amount_absolute))
+                .join(Voucher, Voucher.voucher_id == VoucherEntry.voucher_id)
+                .where(Voucher.tally_guid == "v-3")
+            )
+        assert fired, "the scheduler made no INCREMENTAL command"
+        assert "COMPLETED" in {c.status for c in fired}  # the Agent ran one of them
+        assert amount == Decimal("2360.00")  # the scheduled run pulled the edit
+    finally:
+        uploading.close()
 
 
 # --- UC-5: a cancelled voucher becomes CANCELLED, and its row is never deleted ----------
