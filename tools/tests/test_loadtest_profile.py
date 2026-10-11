@@ -52,7 +52,9 @@ def _frontend_analytics() -> set[str]:
     return set(re.findall(r'\["([a-z-]+)",\s*"', block.group(1)))
 
 
-@pytest.mark.req("PERF-1.1")
+@pytest.mark.req_partial(
+    "PERF-1.1"
+)  # keeps the measurement honest; the <= 3 s figure needs PERF-VAL-1 hardware
 def test_the_profile_requests_the_figures_the_home_page_requests() -> None:
     assert set(locustfile.HOME_ANALYTICS) == _frontend_analytics()
 
@@ -82,7 +84,7 @@ def test_the_layouts_availability_probe_is_in_the_profile() -> None:
     assert locustfile.LAYOUT_PROBE == ("payment-behaviour",)
 
 
-@pytest.mark.req("PERF-1.1")
+@pytest.mark.req_partial("PERF-1.1")  # as above: what the measurement requests, not the time
 def test_product_difference_is_not_on_the_home_view() -> None:
     """It is a data-quality figure, not a headline (FR-4.1 lists six things and it is not one),
     and on the SRS 17.2 dataset it is the most expensive single figure there is. It loads when
