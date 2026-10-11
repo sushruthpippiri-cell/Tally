@@ -74,14 +74,15 @@ and an interim figure must never be quoted to a customer as what their PC will d
 
 ## What this list says about the project
 
-Of the 37 rows, counted from `docs/traceability.md`:
+Of the 38 rows, counted from `docs/traceability.md`:
 
 - **10 are verified** and need nothing further: SEC-2.4, AGT-6.2, SYNC-5.5, FR-4.2, NFR-REL-1,
   NFR-UI-1, NFR-UI-2, NFR-MAINT-1, BKP-1.6, AC-65.
 - **15 wait on live Tally** — the capture kit or the Windows VM. The single largest dependency in
   the project, and the reason all 37 gates are NOT_TESTED.
-- **6 wait on a benchmark run** on the target hardware. (PERF-1.1 also has a row above, but a test
-  now covers it, so `docs/traceability.md` does not count it here.)
+- **7 wait on a benchmark run** on the target hardware. PERF-1.1 is one of them: the two tests
+  that mention it only check that the load profile requests what the home page requests, so they
+  are `req_partial`, and the Mac figures are interim evidence (see its row).
 - **4 wait on hosting**, all backup requirements.
 - **1 is our own work, not the owner's**: TEST-5.1 wants three browser tests and a schedule-to-Agent run (P16.7's remainder). Listed honestly rather than marked
   verified.
