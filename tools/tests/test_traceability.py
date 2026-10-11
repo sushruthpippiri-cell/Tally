@@ -1,7 +1,9 @@
 from pathlib import Path
 
+import pytest
+
 from tally_tools import traceability
-from tally_tools.traceability import markers_by_id, render, requirement_ids
+from tally_tools.traceability import markers_by_id, render, requirement_ids, ts_markers_by_id
 
 SAMPLE_SRS = """# 6. Synchronization
 ```text
@@ -156,3 +158,61 @@ def test_the_report_keeps_covered_verified_and_blocked_apart() -> None:
     assert "SEC-1.1" in report.split("## Not accounted for at all")[1]
     # A partial test is never counted as covered (CLAUDE.md).
     assert "TZ-1.1" not in report.split("## Covered")[1].split("##")[0]
+
+
+SAMPLE_TS = """
+import { test } from "@playwright/test";
+
+// @req FR-3.7, NFR-UI-1
+test("a full proof", async () => {});
+
+// @req_partial NFR-UI-2 - filters by touch are not covered
+// a note between the marker and the test is fine
+it(
+  `a template title`,
+  () => {},
+);
+
+// @req AC-06
+test.skip("still a test", () => {});
+
+test("unmarked", () => {});
+"""
+
+
+def _ts(tmp_path: Path, text: str, name: str = "a.spec.ts") -> None:
+    (tmp_path / "frontend/e2e").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "frontend/e2e" / name).write_text(text, encoding="utf-8")
+
+
+def test_ts_markers_read_req_and_req_partial_above_tests(tmp_path: Path) -> None:
+    _ts(tmp_path, SAMPLE_TS)
+    full = ts_markers_by_id(tmp_path, dirs=("frontend/e2e",))
+    assert full == {
+        "FR-3.7": ["frontend/e2e/a.spec.ts::a full proof"],
+        "NFR-UI-1": ["frontend/e2e/a.spec.ts::a full proof"],
+        "AC-06": ["frontend/e2e/a.spec.ts::still a test"],
+    }
+    partial = ts_markers_by_id(tmp_path, dirs=("frontend/e2e",), marker="req_partial")
+    assert partial == {"NFR-UI-2": ["frontend/e2e/a.spec.ts::a template title"]}
+
+
+def test_ts_files_that_are_not_tests_are_ignored(tmp_path: Path) -> None:
+    _ts(tmp_path, SAMPLE_TS, name="helpers.ts")
+    assert ts_markers_by_id(tmp_path, dirs=("frontend/e2e",)) == {}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '// @req FR-3.7\nconst x = 1;\ntest("later", () => {});\n',  # code between
+        '// @req\ntest("no id", () => {});\n',
+        "// @req FR-3.7\n",  # nothing below
+    ],
+)
+def test_a_misplaced_ts_marker_fails_loudly_rather_than_dropping_coverage(
+    tmp_path: Path, text: str
+) -> None:
+    _ts(tmp_path, text)
+    with pytest.raises(ValueError, match=r"a\.spec\.ts:1"):
+        ts_markers_by_id(tmp_path, dirs=("frontend/e2e",))

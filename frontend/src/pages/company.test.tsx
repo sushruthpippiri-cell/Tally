@@ -62,6 +62,7 @@ describe("companies (P13.4)", () => {
 });
 
 describe("role-aware navigation (RBAC-1.1, UI side)", () => {
+  // @req_partial FR-4.2 - the section list for an Owner; Anomalies and the Accountant's list are in neighbouring tests
   it("shows an Owner every section", async () => {
     companies(company());
     renderApp("/c/c-1/home");
@@ -91,6 +92,7 @@ describe("role-aware navigation (RBAC-1.1, UI side)", () => {
     );
   });
 
+  // @req_partial FR-4.2 - Settings role-restricted; the full list is in the Owner test
   it("hides Settings and Users from an Accountant", async () => {
     companies(company({ my_roles: ["ACCOUNTANT"], my_permissions: ACCOUNTANT }));
     renderApp("/c/c-1/home");

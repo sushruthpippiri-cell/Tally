@@ -10,6 +10,7 @@ async function press(target: Locator, mobile: boolean): Promise<void> {
   else await target.click();
 }
 
+// @req_partial NFR-UI-2, AC-65 - this interaction by touch in the 360 px project; changing a filter by touch is not covered
 test("a chart bar opens its exact figure, then drills into that month's vouchers", async ({
   page,
 }, info) => {
@@ -41,6 +42,7 @@ test("a period chosen in the filters stays in the URL and in every section link 
   await expectNoHorizontalScroll(page);
 });
 
+// @req_partial NFR-UI-2, AC-65 - this interaction by touch in the 360 px project; changing a filter by touch is not covered
 test("a breakdown row drills to its vouchers, and a voucher opens by touch (FR-DD-1)", async ({
   page,
 }, info) => {
@@ -55,6 +57,7 @@ test("a breakdown row drills to its vouchers, and a voucher opens by touch (FR-D
   await expectNoHorizontalScroll(page);
 });
 
+// @req_partial NFR-UI-2, AC-65 - this interaction by touch in the 360 px project; changing a filter by touch is not covered
 test("a section exports to CSV and to PDF, by touch, under the CSP (EXP-1.1)", async ({
   page,
 }, info) => {

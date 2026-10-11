@@ -54,6 +54,7 @@ function listing(extra: Partial<Schemas["AnomaliesOut"]> = {}): Schemas["Anomali
 const enabled = () => company({ anomaly_detection_enabled: true });
 
 describe("the Anomalies section (SRS 12)", () => {
+  // @req_partial FR-4.2 - Anomalies only when enabled; the other sections: company.test.tsx and pages.spec.ts
   it("is not listed at all while the feature flag is off (FR-3.1)", async () => {
     serveCompanies(company()); // anomaly_detection_enabled: false
     serve("/analytics/sales", {
@@ -82,6 +83,7 @@ describe("the Anomalies section (SRS 12)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // @req FR-3.7
   it("keeps the evidence and the explanation in separate labelled areas (FR-3.7)", async () => {
     serveCompanies(enabled());
     serve("/anomalies", listing());
