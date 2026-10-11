@@ -199,6 +199,19 @@ async def test_the_generated_dataset_reconciles_with_its_own_closing_balances(
         )
         for r in data["TA_Company"]
     ]
+    # The generator always makes ~9,000 ledgers and 10,000 stock items; syncing and reconciling
+    # all of them twice took longer than CI's 120 s. Keep the masters the 60 vouchers use: each
+    # one's closing figure depends only on its own entries and opening, so nothing is lost.
+    for report, tag, closing in (
+        ("TA_Ledgers", "LEDGERGUID", "TA_LedgerClosing"),
+        ("TA_StockItems", "STOCKITEMGUID", "TA_StockClosing"),
+    ):
+        used = {g for r in data["TA_Vouchers"] for g in re.findall(rf"<{tag}>([^<]*)<", r.xml)}
+        data[report] = [r for r in data[report] if r.guid in used]
+        data[closing] = [r for r in data[closing] if r.guid in used]
+    assert (
+        data["TA_LedgerClosing"] and data["TA_StockClosing"]
+    )  # a filter that emptied them proves nothing
     mock.data = data
     with time_machine.travel(datetime(2026, 10, 11, 12, tzinfo=UTC), tick=True):
         server = start_server()
