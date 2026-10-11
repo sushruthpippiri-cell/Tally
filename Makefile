@@ -3,7 +3,7 @@ COMPOSE := docker compose -f deploy/docker-compose.yml
 PHASE ?= dev
 TEST_DB_URL ?= postgresql+psycopg://tally_owner:tally_owner_dev@localhost:5432/tally_test
 
-.PHONY: up down migrate test test-backend test-agent lint format typecheck importlint check dev-tls dev-https \
+.PHONY: up down migrate test test-backend test-agent lint format typecheck importlint frontend-check check check-all dev-tls dev-https \
         traceability phase-report hooks capture-kit update-fixtures dataset bench-data bench-sync \
         bench-analytics \
         loadtest loadtest-bench demo-data
@@ -43,7 +43,13 @@ typecheck:
 importlint:
 	uv run lint-imports
 
-check: lint typecheck importlint test  ## Run before calling any task done
+frontend-check:  ## Frontend fast checks: lint, typecheck, API types, Vitest
+	cd frontend && npm run lint && npm run typecheck && npm run gen:api:check && npm test
+
+check: lint typecheck importlint frontend-check test  ## Run before calling any task done
+
+check-all: check  ## check + Playwright; run before pushing a branch that touches frontend/
+	cd frontend && npm run e2e
 
 traceability:
 	uv run python -m tally_tools.traceability --check
