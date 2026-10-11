@@ -188,6 +188,119 @@ def test_the_caller_and_table_guards_catch() -> None:
     assert detail_query_callers({"analytics/query.py": dashboard}) == []
 
 
+# --- classification never reads a name or an immediate parent (ACC-7.1, ACC-8.1) ----------
+
+# A ledger is classified by its resolved primary group (`classification_group_id`) and a voucher
+# by `base_voucher_type`. Names are for display: they may be selected and labelled, never compared,
+# matched, filtered or joined on. The immediate parent is never read at all. Scoped to the
+# packages that produce figures; sync and the services own the masters and resolve the chains.
+CLASSIFYING = ("analytics/", "exports/", "reconciliation/")
+NAME_FIELDS = {"name", "ledger_name", "group_name", "voucher_type_name", "party_name"}
+PARENT_FIELDS = {"parent_group_id", "parent_voucher_type_id"}
+# `reserved_name` identifies a predefined group, which is how an allow-list entry (ACC-7.3) is
+# turned into group ids - once, in classification.py, and nowhere a metric could reuse it.
+RESERVED_NAME_MODULE = "analytics/classification.py"
+PREDICATE_METHODS = {
+    "in_", "not_in", "notin_", "like", "ilike", "not_like", "startswith", "endswith", "contains",
+    "match", "regexp_match", "op", "is_", "is_not", "isnot", "between", "any_", "all_",
+}  # fmt: skip
+CLAUSES = {"where", "filter", "filter_by", "having", "join", "outerjoin", "case"}
+
+
+def _ident(node: ast.AST) -> str:
+    return (
+        node.attr
+        if isinstance(node, ast.Attribute)
+        else node.id
+        if isinstance(node, ast.Name)
+        else ""
+    )
+
+
+def _in_predicate(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> bool:
+    """Whether a name is compared, matched, filtered or joined on - as opposed to selected."""
+    child = node
+    while child in parents and not isinstance(child, ast.stmt):
+        parent = parents[child]
+        if isinstance(parent, ast.Compare):
+            return True
+        if isinstance(parent, ast.Attribute) and parent.value is child:
+            if parent.attr == "label":
+                return False  # `.label()` ends the expression: it is being named, not tested
+            if parent.attr in PREDICATE_METHODS:
+                return True
+        if isinstance(parent, ast.Call) and child is not parent.func:
+            func = _ident(parent.func)
+            if func in CLAUSES:
+                return True
+        child = parent
+    return False
+
+
+def classification_by_name(sources: dict[str, str]) -> list[str]:
+    found = []
+    for path, src in sources.items():
+        if not path.startswith(CLASSIFYING):
+            continue
+        tree = ast.parse(src)
+        parents = {c: p for p in ast.walk(tree) for c in ast.iter_child_nodes(p)}
+        for node in ast.walk(tree):
+            name = _ident(node)
+            where = f"{path}:{getattr(node, 'lineno', '?')}: {name}"
+            if name in PARENT_FIELDS or (name == "reserved_name" and path != RESERVED_NAME_MODULE):
+                found.append(where)
+            elif (
+                name in NAME_FIELDS
+                # a bare `name` is any loop variable (a metric, a filter); `x.name` is a column
+                and (name != "name" or isinstance(node, ast.Attribute))
+                and _in_predicate(node, parents)
+            ):
+                found.append(where)
+    return found
+
+
+@pytest.mark.req("ACC-7.1", "ACC-8.1")
+def test_no_figure_classifies_by_a_name_or_an_immediate_parent() -> None:
+    assert classification_by_name(_app_sources()) == []
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        "q = select(E).where(L.name == 'Sales Accounts')",
+        "q = select(E).where(VT.name.in_(['Sales', 'POS Invoice']))",
+        "q = select(E).where(func.lower(L.name).like('%sales%'))",
+        "q = select(E).join(G, G.name == 'Sundry Debtors')",
+        "ok = row.voucher_type_name == 'Sales'",
+        "ok = ledger_name.startswith('Sales')",
+        "q = select(E).where(G.parent_group_id == sales_id)",
+        "x = VT.parent_voucher_type_id",
+        "q = select(G).where(G.reserved_name == 'Sales Accounts')",
+        "w = case((VT.name == 'Sales', E.amount_absolute), else_=0)",
+    ],
+)
+def test_the_classification_guard_catches(src: str) -> None:
+    for package in CLASSIFYING:
+        assert classification_by_name({f"{package}x.py": src}), src
+    assert not classification_by_name({"sync/hierarchy.py": src})  # the masters' own side
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        "q = select(L.name.label('ledger_name'), E.amount_absolute)",
+        "q = select(VT.name.label('voucher_type_name')).where(VT.base_voucher_type == base)",
+        "q = select(E).where(L.classification_group_id.in_(ids))",
+        "q = select(E).join(G, G.group_id == L.classification_group_id)",
+        "q = select(E).where(E.x.in_(select(L.name.label('n')).scalar_subquery()))",
+        "rows = sorted(rows, key=lambda r: r.ledger_name)",
+    ],
+)
+def test_the_classification_guard_lets_display_names_through(src: str) -> None:
+    assert classification_by_name({"analytics/metrics/sales.py": src}) == []
+    assert classification_by_name({"analytics/classification.py": "x = G.reserved_name"}) == []
+
+
 # --- anomaly evidence never reaches an accounting figure (ACC-4.6) ----------------------
 
 # The direction that matters: an accounting figure must never be derived from an anomaly flag.
