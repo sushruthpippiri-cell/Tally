@@ -68,6 +68,32 @@ export function serve(path: string, body: Parameters<typeof HttpResponse.json>[0
   server.use(http.get(`*/api/companies/c-1${path}`, () => HttpResponse.json(body)));
 }
 
+/** An empty answer for an analytics endpoint a test renders but is not about. A request nobody
+ * serves is an MSW error, and one that lands after the test has ended is an unhandled rejection
+ * that fails the whole Vitest run - intermittently, which is how it was found. */
+export function serveEmptyMetrics(...names: string[]): void {
+  for (const name of names) {
+    serve(`/analytics/${name}`, {
+      metric: name,
+      filters_applied: {
+        date_from: "2025-04-01",
+        date_to: "2026-03-16",
+        granularity: "month",
+        group_by: "ledger",
+        include_cancelled: false,
+        include_missing: false,
+        by: [],
+        not_applicable: [],
+      },
+      company_timezone: "Asia/Kolkata",
+      summary: { amount: "0.00", available: true, unavailable_count: 0, unavailable_ledgers: [] },
+      series: [],
+      breakdown: [],
+      notes: [],
+    } satisfies Schemas["MetricOut"]);
+  }
+}
+
 export function agent(overrides: Partial<Schemas["AgentOut"]> = {}): Schemas["AgentOut"] {
   return {
     agent_id: "a-1",

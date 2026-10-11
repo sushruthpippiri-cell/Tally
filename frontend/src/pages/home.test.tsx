@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { setAccessToken } from "../lib/session";
-import { agent, company, serve, serveCompanies } from "../test/fixtures";
+import { agent, company, serve, serveCompanies, serveEmptyMetrics } from "../test/fixtures";
 import { renderApp } from "../test/render";
 import { server, withMockApi } from "../test/server";
 
@@ -15,6 +15,7 @@ const NO_SCHEDULE = "NO_ACTIVE_SCHEDULE: an Agent is ACTIVE but no schedule is a
 describe("Home (P13.10)", () => {
   it("shows every warning from sync, reconciliation and Agents", async () => {
     serveCompanies(company());
+    serveEmptyMetrics("sales", "cash-bank-position", "receivables", "payables");
     serve("/sync/status", {
       warnings: [INITIAL],
       collections: [],
