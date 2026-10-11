@@ -11,9 +11,9 @@ separately below and are **not** verified: they are what the acceptance run (P16
 left to do.
 
 - Requirement IDs in the SRS: **328**
-- Fully covered by at least one test: **240**
+- Fully covered by at least one test: **242**
 - Verified by hand: **11**
-- Accounted for but **not yet verified** (blocked): **29**
+- Accounted for but **not yet verified** (blocked): **27**
 - Partially covered only: **48**
 - Not accounted for at all: **0**
 
@@ -91,8 +91,10 @@ left to do.
 | FR-1.4 | agent/tests/test_agent_sync.py::test_the_heartbeat_reports_what_is_wrong_with_tally |
 | VAL-1.2 | backend/tests/sync/test_full_only.py::test_a_scheduled_incremental_run_syncs_a_full_only_collection_by_full_pull |
 | ACC-VAL-1 | backend/tests/api/test_rankings.py::test_exactly_one_difference_label |
+| ACC-7.1 | backend/tests/analytics/test_architecture.py::test_no_figure_classifies_by_a_name_or_an_immediate_parent |
 | ACC-7.2 | backend/tests/sync/test_hierarchy.py::test_example_1_nested_user_groups_roll_up_to_sales_accounts |
 | ACC-7.5 | backend/tests/sync/test_hierarchy.py::test_a_reparented_group_is_recalculated_with_everything_beneath_it_and_logged |
+| ACC-8.1 | backend/tests/analytics/test_architecture.py::test_no_figure_classifies_by_a_name_or_an_immediate_parent |
 | ACC-1.1 | backend/tests/analytics/test_sales.py::test_total_sales_revenue_as_acc_1_1_defines_it |
 | ACC-2.1 | backend/tests/analytics/test_sales.py::test_sales_is_the_sum_of_sales_credits_and_nothing_else |
 | ACC-6.1 | backend/tests/analytics/test_attribution.py::test_a_sale_to_one_customer_is_that_customers |
@@ -348,8 +350,6 @@ Each has an entry in manual-verification.md naming what it waits for.
 | DR-VE-2 | DR-VE-1, so the capture kit |
 | DR-ML-5 | GATE-G29: the capture kit |
 | VAL-1.3 | The capture kit: all 37 gates are NOT_TESTED, so nothing has been recorded yet |
-| ACC-7.1 | A source guard (our own work, not the owner's) |
-| ACC-8.1 | A source guard (our own work) |
 | FR-STK-8 | GATE-G27: the capture kit |
 | FR-STK-9 | GATE-G27 |
 | PERF-1.2 | Target hardware and **real Tally**. The mock has no extraction cost and loopback has no transfer cost, so the interim figure measures only our own share |
