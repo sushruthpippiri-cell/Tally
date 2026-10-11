@@ -7,13 +7,14 @@ The harness these use lives in harness.py; SRS 20's use cases are in test_use_ca
 import asyncio
 import sys
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
+import time_machine
 from sqlalchemy import func, select, text
 
 from app.jobs.reconciliation import reconcile_runs
@@ -24,12 +25,15 @@ from tally_agent.queue import BATCH
 from tally_contract.enums import CollectionType
 from tally_contract.records import AlterIdWindow, BatchEnvelope, CostCentreRecord
 from tally_contract.testing import assert_logged
+from tally_tools import dataset_gen
 from tally_tools.mock_tally import (
     MockConfig,
     Row,
     add_voucher,
+    company_guid,
     delete,
     edit_voucher,
+    load_dataset,
     sample_company,
 )
 from tests.e2e.harness import (
@@ -166,6 +170,50 @@ async def _reconciliation(
     assert r.status_code == 200, r.text
     body: dict[str, Any] = r.json()
     return body
+
+
+@pytest.mark.req_partial("REC-1.4")  # at size and live: P16.10
+async def test_the_generated_dataset_reconciles_with_its_own_closing_balances(
+    committed: Factory, start_server: Any, tally: tuple[MockConfig, int], tmp_path: Path
+) -> None:
+    """P16.5: the closing reports `dataset_gen` derives from its vouchers agree with what the
+    backend computes from the same vouchers - every ledger and stock item is compared and
+    none fails, at a date after the books end (income and expense have reset, ACC-9.2)."""
+    mock, tally_port = tally
+    meta = dataset_gen.build(tmp_path / "data", vouchers=60)
+    data = load_dataset(tmp_path / "data").data
+    # the harness registers Sharma Traders, so the dataset's company record is that company
+    data["TA_Company"] = [
+        Row(
+            company_guid(SHARMA),
+            r.alter_id,
+            r.xml.replace(meta["company"]["guid"], company_guid(SHARMA)).replace(
+                meta["company"]["name"], SHARMA
+            ),
+        )
+        for r in data["TA_Company"]
+    ]
+    mock.data = data
+    with time_machine.travel(datetime(2026, 10, 11, 12, tzinfo=UTC), tick=True):
+        server = start_server()
+        company, owner, token = await _seed(committed)
+        await _register(server, tally_port, token, tmp_path / "agent")
+        agent = _agent(tmp_path / "agent", tally_port)
+        uploading = Uploading(agent)
+        try:
+            await _full(server, company, owner, agent)
+            passed = await _reconciliation(committed, server, company, owner)
+            assert passed["run"]["overall"] == "PASS", passed
+            assert passed["rows"] == []
+            # ledgers the generator gave no opening row (3%) are a Data Quality skip, not a failure
+            assert {(n["reason"], n["fails"]) for n in passed["not_compared"]} == {
+                ("opening balance unavailable (Data Quality)", False)
+            }
+            compared = passed["run"]["compared"]
+            assert compared >= len(mock.data["TA_LedgerClosing"]) - len(passed["not_compared"])
+            assert compared >= len(mock.data["TA_StockClosing"])
+        finally:
+            uploading.close()
 
 
 @pytest.mark.req("REC-1.4")

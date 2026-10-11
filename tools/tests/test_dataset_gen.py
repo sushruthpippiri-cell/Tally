@@ -17,7 +17,7 @@ import pytest
 
 from tally_contract.enums import CollectionType
 from tally_contract.parser import parse_collection, parse_info, parse_keys
-from tally_tools import benchmark, dataset_gen
+from tally_tools import benchmark, dataset_gen, mock_tally
 
 VOUCHERS = 40
 
@@ -288,3 +288,18 @@ def test_info_is_not_a_file_because_the_mock_answers_it(
         f"<COMPANYNAME>{meta['company']['name']}</COMPANYNAME></INFO></TA_INFO></ENVELOPE>"
     )
     assert parse_info(probe.encode()).records[0].company_guid == meta["company"]["guid"]
+
+
+def test_the_closing_reports_cover_every_ledger_and_stock_item_and_load_into_the_mock(
+    built: tuple[Path, dict[str, Any], dict[str, Any]],
+) -> None:
+    """P16.5: one closing row per master, with the `{as_of}` placeholder the mock fills. That they
+    also agree with the backend's own figures is proved end to end, in
+    backend/tests/e2e/test_agent_end_to_end.py."""
+    directory, meta, tables = built
+    assert meta["xml_records"]["TA_LedgerClosing"] == len(tables["ledgers"])
+    assert meta["xml_records"]["TA_StockClosing"] == len(tables["stock_items"])
+    config = mock_tally.load_dataset(directory)
+    for report in ("TA_LedgerClosing", "TA_StockClosing"):
+        assert len(config.data[report]) == meta["xml_records"][report]
+        assert all("{as_of}" in r.xml for r in config.data[report])

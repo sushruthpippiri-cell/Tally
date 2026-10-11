@@ -25,13 +25,13 @@ Three places where the database's shape and Tally's differ, and what this does a
   1-based as it reads them. The XML carries no sequence at all - element order is the sequence -
   so this resolves itself, and the round-trip test compares order rather than the number.
 
-**Known gap: no closing reports.** `TA_StockClosing` and `TA_LedgerClosing` are not emitted, so
-the mock answers them from its own 12-voucher sample and the reconciliation run that follows a
-sync has nothing real to compare against (it logs a `record_parse_failed` for the sample's
-STOCK_CLOSING, which carries no ASOFDATE). That does not affect the sync timings this dataset
-exists for - reconciliation runs after the sync completes - but it does mean a benchmark cannot
-yet exercise REC-1.x at size. Emitting them needs the closing balances derived from the same
-rows, which is a follow-up rather than a line of XML.
+**Closing reports.** `TA_LedgerClosing` and `TA_StockClosing` are derived from the same rows as
+the vouchers, so the reconciliation that follows a sync compares equal on a correct system and
+differs on a broken one (REC-1.x at size). Both are written as for any date on or after
+`BOOKS_TO` + 1 (the mock fills `{as_of}`): a balance-sheet ledger is its opening plus every ACTIVE
+entry, an income or expense ledger has reset to zero (ACC-9.2), and a stock item is the net
+quantity in its base unit - the generator has no stock openings, no purchases, and no unit
+conversion, so lines sold by the Box are left out rather than added to Nos.
 """
 
 import argparse
@@ -41,6 +41,7 @@ import sys
 from collections import defaultdict
 from collections.abc import Iterator
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from xml.sax.saxutils import escape
@@ -50,7 +51,7 @@ from tally_tools import benchmark
 
 # Bumped whenever the emitted shape changes. With `benchmark.SEED` this is the dataset
 # identifier: a figure quoting (seed, version) names the data it was measured on exactly.
-DATASET_VERSION = 1
+DATASET_VERSION = 2
 
 MANIFEST = "manifest.json"
 
@@ -233,6 +234,53 @@ def _voucher_xml(
     return "".join(parts)
 
 
+def _ledger_closing_xml(
+    tables: dict[str, list[Any]], ledgers: dict[Any, dict[str, Any]]
+) -> list[str]:
+    """Tally's sign (a debit is negative, G23) of each ledger's closing balance after BOOKS_TO."""
+    nature = {r["group_id"]: r["nature"] for r in _records(tables, "groups")}
+    cancelled = {r["voucher_id"] for r in _records(tables, "vouchers") if r["status"] != "ACTIVE"}
+    balance: dict[Any, Decimal] = defaultdict(Decimal)
+    for o in _records(tables, "ledger_opening_balances"):
+        debit = o["accounting_direction"] == "DEBIT"
+        balance[o["ledger_id"]] += -o["amount_absolute"] if debit else o["amount_absolute"]
+    for e in _records(tables, "voucher_entries"):
+        if e["voucher_id"] not in cancelled:
+            balance[e["ledger_id"]] += Decimal(e["amount_raw"])
+    out = []
+    for lid, ledger in ledgers.items():
+        sheet = nature[ledger["classification_group_id"]] in ("ASSET", "LIABILITY")
+        out.append(
+            f"<LEDGER_CLOSING><GUID>{ledger['tally_guid']}</GUID>"
+            f"<NAME>{escape(ledger['name'])}</NAME><ASOFDATE>{{as_of}}</ASOFDATE>"
+            f"<CLOSINGBALANCE>{balance[lid] if sheet else Decimal(0)}</CLOSINGBALANCE>"
+            "</LEDGER_CLOSING>"
+        )
+    return out
+
+
+def _stock_closing_xml(tables: dict[str, list[Any]], stock: dict[Any, dict[str, Any]]) -> list[str]:
+    """Net quantity per item in its base unit: out on a sale, back in on a credit note."""
+    vtype = {
+        r["voucher_type_id"]: r["base_voucher_type"] for r in _records(tables, "voucher_types")
+    }
+    kind = {
+        r["voucher_id"]: vtype[r["voucher_type_id"]]
+        for r in _records(tables, "vouchers")
+        if r["status"] == "ACTIVE"
+    }
+    net: dict[Any, Decimal] = defaultdict(Decimal)
+    for i in _records(tables, "voucher_items"):
+        base = kind.get(i["voucher_id"])
+        if base is not None and i["unit"] == stock[i["stock_item_id"]]["base_unit"]:
+            net[i["stock_item_id"]] += i["quantity"] if base == "CREDIT_NOTE" else -i["quantity"]
+    return [
+        f"<STOCK_CLOSING><GUID>{item['tally_guid']}</GUID><ASOFDATE>{{as_of}}</ASOFDATE>"
+        f"<CLOSINGQTY>{net[sid]} {escape(item['base_unit'])}</CLOSINGQTY></STOCK_CLOSING>"
+        for sid, item in stock.items()
+    ]
+
+
 def _envelope(report: str, body: Iterator[str] | list[str]) -> str:
     root = report.upper()
     return f"<ENVELOPE><{root}>{''.join(body)}</{root}></ENVELOPE>"
@@ -297,6 +345,8 @@ def write_xml(directory: Path, tables: dict[str, list[Any]]) -> dict[str, int]:
         )
     emit("TA_Vouchers", voucher_xml)
     emit("TA_Company", [_company_xml(tables, master_high, voucher_high)])
+    emit(tc.LEDGER_CLOSING_REPORT, _ledger_closing_xml(tables, ledgers))
+    emit(tc.STOCK_CLOSING_REPORT, _stock_closing_xml(tables, stock))
     return written
 
 
